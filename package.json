@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@expo-google-fonts/fraunces": "^0.4.1",
+    "@expo-google-fonts/playfair-display": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
     "expo": "~57.0.25",
     "expo-constants": "^57.0.19",
@@ -17,6 +17,7 @@
     "react-native": "0.86.3",
     "react-native-safe-area-context": "^5.10.0",
     "react-native-screens": "^4.28.0",
+    "react-native-svg": "^15.15.5",
     "react-native-web": "^0.21.3"
   },
   "devDependencies": {

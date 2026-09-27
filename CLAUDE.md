@@ -97,6 +97,16 @@ version compatibility against the installed `expo` SDK manually. This is a
 container limitation, not a project convention — `expo install` is still
 correct and should work normally outside this sandbox.
 
+**Known web-only console warning:** `LaunchSequence.tsx`'s animated flight-path
+draw-on effect uses `Animated.createAnimatedComponent(Path)` from
+`react-native-svg`. On the web target this logs a "Received `false` for a
+non-boolean attribute `collapsable`" console error — confirmed via isolation
+testing to come from that library's `AnimatedComponent` wrapper leaking a
+React Native-only view-flattening hint (`collapsable`) into the DOM, which
+has no such attribute. This **cannot occur on iOS** (no DOM exists there) and
+is not a bug in this app's code — don't spend time re-diagnosing it, and
+don't remove the animated path effect over it.
+
 **Playwright browser-version note:** this container has Chromium
 pre-installed at a fixed revision (via `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
 no download). `@playwright/test` is pinned to `1.56.1` in `package.json` to

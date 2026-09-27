@@ -1,21 +1,24 @@
 import {
-  Fraunces_500Medium_Italic,
-  Fraunces_600SemiBold,
+  PlayfairDisplay_500Medium_Italic,
+  PlayfairDisplay_600SemiBold,
   useFonts,
-} from '@expo-google-fonts/fraunces';
+} from '@expo-google-fonts/playfair-display';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import LaunchSequence from '../components/LaunchSequence';
+import { darkColors } from '../theme/colors';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Fraunces_600SemiBold,
-    Fraunces_500Medium_Italic,
+    PlayfairDisplay_600SemiBold,
+    PlayfairDisplay_500Medium_Italic,
   });
+  const [introDone, setIntroDone] = useState(false);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -29,8 +32,9 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <StatusBar style="auto" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: darkColors.background } }} />
+      {!introDone && <LaunchSequence onFinish={() => setIntroDone(true)} />}
     </SafeAreaProvider>
   );
 }

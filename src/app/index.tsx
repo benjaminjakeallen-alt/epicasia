@@ -20,10 +20,14 @@ export default function Home() {
     <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]}
       >
-        <Text style={[type.largeTitle, { color: colors.ink }]}>Epic Asia</Text>
-        <View style={[styles.rule, { backgroundColor: colors.gold }]} />
+        <Text style={[type.caption, styles.eyebrow, { color: colors.accent }]}>
+          UNITED STATES → ASIA
+        </Text>
+        <Text testID="home-title" style={[type.largeTitle, { color: colors.ink }]}>
+          Epic Asia
+        </Text>
         <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
           Your trip, planned together.
         </Text>
@@ -41,7 +45,7 @@ export default function Home() {
               ]}
             >
               <View style={styles.rowLeft}>
-                <Ionicons name={section.icon} size={20} color={colors.lacquer} />
+                <Ionicons name={section.icon} size={19} color={colors.accent} />
                 <Text style={[type.body, styles.rowLabel, { color: colors.ink }]}>
                   {section.label}
                 </Text>
@@ -61,17 +65,14 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
-  rule: {
-    width: 40,
-    height: 3,
-    borderRadius: 2,
-    marginTop: 10,
+  eyebrow: {
+    marginBottom: 8,
   },
   subtitle: {
-    marginTop: 12,
-    marginBottom: 28,
+    marginTop: 8,
+    marginBottom: 32,
   },
   card: {
     borderRadius: 14,
@@ -82,7 +83,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: 15,
     paddingHorizontal: 16,
   },
   rowLeft: {
