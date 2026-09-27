@@ -1,0 +1,62 @@
+import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { type } from '../../theme/typography';
+import { useTheme } from '../../theme/useTheme';
+
+type Props = {
+  label: string;
+  onPress: () => void;
+  loading?: boolean;
+  disabled?: boolean;
+  variant?: 'primary' | 'text';
+};
+
+export default function AuthButton({ label, onPress, loading, disabled, variant = 'primary' }: Props) {
+  const colors = useTheme();
+  const isDisabled = disabled || loading;
+
+  if (variant === 'text') {
+    return (
+      <Pressable onPress={onPress} disabled={isDisabled} style={styles.textButton} hitSlop={8}>
+        <Text style={[type.body, { color: colors.accent, opacity: isDisabled ? 0.5 : 1 }]}>
+          {label}
+        </Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={isDisabled}
+      style={({ pressed }) => [
+        styles.button,
+        {
+          backgroundColor: pressed ? colors.accentPressed : colors.accent,
+          opacity: isDisabled ? 0.6 : 1,
+        },
+      ]}
+    >
+      {loading ? (
+        <ActivityIndicator color={colors.onAccent} />
+      ) : (
+        <Text style={[type.body, styles.buttonLabel, { color: colors.onAccent }]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  button: {
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonLabel: {
+    fontWeight: '600',
+  },
+  textButton: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+});

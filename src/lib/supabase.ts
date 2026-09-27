@@ -19,5 +19,10 @@ export const supabase = createClient(url, anonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE (not the older implicit flow) is the recommended flow for
+    // native apps: the recovery/confirmation email link carries an
+    // opaque `?code=` param instead of tokens in a URL fragment, which
+    // is what src/app/reset-password.tsx expects to receive.
+    flowType: 'pkce',
   },
 });

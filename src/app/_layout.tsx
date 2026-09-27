@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LaunchSequence from '../components/LaunchSequence';
+import { AuthProvider } from '../lib/AuthProvider';
 import { darkColors } from '../theme/colors';
 
 SplashScreen.preventAutoHideAsync();
@@ -31,10 +32,14 @@ export default function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: darkColors.background } }} />
-      {!introDone && <LaunchSequence onFinish={() => setIntroDone(true)} />}
-    </SafeAreaProvider>
+    <AuthProvider>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: darkColors.background } }}
+        />
+        {!introDone && <LaunchSequence onFinish={() => setIntroDone(true)} />}
+      </SafeAreaProvider>
+    </AuthProvider>
   );
 }

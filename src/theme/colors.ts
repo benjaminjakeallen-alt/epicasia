@@ -16,6 +16,8 @@ export const darkColors = {
   accentPressed: '#AD8A3E',
 
   onAccent: '#171208',
+
+  error: '#D9776A',
 };
 
 export const lightColors = {
@@ -33,6 +35,8 @@ export const lightColors = {
   accentPressed: '#8E6E28',
 
   onAccent: '#FFFCF5',
+
+  error: '#B3453A',
 };
 
 export type ThemeColors = typeof darkColors;

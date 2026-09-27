@@ -74,12 +74,30 @@ backend code.
   same-statement subquery that would have always passed — fixed with a
   `BEFORE UPDATE` trigger instead, since only OLD/a same-table subquery
   inside a trigger reliably sees the pre-update row.
-- Auth: login/register/password-reset screens not yet built. `is_admin` on
+- Auth: login/register/forgot-password screens built (`src/app/(auth)/`),
+  gated by `src/lib/AuthProvider.tsx` (session state from
+  `supabase.auth.getSession()` + `onAuthStateChange`) — `(app)/_layout.tsx`
+  redirects to `/(auth)/login` without a session, `(auth)/_layout.tsx`
+  redirects to `/(app)` with one, root `src/app/index.tsx` redirects to
+  whichever applies. Client uses the **PKCE** auth flow (`flowType: 'pkce'`
+  in `src/lib/supabase.ts`), not the older implicit flow, since it's the
+  recommended choice for native apps with deep links. `is_admin` on
   `profiles` plus the `protect_is_admin` trigger is the `checkAdmin()`
   equivalent — a non-admin can never set `is_admin` on any row (including
   their own) via a client update, only an existing admin can, and only
   Postgres enforces it (not app code), so it holds even if the client is
   compromised or bypassed entirely.
+  **`src/app/reset-password.tsx` (the deep-link landing page after clicking
+  a password-reset email) is NOT end-to-end verified** — doing so needs a
+  real device, a real email inbox, and clicking a real link, none available
+  in this dev environment. It's written against the PKCE `?code=` param
+  shape and calls `exchangeCodeForSession`, reasoned through carefully but
+  unconfirmed live. If it doesn't work when actually tested, start by
+  logging the incoming URL from `Linking.useURL()` to see its real shape.
+  Register also can't be fully verified end-to-end here for the same
+  network reason (see below) — the form/validation logic renders and
+  navigates correctly (confirmed), but the actual `signUp`/`signInWithPassword`
+  network calls have never successfully completed in this environment.
 - New tables beyond `profiles` (itinerary_items, flights, lodging, messages,
   expenses/expense_shares, gallery_photos, packing_items, documents,
   journal_entries) all follow one of two shapes: **shared** (any
@@ -199,6 +217,29 @@ Fix is `add_repo` for the specific owner/repo first; for a public repo this
 only grants read-level API access, not push — don't over-grant just to
 unblock a CLI's asset download if `push` access would be excessive for what
 you actually need.
+
+**Supabase network-egress note:** this container's network policy returns a
+403 from the proxy itself (not from Supabase) for direct outbound HTTPS to
+`*.supabase.co` — confirmed via `curl -x "$HTTPS_PROXY" .../auth/v1/settings`
+getting "CONNECT tunnel failed, response 403". The proxy's own README is
+explicit: this class of failure means "do not retry or route around it —
+report the blocked host." This means **no code running in this container
+(the app itself, a Playwright test, curl) can complete a real Supabase API
+call** — the app's login/register screens render and navigate correctly,
+but signing in/up has never successfully round-tripped here. This is
+separate from (and doesn't affect) the Supabase MCP connector's schema
+tools (`apply_migration`, `get_advisors`, etc.) — those run server-side
+through Anthropic's connector infrastructure, not this container's network,
+which is exactly why schema changes worked fine while live auth calls
+don't. It's also specific to this container: once the app runs on an actual
+phone, it connects over the phone's own network with no such restriction.
+Widening this session's network access level (environment settings) would
+lift it for future testing here, but wasn't done since the schema-management
+path already worked without it. If testing this in a fresh Playwright script
+here anyway, note that `chromium.launch({ proxy: {...} })`'s `bypass` option
+didn't route localhost correctly in one attempt — passing
+`--proxy-server=`/`--proxy-bypass-list=<local>;localhost;127.0.0.1` as raw
+Chromium `args` instead did.
 
 **Playwright browser-version note:** this container has Chromium
 pre-installed at a fixed revision (via `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
