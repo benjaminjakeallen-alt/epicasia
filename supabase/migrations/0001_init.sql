@@ -1,7 +1,9 @@
 -- Epic Asia — initial schema.
--- Run this once in Supabase: Dashboard -> SQL Editor -> New query -> paste
--- this whole file -> Run. Safe to re-run (uses IF NOT EXISTS / OR REPLACE
--- throughout) if something fails partway and you need to retry.
+-- Applied to project rjywjnidmjpfcjymaavi via the Supabase MCP connector
+-- (mcp__Supabase__apply_migration). See 0002/0003 for the follow-up
+-- migrations that fixed advisor-flagged issues found after this one ran.
+-- Kept idempotent (IF NOT EXISTS / OR REPLACE / drop-if-exists throughout)
+-- in case it ever needs to be re-run by hand in the SQL Editor instead.
 
 -- ============================================================
 -- Profiles (one row per trip member, keyed to Supabase Auth)

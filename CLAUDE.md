@@ -49,20 +49,31 @@ backend code.
   The module throws at import time if either is missing, on purpose — fail
   loud, not with a silent broken client. Never use the `service_role` key
   anywhere in this app; it bypasses every RLS policy below.
-- Schema + RLS: `supabase/migrations/0001_init.sql`. **Not applied via CLI
-  migrations** (no Supabase connector/service-role access from this
-  environment) — it's meant to be pasted into the Supabase Dashboard's SQL
-  Editor and run by hand. Written to be idempotent (`drop policy if exists`
-  before every `create policy`, `create table if not exists`) specifically
-  so a partial failure can be fixed and re-run safely. **This file has been
-  reasoned through carefully but never executed against a real Supabase
-  project** — if you hit an error running it, read the error rather than
-  assuming the file is correct; two real bugs were already caught this way
-  during writing (a `user_id` column referenced on tables that only have
-  `created_by`, and an `is_admin` self-protection check that used a
+- Schema + RLS: `supabase/migrations/0001_init.sql` (initial schema),
+  `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`.
+  **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
+  connector (`mcp__Supabase__apply_migration`) — the connector is connected
+  for this account, so use it directly for future schema changes rather
+  than hand-pasting SQL into the Dashboard. After any DDL change, run
+  `mcp__Supabase__get_advisors` (both `security` and `performance` types) —
+  it caught three real issues after 0001 that 0002/0003 fixed: internal
+  `SECURITY DEFINER` helper functions were auto-exposed as public PostgREST
+  RPC endpoints (fixed by moving them to a non-exposed `private` schema —
+  safe because Postgres resolves existing policy/trigger references by the
+  function's OID, not by re-parsing the schema-qualified name, so moving
+  schemas doesn't break them), RLS policies calling `auth.uid()` directly
+  instead of `(select auth.uid())` (re-evaluated per row instead of once
+  per query), and two tables with multiple permissive policies for the same
+  role+action (consolidated into one policy each). As of the last check,
+  both advisor reports are clean except 10 INFO-level "unused index"
+  findings on the indexes 0003 just added — expected and not a real issue,
+  since the tables are still empty; don't remove those indexes over it.
+  Also caught two real bugs while first writing 0001 (before it was ever
+  run): a `user_id` column referenced on tables that only have
+  `created_by`, and an `is_admin` self-protection check using a
   same-statement subquery that would have always passed — fixed with a
   `BEFORE UPDATE` trigger instead, since only OLD/a same-table subquery
-  inside a trigger reliably sees the pre-update row).
+  inside a trigger reliably sees the pre-update row.
 - Auth: login/register/password-reset screens not yet built. `is_admin` on
   `profiles` plus the `protect_is_admin` trigger is the `checkAdmin()`
   equivalent — a non-admin can never set `is_admin` on any row (including
@@ -79,6 +90,23 @@ backend code.
 - Storage: two buckets, `gallery` (public read, any member can upload) and
   `documents` (private, RLS-gated so a user can only touch objects under a
   `<their-uid>/...` path prefix via `storage.foldername(name)`).
+
+## Design tooling
+
+`DESIGN.md` at the repo root is a machine-readable companion to this
+section (colors/type/component tokens in YAML frontmatter + prose), created
+via `npx getdesign@latest add claude` and then **fully rewritten** to
+describe Epic Asia's actual tokens — the tool's "claude" preset generates a
+generic demo based on Claude.com's own marketing-site brand (cream canvas +
+coral + serif), completely unrelated to this app; don't regenerate it
+without immediately re-customizing it the same way, or a future session may
+mistake the generic preset for this project's real direction.
+
+`.agents/skills/` (13 skills from `Leonxlnx/taste-skill`, symlinked into
+`.claude/skills/`) are installed and committed — general frontend-design-
+taste skills (anti-slop layout/typography/motion guidance), not Epic-Asia-
+specific. `impeccable` (a similar tool) could not be installed in this
+container — see the GitHub access scoping note under Testing.
 
 ## Design direction
 
@@ -160,6 +188,17 @@ React Native-only view-flattening hint (`collapsable`) into the DOM, which
 has no such attribute. This **cannot occur on iOS** (no DOM exists there) and
 is not a bug in this app's code — don't spend time re-diagnosing it, and
 don't remove the animated path effect over it.
+
+**GitHub access scoping note:** this session's proxy only allows
+unauthenticated `git clone`/`fetch` of public repos and `WebFetch` of
+github.com pages by default — direct HTTP calls to `api.github.com` (or
+`github.com/.../releases/...`) for a repo that isn't explicitly attached
+return a 403 from the proxy itself, not from GitHub. This broke `npx
+impeccable install` (it fetches a signed release bundle via the GitHub API).
+Fix is `add_repo` for the specific owner/repo first; for a public repo this
+only grants read-level API access, not push — don't over-grant just to
+unblock a CLI's asset download if `push` access would be excessive for what
+you actually need.
 
 **Playwright browser-version note:** this container has Chromium
 pre-installed at a fixed revision (via `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
