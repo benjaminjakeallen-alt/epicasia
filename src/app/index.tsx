@@ -1,28 +1,37 @@
-import { ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { type } from '../theme/typography';
+import { useTheme } from '../theme/useTheme';
 
-const SECTIONS = ['Itinerary', 'Flights', 'Lodging', 'Packing List', 'Journal'];
+const SECTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { label: 'Itinerary', icon: 'calendar-outline' },
+  { label: 'Flights', icon: 'airplane-outline' },
+  { label: 'Lodging', icon: 'bed-outline' },
+  { label: 'Packing List', icon: 'briefcase-outline' },
+  { label: 'Journal', icon: 'book-outline' },
+];
 
 export default function Home() {
   const insets = useSafeAreaInsets();
-  const scheme = useColorScheme();
-  const colors = scheme === 'dark' ? darkColors : lightColors;
+  const colors = useTheme();
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 12 }]}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 20 }]}
       >
-        <Text style={[styles.largeTitle, { color: colors.label }]}>Epic Asia</Text>
-        <Text style={[styles.subtitle, { color: colors.secondaryLabel }]}>
-          Your upcoming trip, planned.
+        <Text style={[type.largeTitle, { color: colors.ink }]}>Epic Asia</Text>
+        <View style={[styles.rule, { backgroundColor: colors.gold }]} />
+        <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
+          Your trip, planned together.
         </Text>
 
-        <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {SECTIONS.map((section, i) => (
             <View
-              key={section}
+              key={section.label}
               style={[
                 styles.row,
                 i < SECTIONS.length - 1 && {
@@ -31,8 +40,13 @@ export default function Home() {
                 },
               ]}
             >
-              <Text style={[styles.rowLabel, { color: colors.label }]}>{section}</Text>
-              <Text style={[styles.rowChevron, { color: colors.tertiaryLabel }]}>›</Text>
+              <View style={styles.rowLeft}>
+                <Ionicons name={section.icon} size={20} color={colors.lacquer} />
+                <Text style={[type.body, styles.rowLabel, { color: colors.ink }]}>
+                  {section.label}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
             </View>
           ))}
         </View>
@@ -41,44 +55,27 @@ export default function Home() {
   );
 }
 
-const lightColors = {
-  groupedBackground: '#F2F2F7',
-  card: '#FFFFFF',
-  label: '#000000',
-  secondaryLabel: '#3C3C43',
-  tertiaryLabel: '#C7C7CC',
-  separator: '#E5E5EA',
-};
-
-const darkColors = {
-  groupedBackground: '#000000',
-  card: '#1C1C1E',
-  label: '#FFFFFF',
-  secondaryLabel: '#EBEBF5',
-  tertiaryLabel: '#48484A',
-  separator: '#38383A',
-};
-
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     paddingBottom: 32,
   },
-  largeTitle: {
-    fontSize: 34,
-    fontWeight: '700',
-    letterSpacing: 0.37,
+  rule: {
+    width: 40,
+    height: 3,
+    borderRadius: 2,
+    marginTop: 10,
   },
   subtitle: {
-    fontSize: 15,
-    marginTop: 4,
-    marginBottom: 24,
+    marginTop: 12,
+    marginBottom: 28,
   },
   card: {
-    borderRadius: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: 'hidden',
   },
   row: {
@@ -88,11 +85,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
   },
+  rowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   rowLabel: {
     fontSize: 17,
-  },
-  rowChevron: {
-    fontSize: 20,
-    fontWeight: '600',
   },
 });

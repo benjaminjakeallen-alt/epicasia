@@ -2,8 +2,27 @@
 
 # Epic Asia
 
-iOS trip-planning app for an upcoming Asia trip. Individual screens for
-itinerary, flights, lodging, packing list, and a trip journal.
+iOS group-trip app for an upcoming Asia trip. Same shape as the Robinson
+reunion app (individual logins, password reset, admin functions) but for
+trip logistics instead of a family reunion.
+
+## Planned feature set
+
+Shared (all trip members, editable by all or an organizer role):
+- Itinerary (day-by-day, grouped by day/city), Flights, Lodging
+- Group chat (reuse reunion-app's polling-based pattern)
+- Expense splitting — who paid, who owes, settle-up view
+- Shared photo gallery
+
+Personal (per-user, not shared):
+- Packing list, Documents wallet (passport/visa/insurance — private,
+  offline-available), Journal (optionally postable to the group)
+
+Utilities (client-side/API only, no backend needed):
+- Currency converter, offline phrasebook, weather, saved map pins
+
+Explicitly deferred: gamification/points/trivia (was reunion-specific,
+revisit later if wanted).
 
 ## Stack
 
@@ -16,17 +35,40 @@ hooks, utils) goes in `src/components/`, `src/hooks/`, etc., alongside
 Target platform is iOS first; the web build (`npm run web`) exists for fast
 iteration and Playwright-driven visual checks, not as a shipped product.
 
+**Backend: Supabase** (Postgres + Auth + Storage). Chosen over replicating
+reunion-app's homegrown Node+SQLite backend because this app needs
+multi-user accounts, group-shared data, and per-user file storage
+(documents/photos) from day one — Supabase gets that with far less custom
+backend code. Not yet wired up (no project created yet as of this writing).
+Auth needs: login/register, password reset, and an admin role — same shape
+as reunion-app's `is_admin` column + `checkAdmin()` gate, implemented via
+Supabase Auth + a Postgres RLS policy instead of a hand-rolled check.
+
 ## Design direction
 
-"World-class iOS-native feel," not generic cross-platform UI:
+Deliberate departure from "generic iOS app" toward **travel-realistic,
+Asian-inflected, not cartoonish** — no dragons/bamboo-border pastiche, just
+restrained color and materials evoking travel journals and lacquerware.
 
-- System font (`-apple-system`/San Francisco via RN's default font stack) —
-  don't override with a custom font unless explicitly asked.
-- `userInterfaceStyle: "automatic"` in `app.json` — the app must support
-  light and dark mode from day one. Any new screen needs both color sets
-  (see the `lightColors`/`darkColors` pattern in `src/app/index.tsx`).
-- iOS grouped-list / Settings-app visual language for list-based screens:
-  rounded card containers, `hairlineWidth` separators, chevron rows.
+- **Color** (`src/theme/colors.ts`, `useTheme()` hook): warm paper
+  background (`#F7F1E6` light / `#161310` dark), lacquer red as the primary
+  accent, jade and brushed gold as secondary accents, warm ink instead of
+  pure black/white for text. Both light and dark palettes are mandatory for
+  every screen (`userInterfaceStyle: "automatic"` in `app.json`) — use
+  `useTheme()`, never hardcode a color.
+- **Type** (`src/theme/typography.ts`): Fraunces (serif, via
+  `@expo-google-fonts/fraunces`) for large titles and section headers only —
+  the one deliberate deviation from the system font. Body/UI copy stays on
+  the system font (San Francisco on iOS) for native feel and performance.
+  Fonts are loaded in `src/app/_layout.tsx` behind `expo-splash-screen`
+  (`preventAutoHideAsync`/`hideAsync`) — never render text in `type.display`
+  before `useFonts` resolves.
+- Icons: `@expo/vector-icons` (Ionicons), used sparingly for section/row
+  affordances, not decorative.
+- iOS grouped-list / Settings-app layout language for list-based screens
+  still applies (rounded card containers, `hairlineWidth` separators,
+  chevron rows) — it's the color/type/iconography that changed, not the
+  structural patterns.
 - Respect safe-area insets (`react-native-safe-area-context`) — every
   top-level screen wraps in `SafeAreaProvider` (done once in
   `src/app/_layout.tsx`) and reads insets where needed instead of hardcoding
