@@ -342,3 +342,14 @@ playwright test` here with an "Executable doesn't exist" error.
   only.
 - `EAS` (not local Xcode/Android Studio) is the intended build path —
   `eas build`, `eas submit`, `eas update`. Not yet configured.
+
+## Web deploy (Vercel)
+
+`vercel.json` builds the web version with `npx expo export --platform web`
+into `dist/` and rewrites every path to `index.html` (single-page app).
+`.npmrc` sets `legacy-peer-deps=true` so a plain `npm install` (what Vercel
+runs) resolves the same way as local installs. The two `EXPO_PUBLIC_SUPABASE_*`
+vars must be set in Vercel's project settings — Expo bakes them into the
+bundle at build time, so changing them needs a redeploy. After the site
+URL exists, set it as Supabase Auth's Site URL + a redirect URL so
+confirmation and password-reset emails land on the app.
