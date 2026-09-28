@@ -4,9 +4,9 @@ import { legColors } from '../theme/colors';
 
 // Line-art landmarks from the actual trip plan, drawn on a shared 64x64
 // grid so they sit at a consistent visual weight when arranged together.
-type LandmarkProps = { color: string; size: number };
+export type LandmarkProps = { color: string; size: number };
 
-function Frame({ color, size, children }: LandmarkProps & { children: ReactNode }) {
+export function Frame({ color, size, children }: LandmarkProps & { children: ReactNode }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 64 64" fill="none">
       <G stroke={color} strokeWidth={1.9} strokeLinecap="round" strokeLinejoin="round">

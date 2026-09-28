@@ -243,6 +243,20 @@ them.
   depth. **Don't animate SVG props** (`Animated.createAnimatedComponent`
   on `react-native-svg` shapes) — it logs a web-only `collapsable` DOM
   error and isn't needed.
+- **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items defined in
+  `MENU` in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the
+  main navigation. Swipe left/right to turn it (PanResponder →
+  `rotation` Animated.Value measured in items, unbounded, wrapped with
+  `Animated.modulo`; spring-snaps to the nearest item, one extra item max
+  for a fast flick); the front badge is selected — tap it or "Open …" to
+  navigate, tap a side badge (or the ‹ › arrows) to turn it to the front.
+  Haptic tick on each snap (`expo-haptics`, native only). Items without an
+  `href` show "Coming soon". Icons are line art in `MenuIcons.tsx` on the
+  landmark grid (`Frame` exported from `Landmarks.tsx`); the dial is shared
+  with the intro via `OrbitDial.tsx`. **Web gotcha:** RN-web fires a child
+  Pressable's `onPress` even after the parent PanResponder captured the
+  gesture as a drag, so presses within 350ms of a drag end are ignored
+  (`justDragged`) — keep that guard if the interaction is reworked.
 - Icons: `@expo/vector-icons` (Ionicons outline) in `highlight` gold,
   sparingly.
 - iOS grouped-list layout language for list screens (rounded card,

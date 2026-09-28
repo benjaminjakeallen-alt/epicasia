@@ -141,6 +141,13 @@ embedded SVG path (from Noto Serif JP 900), so no CJK font ships.
 **HeaderGlow** (`src/components/HeaderGlow.tsx`) — absolute, touch-
 transparent radial wash; first child of a screen root.
 
+**Orbit menu** (`src/components/OrbitMenu.tsx`) — the home screen: the
+intro's dial and ring as a swipeable carousel of line-art badges (Itinerary
+gold, Flights blue, Lodging periwinkle, Packing jade, Journal rose, Games
+vermilion). Front badge gets a solid 2px ring in its color; the readout
+under it shows bearing, the label in its color, a mono caption, and a
+vermilion "Open" pill (or an outlined "Coming soon").
+
 **Grouped card / list row** — rounded 14px, gold hairline, gold outline
 icons, neutral separators, tertiary chevrons.
 
