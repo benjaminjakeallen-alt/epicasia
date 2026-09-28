@@ -8,7 +8,7 @@ export type ItineraryItem = {
   description: string | null;
   start_time: string | null; // timestamptz ISO string
   end_time: string | null;
-  created_by: string;
+  created_by: string | null; // null = seeded trip-plan row (admin-managed)
   created_at: string;
 };
 

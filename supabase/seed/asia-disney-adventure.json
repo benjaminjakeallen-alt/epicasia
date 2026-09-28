@@ -1,6 +1,6 @@
 {
   "source": "https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT",
-  "note": "Day-by-day plan extracted from the 'Asia Disney Adventure' trip-plan artifact. Insert into itinerary_items with created_by set to a real profiles.id — see CLAUDE.md.",
+  "note": "Day-by-day plan extracted from the 'Asia Disney Adventure' trip-plan artifact. Loaded into itinerary_items as unowned plan rows by asia-disney-adventure.sql (applied Sept 2026) — see CLAUDE.md.",
   "items": [
     {
       "day": "2027-06-06",

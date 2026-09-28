@@ -45,18 +45,19 @@ logged in, added "Tokyo DisneySea" via the real form, confirmed it rendered
 correctly grouped under its day header with time/city/description, deleted
 it and the test account afterward.
 
-**Real trip content exists and needs seeding.** The user has an actual
-itinerary already drafted as a Claude Artifact ("Asia Disney Adventure") —
-a 14-day plan, Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, June
-6–19, 2027, three families/13 travelers, four Disney park days. It was
-extracted once (day/title/city/description for all 14 days) but not yet
-inserted, because `itinerary_items.created_by` is a required FK to a real
-`profiles` row and no real user account existed at the time. Once the user
-has a real account, seed these via `mcp__Supabase__execute_sql` (fast,
-accurate) rather than asking them to retype 14 entries through the form —
-re-read the artifact (`https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT`)
-for the exact data if this wasn't done in the same session that extracted
-it.
+**The real trip plan is seeded (Sept 2026).** The user's 14-day plan from
+their "Asia Disney Adventure" artifact
+(`https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT` — built with Claude;
+Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, June 6–19, 2027) is
+in `itinerary_items` as **unowned plan rows** (`created_by` null), via
+`supabase/seed/asia-disney-adventure.sql` (idempotent — skips existing
+day+title pairs; source data in the `.json` beside it). Migration 0004 made
+`created_by` nullable with `ON DELETE SET NULL` for this. RLS needed no
+change: everyone reads them, only admins can edit/delete them, and the app
+shows no trash icon on them. If the artifact changes, update the JSON +
+SQL and re-run rather than retyping entries through the form (existing
+rows with a changed title won't be touched — delete/update those
+explicitly).
 
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
@@ -90,7 +91,8 @@ backend code.
   loud, not with a silent broken client. Never use the `service_role` key
   anywhere in this app; it bypasses every RLS policy below.
 - Schema + RLS: `supabase/migrations/0001_init.sql` (initial schema),
-  `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`.
+  `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`,
+  `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
