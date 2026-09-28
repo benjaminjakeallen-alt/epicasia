@@ -87,17 +87,30 @@ backend code.
   their own) via a client update, only an existing admin can, and only
   Postgres enforces it (not app code), so it holds even if the client is
   compromised or bypassed entirely.
+  **Register → email confirmation → login → sign out is verified live**
+  against the real project (this container's network policy was widened to
+  allow `*.supabase.co` — see the egress note below): signUp correctly
+  triggers `handle_new_user()` (confirmed a matching `profiles` row appears
+  with the right `display_name`/`is_admin: false`), Supabase does require
+  email confirmation on this project (`signUp` returns a user with no
+  session, login correctly fails with "Email not confirmed" until it's
+  confirmed), and after simulating confirmation
+  (`update auth.users set email_confirmed_at = now()` — exactly what
+  clicking the email link does) login/sign-out both work end-to-end. The
+  test account was deleted afterward (`auth.users`/`profiles` both back to
+  0 rows). forgot-password's request screen also reaches Supabase for real
+  (hit its email rate limit on a second send — a real 429, correctly
+  displayed, not a bug).
   **`src/app/reset-password.tsx` (the deep-link landing page after clicking
-  a password-reset email) is NOT end-to-end verified** — doing so needs a
-  real device, a real email inbox, and clicking a real link, none available
-  in this dev environment. It's written against the PKCE `?code=` param
-  shape and calls `exchangeCodeForSession`, reasoned through carefully but
-  unconfirmed live. If it doesn't work when actually tested, start by
-  logging the incoming URL from `Linking.useURL()` to see its real shape.
-  Register also can't be fully verified end-to-end here for the same
-  network reason (see below) — the form/validation logic renders and
-  navigates correctly (confirmed), but the actual `signUp`/`signInWithPassword`
-  network calls have never successfully completed in this environment.
+  a password-reset email) is still NOT end-to-end verified** — that
+  specifically needs a real device receiving a real email and tapping the
+  link to open the app via its `epicasia://` scheme, which no amount of
+  server-side SQL simulation substitutes for. It's written against the PKCE
+  `?code=` param shape and calls `exchangeCodeForSession` — reasoned through
+  carefully, and consistent with how the rest of the now-verified PKCE flow
+  behaves, but unconfirmed for this one specific screen. If it doesn't work
+  when actually tested, start by logging the incoming URL from
+  `Linking.useURL()` to see its real shape.
 - New tables beyond `profiles` (itinerary_items, flights, lodging, messages,
   expenses/expense_shares, gallery_photos, packing_items, documents,
   journal_entries) all follow one of two shapes: **shared** (any
@@ -218,28 +231,33 @@ only grants read-level API access, not push — don't over-grant just to
 unblock a CLI's asset download if `push` access would be excessive for what
 you actually need.
 
-**Supabase network-egress note:** this container's network policy returns a
-403 from the proxy itself (not from Supabase) for direct outbound HTTPS to
-`*.supabase.co` — confirmed via `curl -x "$HTTPS_PROXY" .../auth/v1/settings`
-getting "CONNECT tunnel failed, response 403". The proxy's own README is
-explicit: this class of failure means "do not retry or route around it —
-report the blocked host." This means **no code running in this container
-(the app itself, a Playwright test, curl) can complete a real Supabase API
-call** — the app's login/register screens render and navigate correctly,
-but signing in/up has never successfully round-tripped here. This is
-separate from (and doesn't affect) the Supabase MCP connector's schema
-tools (`apply_migration`, `get_advisors`, etc.) — those run server-side
-through Anthropic's connector infrastructure, not this container's network,
-which is exactly why schema changes worked fine while live auth calls
-don't. It's also specific to this container: once the app runs on an actual
-phone, it connects over the phone's own network with no such restriction.
-Widening this session's network access level (environment settings) would
-lift it for future testing here, but wasn't done since the schema-management
-path already worked without it. If testing this in a fresh Playwright script
-here anyway, note that `chromium.launch({ proxy: {...} })`'s `bypass` option
-didn't route localhost correctly in one attempt — passing
-`--proxy-server=`/`--proxy-bypass-list=<local>;localhost;127.0.0.1` as raw
-Chromium `args` instead did.
+**Supabase network-egress note (resolved):** this container's network
+policy originally returned a 403 from the proxy itself (not from Supabase)
+for direct outbound HTTPS to `*.supabase.co` — confirmed via
+`curl -x "$HTTPS_PROXY" .../auth/v1/settings` getting "CONNECT tunnel
+failed, response 403". The environment's network access level was widened
+to "Full" to fix this (environment settings — same dialog as the
+`EXPO_PUBLIC_*` env vars), after which the same curl got a real 401 from
+Supabase instead of a proxy block, and live signup/login/sign-out all
+verified working (see the Auth bullet above). This was separate from (and
+never affected) the Supabase MCP connector's schema tools
+(`apply_migration`, `get_advisors`, etc.) — those run server-side through
+Anthropic's connector infrastructure regardless of this container's network
+policy, which is exactly why schema changes always worked even before the
+network was widened. If a future session's network is back to a narrower
+policy and this resurfaces, that's the fix. Unlike the env-var change
+(which needed a new session), the network-policy change took effect in the
+already-running session immediately.
+
+When testing Supabase calls from a Playwright script in this container,
+route Chromium through the proxy explicitly — it doesn't inherit
+`HTTPS_PROXY` from the environment the way `curl`/Node's fetch do.
+`chromium.launch({ proxy: {...} })`'s `bypass` option didn't route
+localhost correctly in one attempt; passing `--proxy-server=`/
+`--proxy-bypass-list=<local>;localhost;127.0.0.1` as raw Chromium `args`
+did. Also needed: `--ignore-certificate-errors`, since the proxy
+TLS-terminates with its own CA (`/root/.ccr/ca-bundle.crt`) that Chromium
+doesn't trust by default the way the system CA store does for other tools.
 
 **Playwright browser-version note:** this container has Chromium
 pre-installed at a fixed revision (via `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`,
