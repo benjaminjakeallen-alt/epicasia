@@ -2,10 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import HeaderGlow from '../../components/HeaderGlow';
+import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
 import { supabase } from '../../lib/supabase';
 import { TRIP } from '../../lib/trip';
-import { fontFamily, type } from '../../theme/typography';
+import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 const SECTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap; href?: string }[] = [
@@ -24,16 +26,15 @@ export default function Home() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
+      <HeaderGlow />
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]}
       >
-        <Text style={[type.caption, styles.eyebrow, { color: colors.accent }]}>
+        <Text style={[type.caption, styles.eyebrow, { color: colors.highlight }]}>
           {TRIP.dates.toUpperCase()}
         </Text>
-        <Text testID="home-title" style={[type.largeTitle, { color: colors.ink }]}>
-          Epic <Text style={{ fontFamily: fontFamily.displayItalic, color: colors.accent }}>Asia</Text>
-        </Text>
+        <Wordmark size={40} testID="home-title" />
         <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
           Signed in as {session?.user.email}
         </Text>
@@ -53,7 +54,7 @@ export default function Home() {
               ]}
             >
               <View style={styles.rowLeft}>
-                <Ionicons name={section.icon} size={19} color={colors.accent} />
+                <Ionicons name={section.icon} size={19} color={colors.highlight} />
                 <Text
                   style={[
                     type.body,

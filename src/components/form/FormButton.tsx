@@ -17,7 +17,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
   if (variant === 'text') {
     return (
       <Pressable onPress={onPress} disabled={isDisabled} style={styles.textButton} hitSlop={8}>
-        <Text style={[type.body, { color: colors.accent, opacity: isDisabled ? 0.5 : 1 }]}>
+        <Text style={[type.body, { color: colors.highlight, opacity: isDisabled ? 0.5 : 1 }]}>
           {label}
         </Text>
       </Pressable>

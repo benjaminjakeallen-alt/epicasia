@@ -12,9 +12,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, G, Line, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { TRIP } from '../lib/trip';
-import { darkColors as c, legColors } from '../theme/colors';
+import { darkColors as c } from '../theme/colors';
 import { fontFamily } from '../theme/typography';
 import { LANDMARKS } from './Landmarks';
+import Wordmark from './Wordmark';
 
 const N = LANDMARKS.length;
 const TAU = Math.PI * 2;
@@ -158,8 +159,8 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
             <Stop offset="1" stopColor={c.accent} stopOpacity={0} />
           </RadialGradient>
           <RadialGradient id="glowViolet" cx="88%" cy="2%" rx="55%" ry="40%">
-            <Stop offset="0" stopColor={legColors.hongKong} stopOpacity={0.2} />
-            <Stop offset="1" stopColor={legColors.hongKong} stopOpacity={0} />
+            <Stop offset="0" stopColor={c.glowSecondary} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={c.glowSecondary} stopOpacity={0} />
           </RadialGradient>
         </Defs>
         <Rect x={0} y={0} width={width} height={height} fill="url(#glowAmber)" />
@@ -231,9 +232,7 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
         ]}
       >
         <Text style={styles.heroEyebrow}>{TRIP.dates.toUpperCase()}</Text>
-        <Text style={styles.wordmark}>
-          Epic <Text style={styles.wordmarkItalic}>Asia</Text>
-        </Text>
+        <Wordmark size={60} />
         <Animated.View
           style={[
             styles.rule,
@@ -289,7 +288,7 @@ function Dial({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: numb
         y1={cy + ry * r0 * Math.cos(a)}
         x2={cx + rx * r1 * Math.sin(a)}
         y2={cy + ry * r1 * Math.cos(a)}
-        stroke={major ? c.accent : '#ffffff'}
+        stroke={major ? c.highlight : '#ffffff'}
         strokeOpacity={major ? 0.75 : 0.18}
         strokeWidth={major ? 1.6 : 1}
       />,
@@ -337,15 +336,15 @@ function Dial({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: numb
       />
       {ticks}
       {labels}
-      <Line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke={c.accent} strokeOpacity={0.6} />
-      <Line x1={cx} y1={cy - 8} x2={cx} y2={cy + 8} stroke={c.accent} strokeOpacity={0.6} />
+      <Line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke={c.highlight} strokeOpacity={0.6} />
+      <Line x1={cx} y1={cy - 8} x2={cx} y2={cy + 8} stroke={c.highlight} strokeOpacity={0.6} />
     </G>
   );
 }
 
 // Camera viewfinder corner brackets.
 function Corners({ inset, top, bottom }: { inset: number; top: number; bottom: number }) {
-  const edge = { position: 'absolute' as const, width: 22, height: 22, borderColor: `${c.accent}88` };
+  const edge = { position: 'absolute' as const, width: 22, height: 22, borderColor: `${c.highlight}88` };
   return (
     <>
       <View style={[edge, { top: top + inset, left: inset, borderTopWidth: 1.5, borderLeftWidth: 1.5 }]} />
@@ -430,19 +429,8 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.monoSemiBold,
     fontSize: 11,
     letterSpacing: 2.2,
-    color: c.accent,
+    color: c.highlight,
     marginBottom: 14,
-  },
-  wordmark: {
-    fontFamily: fontFamily.display,
-    fontSize: 64,
-    lineHeight: 68,
-    letterSpacing: -0.8,
-    color: c.ink,
-  },
-  wordmarkItalic: {
-    fontFamily: fontFamily.displayItalic,
-    color: c.accent,
   },
   rule: {
     width: 64,

@@ -1,47 +1,56 @@
 ---
 version: alpha
 name: Epic-Asia
-description: A minimal-luxury, fixed-dark interface for a group trip to Asia — closer to a private-aviation or five-star-hotel app than a generic cross-platform UI. Charcoal surfaces, one brass/gold accent, a Playfair Display serif wordmark reserved for titles only, system sans everywhere else. The app does not follow the device's light/dark setting — dark is the one signature brand appearance.
+description: A premium, fixed-dark group-trip app for Japan, China and Hong Kong. Deep navy "night flight" surfaces, vermilion fills and antique-gold lines, an Instrument Serif wordmark locked up with a red 旅 seal stamp. Matches the "Asia Disney Adventure" trip-plan artifact, pushed toward East Asian red & gold. The app does not follow the device's light/dark setting.
 
 colors:
-  background: "#0B0B0C"
-  card: "#17171A"
-  border: "#28282C"
-  separator: "#232326"
-  ink: "#F2EFE9"
-  ink-secondary: "#A7A29A"
-  ink-tertiary: "#6C6862"
-  accent: "#C9A24B"
-  accent-pressed: "#AD8A3E"
-  on-accent: "#171208"
+  background: "#0a1d38"
+  card: "#123059"
+  card-raised: "#173a6b"
+  border: "rgba(214,168,92,0.32)"
+  separator: "rgba(255,255,255,0.08)"
+  ink: "#f3f6fa"
+  ink-secondary: "#a8bedd"
+  ink-tertiary: "#6f89ac"
+  accent: "#c8372d"
+  accent-pressed: "#a52b22"
+  highlight: "#d6a85c"
+  on-accent: "#fbf3e6"
+  error: "#ef6b6b"
+  leg-tokyo: "#c9577a"
+  leg-kyoto: "#d9a15b"
+  leg-beijing: "#4f8fe0"
+  leg-shanghai: "#6fae8f"
+  leg-hong-kong: "#7b83d6"
 
 typography:
   wordmark:
-    fontFamily: "PlayfairDisplay_600SemiBold, serif"
-    fontSize: 40px
-    lineHeight: 48px
+    fontFamily: "InstrumentSerif_400Regular (+ _Italic for 'Asia')"
+    fontSize: 40px (screens) / 60px (intro hero)
   large-title:
-    fontFamily: "PlayfairDisplay_600SemiBold, serif"
-    fontSize: 32px
-    lineHeight: 38px
+    fontFamily: "InstrumentSerif_400Regular"
+    fontSize: 40px
+    lineHeight: 44px
   title:
-    fontFamily: "PlayfairDisplay_600SemiBold, serif"
-    fontSize: 22px
-    lineHeight: 28px
+    fontFamily: "InstrumentSerif_400Regular"
+    fontSize: 28px
+    lineHeight: 32px
   subtitle:
-    fontFamily: "system"
+    fontFamily: "WorkSans_400Regular"
     fontSize: 15px
-    lineHeight: 20px
-    letterSpacing: 0.2px
+    lineHeight: 21px
   body:
-    fontFamily: "system"
-    fontSize: 17px
+    fontFamily: "WorkSans_400Regular"
+    fontSize: 16px
     lineHeight: 22px
+  button:
+    fontFamily: "WorkSans_600SemiBold"
+    fontSize: 15px
   caption:
-    fontFamily: "system"
-    fontSize: 12px
-    lineHeight: 16px
-    letterSpacing: 1.2px
+    fontFamily: "IBMPlexMono_600SemiBold"
+    fontSize: 11px
+    letterSpacing: 1.5px
+    textTransform: uppercase
 
 rounded:
   card: 14px
@@ -52,6 +61,18 @@ spacing:
   row-h: 16px
 
 components:
+  wordmark:
+    text: "Epic *Asia*"
+    italicColor: "{colors.highlight}"
+    seal: "{components.seal}"
+  seal:
+    fill: "{colors.accent}"
+    glyph: "旅, {colors.on-accent}"
+    rotation: -4deg
+    size: 0.68 × wordmark size
+  header-glow:
+    red: "{colors.accent} @ 24%, radial from top-left"
+    gold: "{colors.highlight} @ 10%, radial from top-right"
   grouped-card:
     backgroundColor: "{colors.card}"
     borderColor: "{colors.border}"
@@ -59,131 +80,106 @@ components:
   list-row:
     textColor: "{colors.ink}"
     typography: "{typography.body}"
-    iconColor: "{colors.accent}"
+    iconColor: "{colors.highlight}"
     chevronColor: "{colors.ink-tertiary}"
     separatorColor: "{colors.separator}"
+  primary-button:
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
+  text-button:
+    textColor: "{colors.highlight}"
   eyebrow-label:
-    textColor: "{colors.accent}"
+    textColor: "{colors.highlight}"
     typography: "{typography.caption}"
 ---
 
 ## Overview
 
-Epic Asia is **fixed dark, not adaptive** — `useTheme()` always returns the
-dark palette regardless of the device's system setting (`app.json`'s
-`userInterfaceStyle` is `"dark"`). This was a deliberate correction after an
-earlier direction (a lacquer-red/jade/gold "travel journal" palette with
-light+dark variants) read as themed and cartoonish rather than premium. Dark
-charcoal + a single brass accent, committed to as the one brand appearance —
-the way Robinhood or Uber Black don't reskin for light mode — reads as
-considered rather than decorative.
+Epic Asia is **fixed dark** — `useTheme()` always returns `darkColors`
+(`app.json` `userInterfaceStyle: "dark"`). The palette is the navy of the
+user's "Asia Disney Adventure" trip-plan artifact with East Asian red & gold
+accents ("B+", chosen from an A/B comparison). Earlier directions — lacquer
+red/jade "travel journal", charcoal + brass, navy + amber — were each
+rejected; see `CLAUDE.md` → Design direction for why.
 
 **Key characteristics:**
-- Near-black charcoal background (`{colors.background}` — #0B0B0C), slightly
-  lighter charcoal cards (`{colors.card}` — #17171A). No pure black, no pure
-  white text.
-- Exactly **one** accent color: brass/gold (`{colors.accent}` — #C9A24B).
-  Resist adding a second or third accent — that was the mistake in the
-  discarded direction.
-- Playfair Display serif reserved for the wordmark and titles only — every
-  other line of text is the system font (San Francisco on iOS). This split
-  is the one deliberate typographic flourish; don't extend the serif to
-  body copy or UI labels.
-- iOS grouped-list / Settings-app structure for list content: a rounded
-  card container, hairline separators between rows, chevron affordances —
-  not custom card shadows or elevation.
+- Navy surfaces; cards one step lighter with a **gold hairline** border.
+- **Two accent roles, never swapped:** vermilion (`accent`) for filled
+  shapes; antique gold (`highlight`) for text, icons and lines. Vermilion as
+  small text on navy is illegible-looking — don't.
+- One jewel tone per trip leg (`leg-*`) for itinerary days and landmarks.
+- Instrument Serif for display only; Work Sans for UI; IBM Plex Mono for
+  eyebrows/labels.
+- A single brand lockup (`Wordmark` + `Seal`) and a soft `HeaderGlow` at
+  the top of every top-level screen.
 
 ## Colors
 
-- **Background** (`{colors.background}` — #0B0B0C): the screen floor.
-- **Card** (`{colors.card}` — #17171A): grouped-list containers.
-- **Border** (`{colors.border}` — #28282C): card outline (hairline width).
-- **Separator** (`{colors.separator}` — #232326): between rows inside a card.
-- **Ink** (`{colors.ink}` — #F2EFE9): primary text — warm off-white, never
-  pure white.
-- **Ink Secondary** (`{colors.ink-secondary}` — #A7A29A): subtitles, muted
-  copy.
-- **Ink Tertiary** (`{colors.ink-tertiary}` — #6C6862): chevrons, the least
-  prominent text/icon tone.
-- **Accent** (`{colors.accent}` — #C9A24B): row icons, the eyebrow label,
-  interactive/brand moments. Used sparingly — it should read as a rare
-  material (brass), not a UI-wide highlight color.
-- **Accent Pressed** (`{colors.accent-pressed}` — #AD8A3E): press state for
-  accent-colored controls.
-
-There is a reserved, unused `lightColors` palette in `src/theme/colors.ts`
-for a possible future user-facing theme toggle — nothing reads it today.
-Don't wire it up without being asked.
-
-## Typography
-
-Font loading happens once in `src/app/_layout.tsx` via `useFonts` from
-`@expo-google-fonts/playfair-display`, gated behind `expo-splash-screen`
-(`preventAutoHideAsync`/`hideAsync`) — never render `{typography.wordmark}`,
-`{typography.large-title}`, or `{typography.title}` text before fonts
-resolve, or it silently falls back to a system font substitute mid-render.
-
-| Token | Size | Font | Use |
-|---|---|---|---|
-| `{typography.wordmark}` | 40px | Playfair Display 600 | The "Epic Asia" launch-sequence wordmark |
-| `{typography.large-title}` | 32px | Playfair Display 600 | Screen-level titles (e.g. the home screen's "Epic Asia") |
-| `{typography.title}` | 22px | Playfair Display 600 | Section headers |
-| `{typography.subtitle}` | 15px | System | Screen subtitles |
-| `{typography.body}` | 17px | System | List rows, default body text |
-| `{typography.caption}` | 12px, tracked +1.2px | System, uppercase | Eyebrow labels (e.g. "UNITED STATES → ASIA") |
+- **Background** `#0a1d38` / **Card** `#123059` / **Card raised** `#173a6b`.
+- **Border** gold at 32% — cards and inputs. **Separator** white 8% — rows
+  inside a card (keeps lists from becoming a gold grid).
+- **Ink** `#f3f6fa`, **secondary** `#a8bedd`, **tertiary** `#6f89ac`.
+- **Accent** vermilion `#c8372d` (pressed `#a52b22`): primary buttons, seal,
+  hero rule, REC dot, header glow.
+- **Highlight** antique gold `#d6a85c`: eyebrows, italic "Asia", icons,
+  text buttons, dial ticks and crosshair.
+- **On accent** ivory `#fbf3e6`.
+- **Legs:** Tokyo `#c9577a`, Kyoto/Nara `#d9a15b`, Beijing `#4f8fe0`,
+  Shanghai `#6fae8f`, Hong Kong `#7b83d6` — via `legColorForCity()` (for
+  "Kyoto → Beijing" transit days, the last-named city wins).
 
 ## Components
 
-**`grouped-card`** — The one content container pattern so far: rounded
-14px, hairline border in `{colors.border}`, background `{colors.card}`.
-Holds a list of `list-row`s.
+**Wordmark** (`src/components/Wordmark.tsx`) — "Epic *Asia*" + seal in a
+row. The only way to render the brand name. It's a View, so never nest it in
+`<Text>`.
 
-**`list-row`** — Icon (Ionicons outline, `{colors.accent}`) + label
-(`{typography.body}`, `{colors.ink}`) on the left, chevron
-(`{colors.ink-tertiary}`) on the right. Rows separate with a hairline
-`{colors.separator}` line except after the last row. 15px vertical / 16px
-horizontal padding.
+**Seal** (`src/components/Seal.tsx`) — vermilion rounded-square hanko with
+an ivory inner frame and 旅 ("journey"), rotated −4°. The glyph is an
+embedded SVG path (from Noto Serif JP 900), so no CJK font ships.
 
-**`eyebrow-label`** — Small tracked-caps accent-colored line above a title
-(e.g. "UNITED STATES → ASIA" above "Epic Asia"). `{typography.caption}` in
-`{colors.accent}`.
+**HeaderGlow** (`src/components/HeaderGlow.tsx`) — absolute, touch-
+transparent radial wash; first child of a screen root.
+
+**Grouped card / list row** — rounded 14px, gold hairline, gold outline
+icons, neutral separators, tertiary chevrons.
+
+**Form** (`src/components/form/`) — `FormScreen` (glow + title node or
+string + subtitle + error + footer), `FormField` (mono caps label, card-
+colored input with gold hairline), `FormButton` (primary vermilion / text
+gold).
+
+**Itinerary day** — mono caps date in the leg color with a leading dot;
+item cards carry a 3px left border in the leg color.
 
 ## Launch Sequence
 
-Not a static screen — `src/components/LaunchSequence.tsx` is a one-time
-animated intro shown on every cold app open (tap anywhere to skip): an SVG
-flight path (quadratic bezier, `react-native-svg`) draws itself from a
-"USA" marker to an "ASIA" marker while a rotating plane icon travels along
-it, then fades into the `{typography.wordmark}` "Epic Asia" title. Built on
-plain React Native `Animated` (not `react-native-reanimated`, to avoid its
-worklets/Babel-plugin setup) — see that file's comments before changing the
-path geometry, since the plane/label positions share the SVG's raw
-coordinate space rather than a percentage-based one.
+`src/components/LaunchSequence.tsx` — every cold open, tap to skip,
+reduce-motion goes straight to the hero. A "360° camera" orbit: 8 line-art
+landmark badges (`src/components/Landmarks.tsx`) ride an ellipse around a
+dashed dial with gold ticks, HUD corners, a "360° SWEEP" REC readout and a
+bearing/name/city readout; one full eased turn, then the rig scales to 1.9×
+and dissolves into the hero (dates eyebrow, 60px Wordmark, vermilion rule,
+airport route, trip stats). Only View transforms/opacity animate (native
+driver). Don't animate SVG props.
 
 ## Do's and Don'ts
 
 ### Do
-- Keep the palette to background / card / one accent. If a new screen seems
-  to need a second accent color, that's a sign to reconsider the design,
-  not add a color token.
-- Reserve the serif for titles/wordmark; everything else is system font.
-- Follow the grouped-list pattern (rounded card, hairline separators,
-  chevron rows) for any new list-shaped content.
+- Keep vermilion for fills and gold for lines/text.
+- Use `Wordmark` for the brand name and `HeaderGlow` on top-level screens.
+- Use leg colors only to identify cities.
 
 ### Don't
-- Don't reintroduce light-mode adaptation without being explicitly asked —
-  dark is the fixed brand appearance.
-- Don't add cultural/thematic motifs (the earlier lacquer-red/jade
-  direction was explicitly rejected for reading as themed rather than
-  premium).
-- Don't add drop shadows/elevation for depth — differentiation comes from
-  the card-vs-background color step, not shadows.
+- Don't add more reds/golds or new accent tokens — one seal, one glow per
+  screen is the ceiling. More reads as themed, not premium.
+- Don't add cartoon motifs (lanterns, dragons, brush-stroke fonts).
+- Don't add drop shadows; depth comes from the card/background step and
+  hairlines.
+- Don't reintroduce light-mode adaptation without being asked.
 
 ## Known Gaps
 
-This file only documents what's actually built (a home screen + launch
-sequence) — it intentionally does not invent components for unbuilt
-screens (itinerary, flights, chat, etc. from the planned feature set in
-`CLAUDE.md`). Extend this file as those screens are actually implemented,
-following the established color/type/component conventions above rather
-than introducing new ones per-screen.
+Documents only what's built: auth screens, home, itinerary list/add, and
+the launch sequence. Extend as Flights, Lodging, Chat, etc. are built,
+following these conventions.

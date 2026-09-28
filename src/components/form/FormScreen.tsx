@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
+import HeaderGlow from '../HeaderGlow';
 
 type Props = {
   title: ReactNode;
@@ -28,11 +29,19 @@ export default function FormScreen({ title, subtitle, error, children, footer }:
       style={[styles.flex, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
+      <HeaderGlow />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 48 }]}
       >
-        <Text style={[type.largeTitle, { color: colors.ink }]}>{title}</Text>
+        {/* A string title gets the standard heading style; a node (e.g. the
+            Wordmark lockup, which contains a non-Text SVG) renders as-is,
+            since Views can't safely nest inside Text on native. */}
+        {typeof title === 'string' ? (
+          <Text style={[type.largeTitle, { color: colors.ink }]}>{title}</Text>
+        ) : (
+          title
+        )}
         {subtitle ? (
           <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
             {subtitle}

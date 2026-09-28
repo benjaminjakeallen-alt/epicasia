@@ -181,53 +181,71 @@ container — see the GitHub access scoping note under Testing.
 
 ## Design direction
 
-**Minimal luxury, fixed dark theme** — like a five-star hotel or
-private-aviation app, not a generic cross-platform UI and not themed/
-cartoonish "Asian" motifs. Superseded an earlier lacquer-red/jade/gold
-"travel journal" direction that read as themed rather than premium; that
-palette is gone from the codebase.
+**Premium, fixed-dark, with East Asian red & gold** ("B+" — chosen by the
+user from a side-by-side A/B in Sept 2026). History, so nobody re-litigates
+it: (1) a lacquer-red/jade "travel journal" palette was rejected as themed/
+cartoonish; (2) charcoal + one brass accent was replaced to match the user's
+"Asia Disney Adventure" trip-plan artifact
+(https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT) — navy + amber;
+(3) navy + amber was then judged "not very Asian", so accents moved to
+vermilion + antique gold on the same navy. Premium comes from restraint in
+*how* red/gold are used (fills vs hairlines, one seal), not from avoiding
+them.
 
 - **The app does not adapt to system light/dark mode.** `useTheme()`
-  (`src/theme/useTheme.ts`) always returns `darkColors` — dark is the one
-  signature brand appearance, the way many premium apps (Robinhood, Uber
-  Black) commit to a single look rather than following the OS setting.
-  `app.json`'s `userInterfaceStyle` is `"dark"` (forces dark regardless of
-  the device setting). `lightColors` still exists in `src/theme/colors.ts`
-  in reserve for a possible future user-facing theme toggle, but nothing
-  reads it today — don't wire it up without being asked.
-- **Color** (`src/theme/colors.ts`): near-black charcoal surfaces
-  (`#0B0B0C` background, `#17171A` cards), a single brass/gold accent
-  (`#C9A24B`), warm off-white ink instead of pure white. One accent color
-  only — resist the urge to add more.
-- **Type** (`src/theme/typography.ts`): Playfair Display (serif, via
-  `@expo-google-fonts/playfair-display`) for the "Epic Asia" wordmark and
-  section titles only — the one deliberate deviation from the system font.
-  Body/UI copy stays on the system font (San Francisco on iOS). Fonts load
-  in `src/app/_layout.tsx` behind `expo-splash-screen`
-  (`preventAutoHideAsync`/`hideAsync`) — never render `type.display`/
-  `type.wordmark`/`type.largeTitle`/`type.title` text before `useFonts`
+  (`src/theme/useTheme.ts`) always returns `darkColors`; `app.json`'s
+  `userInterfaceStyle` is `"dark"` and its background is `#0a1d38`.
+  `lightColors` in `src/theme/colors.ts` is reserved and unused — don't wire
+  it up without being asked.
+- **Color** (`src/theme/colors.ts`): navy surfaces (`#0a1d38` background,
+  `#123059` cards), cool off-white ink. Two accent roles, deliberately split:
+  - `accent` **vermilion `#c8372d`** — FILLS only: primary buttons, the seal,
+    the hero rule, REC dot, the red header glow. Reads poorly as small text
+    on navy, so never use it for text.
+  - `highlight` **antique gold `#d6a85c`** — TEXT AND LINES: eyebrows, the
+    italic "Asia", row icons, text-button labels, dial ticks. `border` is
+    the same gold at 32% alpha, so cards/inputs get a gold hairline; row
+    `separator`s inside a card stay neutral white-8% (no gold grids).
+  - `onAccent` ivory `#fbf3e6` — labels on vermilion.
+  - `legColors` / `legColorForCity()`: one jewel tone per trip leg (Tokyo
+    rose, Kyoto/Nara amber, Beijing blue, Shanghai jade, Hong Kong
+    periwinkle), matching the artifact. Used for itinerary day dots/borders
+    and landmark badges — keep assignments stable.
+- **Brand lockup** — always use `<Wordmark size={…} />`
+  (`src/components/Wordmark.tsx`): "Epic *Asia*" (italic in gold) + the
+  `<Seal>` (`src/components/Seal.tsx`), a rotated vermilion hanko stamp
+  with 旅 ("journey") in ivory. The glyph is a static SVG path extracted from
+  Noto Serif JP 900 — no CJK font is loaded. Used by the intro hero (60),
+  login (40) and home (40). Wordmark is a View row, so never nest it inside
+  a `<Text>`; `FormScreen`'s `title` accepts a node for this reason.
+- **Header glow** (`src/components/HeaderGlow.tsx`): soft vermilion radial
+  wash top-left + faint gold top-right, absolute, touch-transparent. Render
+  it as the first child of a screen's root (done in `FormScreen`, home,
+  itinerary). New top-level screens should include it.
+- **Type** (`src/theme/typography.ts`), same three families as the artifact
+  via `@expo-google-fonts/*`: Instrument Serif (display, + italic for accent
+  words), Work Sans (body/UI), IBM Plex Mono (eyebrows/labels, "boarding
+  pass" data). Each weight is its own family name — never use `fontWeight`
+  with these. Fonts load in `src/app/_layout.tsx` behind
+  `expo-splash-screen`; don't render display text before `useFonts`
   resolves.
 - **Launch sequence** (`src/components/LaunchSequence.tsx`): shown on every
-  cold app open (not just first install), tap-anywhere to skip. Animates a
-  plane along an SVG quadratic-bezier path from a "USA" marker to an "ASIA"
-  marker, then fades in the wordmark. Pure `react-native` `Animated` API +
-  `react-native-svg` — deliberately not `react-native-reanimated`, to avoid
-  its worklets/Babel-plugin setup (which conflicted with other deps when
-  tried). If the path/plane coordinates ever need to change, keep `MAP_SIZE`
-  equal to the SVG `viewBox` — the plane and labels are positioned in that
-  same raw coordinate space, not a percentage-based one, so they'd drift
-  out of sync with the path otherwise.
-- Icons: `@expo/vector-icons` (Ionicons), used sparingly for section/row
-  affordances, not decorative.
-- iOS grouped-list / Settings-app layout language for list-based screens
-  still applies (rounded card containers, `hairlineWidth` separators,
-  chevron rows).
-- Respect safe-area insets (`react-native-safe-area-context`) — every
-  top-level screen wraps in `SafeAreaProvider` (done once in
-  `src/app/_layout.tsx`) and reads insets where needed instead of hardcoding
-  status-bar-height padding.
-- Prefer spring-physics transitions over linear easing once real navigation
-  and gestures are added (not yet wired up beyond the launch sequence).
+  cold open, tap to skip, reduce-motion jumps straight to the hero. A "360°
+  camera" orbit: 8 line-art landmark badges (`src/components/Landmarks.tsx`
+  — only places actually on the plan: Tokyo Disney castle, Meiji torii,
+  Kinkaku-ji, Tōdai-ji, Great Wall, Temple of Heaven, Pearl Tower, Big
+  Buddha) ride an ellipse around a dial with HUD readouts, sweep one full
+  turn, then the rig scales up/dissolves into the Wordmark hero. Only View
+  transforms/opacity are animated (native driver); orbit paths are
+  pre-sampled into `interpolate` ranges and `zIndex` is recomputed from
+  depth. **Don't animate SVG props** (`Animated.createAnimatedComponent`
+  on `react-native-svg` shapes) — it logs a web-only `collapsable` DOM
+  error and isn't needed.
+- Icons: `@expo/vector-icons` (Ionicons outline) in `highlight` gold,
+  sparingly.
+- iOS grouped-list layout language for list screens (rounded card,
+  hairline separators, chevron rows). No drop shadows.
+- Respect safe-area insets (`react-native-safe-area-context`).
 
 ## Testing
 
@@ -249,16 +267,6 @@ plain `npm install <pkg> --legacy-peer-deps` here instead, and cross-check
 version compatibility against the installed `expo` SDK manually. This is a
 container limitation, not a project convention — `expo install` is still
 correct and should work normally outside this sandbox.
-
-**Known web-only console warning:** `LaunchSequence.tsx`'s animated flight-path
-draw-on effect uses `Animated.createAnimatedComponent(Path)` from
-`react-native-svg`. On the web target this logs a "Received `false` for a
-non-boolean attribute `collapsable`" console error — confirmed via isolation
-testing to come from that library's `AnimatedComponent` wrapper leaking a
-React Native-only view-flattening hint (`collapsable`) into the DOM, which
-has no such attribute. This **cannot occur on iOS** (no DOM exists there) and
-is not a bug in this app's code — don't spend time re-diagnosing it, and
-don't remove the animated path effect over it.
 
 **GitHub access scoping note:** this session's proxy only allows
 unauthenticated `git clone`/`fetch` of public repos and `WebFetch` of

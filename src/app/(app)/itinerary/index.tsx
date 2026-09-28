@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import HeaderGlow from '../../../components/HeaderGlow';
 import { useAuth } from '../../../lib/AuthProvider';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
 import { legColorForCity } from '../../../theme/colors';
@@ -74,6 +75,7 @@ export default function ItineraryList() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
+      <HeaderGlow />
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <Ionicons name="chevron-back" size={24} color={colors.ink} />
@@ -84,12 +86,12 @@ export default function ItineraryList() {
           onPress={() => router.push('/(app)/itinerary/new')}
           hitSlop={12}
         >
-          <Ionicons name="add" size={26} color={colors.accent} />
+          <Ionicons name="add" size={26} color={colors.highlight} />
         </Pressable>
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.loading} color={colors.accent} />
+        <ActivityIndicator style={styles.loading} color={colors.highlight} />
       ) : (
         <ScrollView contentContainerStyle={styles.content}>
           {error ? <Text style={[type.body, { color: colors.error }]}>{error}</Text> : null}
@@ -102,7 +104,7 @@ export default function ItineraryList() {
 
           {days.map((day) => {
             const dayItems = items.filter((i) => i.day === day);
-            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.accent;
+            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.highlight;
             return (
             <View key={day} style={styles.dayGroup}>
               <View style={styles.dayHeader}>

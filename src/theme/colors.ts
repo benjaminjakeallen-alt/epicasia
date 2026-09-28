@@ -1,24 +1,33 @@
-// Palette lifted directly from the "Asia Disney Adventure" trip-plan
-// artifact (https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT) so the app
-// and the plan read as one brand: deep navy "night flight" surfaces, amber
-// as the primary accent, and one jewel tone per leg of the trip.
+// Navy surfaces from the "Asia Disney Adventure" trip-plan artifact
+// (https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT), pushed toward an East
+// Asian lacquer feel: vermilion for fills, antique gold for text/lines and
+// card hairlines, and one jewel tone per leg of the trip.
 export const darkColors = {
   background: '#0a1d38',
   groupedBackground: '#0a1d38',
   card: '#123059',
   cardRaised: '#173a6b',
-  border: 'rgba(255,255,255,0.16)',
-  separator: 'rgba(255,255,255,0.09)',
+  // Gold hairline on cards/inputs; row separators inside a card stay a
+  // neutral soft white so a list doesn't turn into a gold grid.
+  border: 'rgba(214,168,92,0.32)',
+  separator: 'rgba(255,255,255,0.08)',
 
   ink: '#f3f6fa',
   inkSecondary: '#a8bedd',
   inkTertiary: '#6f89ac',
 
-  accent: '#e2703a',
-  accentPressed: '#b8582a',
+  // `accent` is for FILLS (primary buttons, the REC dot, the hero rule,
+  // background glow). `highlight` is for TEXT AND LINES (eyebrows, the
+  // italic "Asia", icons, dial ticks, text links). They're split because
+  // some accent colors (e.g. vermilion) read well as a filled shape but
+  // poorly as small text on navy.
+  accent: '#c8372d',
+  accentPressed: '#a52b22',
+  highlight: '#d6a85c',
+  glowSecondary: '#d6a85c',
 
-  // Dark navy on amber, same as the artifact's selected-tab treatment.
-  onAccent: '#0a1d38',
+  // Warm ivory on vermilion — button labels and the seal's glyph.
+  onAccent: '#fbf3e6',
 
   error: '#ef6b6b',
 };
@@ -71,6 +80,8 @@ export const lightColors = {
 
   accent: '#c85a26',
   accentPressed: '#a4481d',
+  highlight: '#c85a26',
+  glowSecondary: '#7b83d6',
 
   onAccent: '#ffffff',
 
