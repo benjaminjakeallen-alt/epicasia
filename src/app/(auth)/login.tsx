@@ -1,9 +1,12 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
+import { Text } from 'react-native';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
 import { supabase } from '../../lib/supabase';
+import { darkColors } from '../../theme/colors';
+import { fontFamily } from '../../theme/typography';
 
 export default function Login() {
   const router = useRouter();
@@ -26,7 +29,11 @@ export default function Login() {
 
   return (
     <FormScreen
-      title="Epic Asia"
+      title={
+        <>
+          Epic <Text style={{ fontFamily: fontFamily.displayItalic, color: darkColors.accent }}>Asia</Text>
+        </>
+      }
       subtitle="Sign in to your trip"
       error={error}
       footer={

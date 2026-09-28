@@ -7,7 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B0B0C",
+    "backgroundColor": "#0a1d38",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -16,7 +16,7 @@
     "android": {
       "package": "com.benjaminjakeallen.epicasia",
       "adaptiveIcon": {
-        "backgroundColor": "#0B0B0C",
+        "backgroundColor": "#0a1d38",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

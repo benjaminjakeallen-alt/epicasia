@@ -4,7 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/AuthProvider';
 import { supabase } from '../../lib/supabase';
-import { type } from '../../theme/typography';
+import { TRIP } from '../../lib/trip';
+import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 const SECTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap; href?: string }[] = [
@@ -28,10 +29,10 @@ export default function Home() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 28 }]}
       >
         <Text style={[type.caption, styles.eyebrow, { color: colors.accent }]}>
-          UNITED STATES → ASIA
+          {TRIP.dates.toUpperCase()}
         </Text>
         <Text testID="home-title" style={[type.largeTitle, { color: colors.ink }]}>
-          Epic Asia
+          Epic <Text style={{ fontFamily: fontFamily.displayItalic, color: colors.accent }}>Asia</Text>
         </Text>
         <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
           Signed in as {session?.user.email}
@@ -56,7 +57,6 @@ export default function Home() {
                 <Text
                   style={[
                     type.body,
-                    styles.rowLabel,
                     { color: section.href ? colors.ink : colors.inkTertiary },
                   ]}
                 >
@@ -107,9 +107,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-  },
-  rowLabel: {
-    fontSize: 17,
   },
   signOut: {
     marginTop: 24,

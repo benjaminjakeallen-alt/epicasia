@@ -12,7 +12,7 @@ import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 type Props = {
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   error?: string | null;
   children?: ReactNode;

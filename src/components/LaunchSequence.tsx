@@ -1,180 +1,358 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
-import { darkColors } from '../theme/colors';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement } from 'react';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Defs, Ellipse, G, Line, RadialGradient, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import { TRIP } from '../lib/trip';
+import { darkColors as c, legColors } from '../theme/colors';
 import { fontFamily } from '../theme/typography';
+import { LANDMARKS } from './Landmarks';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
+const N = LANDMARKS.length;
+const TAU = Math.PI * 2;
+const SAMPLES = 96;
+const BADGE = 68;
 
-// The plane/labels are positioned in the same raw coordinate space as the
-// SVG viewBox, so the map box below is rendered at a FIXED pixel size
-// (MAP_SIZE) equal to VIEWBOX — no percentage/responsive sizing here, or
-// the SVG's internal scaling and the plane's Animated transform would
-// drift apart.
-const MAP_SIZE = 300;
-const VIEWBOX = MAP_SIZE;
-const START = { x: 46, y: 226 };
-const CONTROL = { x: 158, y: 30 };
-const END = { x: 256, y: 120 };
-const SAMPLES = 48;
-
-function bezierPoint(t: number) {
-  const mt = 1 - t;
-  const x = mt * mt * START.x + 2 * mt * t * CONTROL.x + t * t * END.x;
-  const y = mt * mt * START.y + 2 * mt * t * CONTROL.y + t * t * END.y;
-  return { x, y };
-}
-
-function buildPath() {
-  const points = Array.from({ length: SAMPLES + 1 }, (_, i) => bezierPoint(i / SAMPLES));
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ');
-  let length = 0;
-  const angles: number[] = [];
-  for (let i = 0; i < points.length; i++) {
-    const a = points[Math.max(i - 1, 0)];
-    const b = points[Math.min(i + 1, points.length - 1)];
-    angles.push((Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI);
-    if (i > 0) {
-      length += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
-    }
-  }
-  return { d, points, angles, length };
-}
-
-const PATH = buildPath();
-const INPUT_RANGE = PATH.points.map((_, i) => i / SAMPLES);
-const XS = PATH.points.map((p) => p.x);
-const YS = PATH.points.map((p) => p.y);
-// The airplane glyph points to the upper-right (~-45deg) at rest, so that
-// offset is baked into every sampled angle before it ever reaches Animated.
-const PLANE_BASE_ROTATION = -45;
-const ROTATIONS = PATH.angles.map((deg) => `${deg + PLANE_BASE_ROTATION}deg`);
-
+// Sequence: the landmarks orbit the screen center like a 360° camera sweep
+// around the trip, then the camera "pushes through" the ring (ring scales
+// up and dissolves) into the hero wordmark. Everything animated is a View
+// transform/opacity — no animated SVG props — so it runs on the native
+// driver and avoids react-native-svg's web-only `collapsable` warning.
 export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
-  const progress = useRef(new Animated.Value(0)).current;
-  const markers = useRef(new Animated.Value(0)).current;
-  const wordmark = useRef(new Animated.Value(0)).current;
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+
+  const spin = useRef(new Animated.Value(0)).current;
+  const rigIn = useRef(new Animated.Value(0)).current;
+  const heroIn = useRef(new Animated.Value(0)).current;
   const overlay = useRef(new Animated.Value(1)).current;
   const finished = useRef(false);
+  const [front, setFront] = useState(0);
 
-  const translateX = progress.interpolate({ inputRange: INPUT_RANGE, outputRange: XS });
-  const translateY = progress.interpolate({ inputRange: INPUT_RANGE, outputRange: YS });
-  const rotate = progress.interpolate({ inputRange: INPUT_RANGE, outputRange: ROTATIONS });
-  const dashoffset = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [PATH.length, 0],
-  });
+  const rx = Math.min(width * 0.4, 170);
+  const ry = rx * 0.42;
+  const cx = width / 2;
+  const cy = height / 2 - 24;
 
-  const finish = useMemo(
-    () => () => {
-      if (finished.current) return;
-      finished.current = true;
-      Animated.timing(overlay, {
-        toValue: 0,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(onFinish);
-    },
-    [overlay, onFinish],
-  );
+  // sin/cos can't be expressed with Animated.interpolate directly, so each
+  // landmark's elliptical path is pre-sampled into piecewise-linear ranges.
+  // Depth (front of the ring = bottom of the ellipse) drives scale+opacity
+  // for the perspective read.
+  const orbit = useMemo(() => {
+    const input = Array.from({ length: SAMPLES + 1 }, (_, k) => k / SAMPLES);
+    return LANDMARKS.map((_, i) => {
+      const phase = (i / N) * TAU;
+      const xs: number[] = [];
+      const ys: number[] = [];
+      const scales: number[] = [];
+      const opacities: number[] = [];
+      for (const p of input) {
+        const theta = phase - p * TAU;
+        const depth = (Math.cos(theta) + 1) / 2;
+        xs.push(rx * Math.sin(theta));
+        ys.push(ry * Math.cos(theta));
+        scales.push(0.5 + 0.62 * depth);
+        opacities.push(0.16 + 0.84 * depth);
+      }
+      return {
+        translateX: spin.interpolate({ inputRange: input, outputRange: xs }),
+        translateY: spin.interpolate({ inputRange: input, outputRange: ys }),
+        scale: spin.interpolate({ inputRange: input, outputRange: scales }),
+        opacity: spin.interpolate({ inputRange: input, outputRange: opacities }),
+      };
+    });
+  }, [spin, rx, ry]);
+
+  // Only re-render when the landmark at the front of the ring changes
+  // (8 times per revolution), not every frame.
+  useEffect(() => {
+    const id = spin.addListener(({ value }) => {
+      const idx = Math.round(value * N) % N;
+      setFront((prev) => (prev === idx ? prev : idx));
+    });
+    return () => spin.removeListener(id);
+  }, [spin]);
+
+  const finish = useCallback(() => {
+    if (finished.current) return;
+    finished.current = true;
+    Animated.timing(overlay, {
+      toValue: 0,
+      duration: 450,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(onFinish);
+  }, [overlay, onFinish]);
 
   useEffect(() => {
-    const sequence = Animated.sequence([
-      Animated.delay(200),
-      Animated.timing(markers, {
-        toValue: 1,
-        duration: 350,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: false,
-      }),
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: 1800,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.delay(150),
-      Animated.timing(wordmark, {
-        toValue: 1,
-        duration: 500,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.delay(900),
-    ]);
-    sequence.start(({ finished: didFinish }) => {
-      if (didFinish) finish();
+    let cancelled = false;
+    let seq: Animated.CompositeAnimation | null = null;
+
+    AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
+      if (cancelled) return;
+      seq = reduceMotion
+        ? Animated.sequence([
+            Animated.timing(heroIn, { toValue: 1, duration: 400, useNativeDriver: true }),
+            Animated.delay(1200),
+          ])
+        : Animated.sequence([
+            Animated.parallel([
+              Animated.timing(rigIn, {
+                toValue: 1,
+                duration: 500,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.timing(spin, {
+                toValue: 1,
+                duration: 2800,
+                easing: Easing.bezier(0.45, 0, 0.2, 1),
+                useNativeDriver: true,
+              }),
+            ]),
+            Animated.timing(heroIn, {
+              toValue: 1,
+              duration: 850,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+            Animated.delay(1100),
+          ]);
+      seq.start(({ finished: done }) => {
+        if (done) finish();
+      });
     });
-    return () => sequence.stop();
-  }, [markers, progress, wordmark, finish]);
+
+    return () => {
+      cancelled = true;
+      seq?.stop();
+    };
+  }, [spin, rigIn, heroIn, finish]);
+
+  const heroOut = heroIn.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+  const rigOpacity = Animated.multiply(rigIn, heroOut);
+  const rigScale = heroIn.interpolate({ inputRange: [0, 1], outputRange: [1, 1.9] });
+
+  const current = LANDMARKS[front];
+  const bearing = `${String(Math.round((front * 360) / N)).padStart(3, '0')}°`;
 
   return (
     <Animated.View
       style={[
         styles.overlay,
-        {
-          backgroundColor: darkColors.background,
-          opacity: overlay,
-          pointerEvents: finished.current ? 'none' : 'auto',
-        },
+        { backgroundColor: c.background, opacity: overlay, pointerEvents: finished.current ? 'none' : 'auto' },
       ]}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={finish} />
+      <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
+        <Defs>
+          <RadialGradient id="glowAmber" cx="22%" cy="10%" rx="65%" ry="45%">
+            <Stop offset="0" stopColor={c.accent} stopOpacity={0.16} />
+            <Stop offset="1" stopColor={c.accent} stopOpacity={0} />
+          </RadialGradient>
+          <RadialGradient id="glowViolet" cx="88%" cy="2%" rx="55%" ry="40%">
+            <Stop offset="0" stopColor={legColors.hongKong} stopOpacity={0.2} />
+            <Stop offset="1" stopColor={legColors.hongKong} stopOpacity={0} />
+          </RadialGradient>
+        </Defs>
+        <Rect x={0} y={0} width={width} height={height} fill="url(#glowAmber)" />
+        <Rect x={0} y={0} width={width} height={height} fill="url(#glowViolet)" />
+      </Svg>
 
-      <View style={styles.mapWrap}>
-        <Svg width="100%" height="100%" viewBox={`0 0 ${VIEWBOX} ${VIEWBOX}`}>
-          <Path d={PATH.d} stroke={darkColors.border} strokeWidth={1.5} strokeDasharray="2 8" fill="none" />
-          <AnimatedPath
-            d={PATH.d}
-            stroke={darkColors.accent}
-            strokeWidth={1.5}
-            fill="none"
-            strokeDasharray={PATH.length}
-            strokeDashoffset={dashoffset}
-          />
-          <Circle cx={START.x} cy={START.y} r={4} fill={darkColors.accent} />
-          <Circle cx={END.x} cy={END.y} r={4} fill={darkColors.accent} />
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { opacity: rigOpacity, transform: [{ scale: rigScale }] }]}
+      >
+        <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
+          <Dial cx={cx} cy={cy} rx={rx} ry={ry} />
         </Svg>
 
-        <Animated.Text
-          style={[styles.label, { left: START.x - 30, top: START.y + 12, opacity: markers }]}
-        >
-          USA
-        </Animated.Text>
-        <Animated.Text
-          style={[styles.label, { left: END.x - 12, top: END.y - 28, opacity: markers }]}
-        >
-          ASIA
-        </Animated.Text>
+        {orbit.map((o, i) => {
+          const { Icon, color, name } = LANDMARKS[i];
+          // zIndex can't be native-animated, but `front` only changes 8x per
+          // revolution — recomputing stacking from depth at that angle keeps
+          // near badges drawn over far ones.
+          const depth = Math.cos((i / N) * TAU - (front / N) * TAU);
+          return (
+            <Animated.View
+              key={name}
+              style={[
+                styles.badge,
+                {
+                  left: cx - BADGE / 2,
+                  top: cy - BADGE / 2,
+                  zIndex: Math.round((depth + 1) * 50),
+                  borderColor: `${color}99`,
+                  opacity: o.opacity,
+                  transform: [{ translateX: o.translateX }, { translateY: o.translateY }, { scale: o.scale }],
+                },
+              ]}
+            >
+              <Icon color={color} size={42} />
+            </Animated.View>
+          );
+        })}
 
-        <Animated.View
-          style={[
-            styles.plane,
-            {
-              opacity: markers,
-              transform: [{ translateX }, { translateY }, { rotate }],
-            },
-          ]}
-        >
-          <Ionicons name="airplane" size={16} color={darkColors.accent} />
-        </Animated.View>
-      </View>
+        <Corners inset={18} top={insets.top} bottom={insets.bottom} />
+
+        <View style={[styles.hudTop, { top: insets.top + 30 }]}>
+          <View style={styles.recRow}>
+            <View style={styles.recDot} />
+            <Text style={styles.hudText}>360° SWEEP</Text>
+          </View>
+          <Text style={styles.hudText}>{String(TRIP.cities).padStart(2, '0')} CITIES</Text>
+        </View>
+
+        <View style={[styles.readout, { bottom: insets.bottom + 44 }]}>
+          <Text style={styles.readoutBearing}>{bearing}</Text>
+          <Text style={[styles.readoutName, { color: current.color }]}>{current.name.toUpperCase()}</Text>
+          <Text style={styles.readoutCity}>{current.city.toUpperCase()}</Text>
+        </View>
+      </Animated.View>
 
       <Animated.View
         style={[
-          styles.wordmarkWrap,
+          styles.hero,
           {
-            opacity: wordmark,
-            transform: [{ translateY: wordmark.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+            pointerEvents: 'none',
+            paddingBottom: 48,
+            opacity: heroIn,
+            transform: [
+              { translateY: heroIn.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) },
+              { scale: heroIn.interpolate({ inputRange: [0, 1], outputRange: [1.08, 1] }) },
+            ],
           },
         ]}
       >
-        <Text style={styles.wordmark}>Epic Asia</Text>
-        <Text style={styles.tagline}>UNITED STATES   →   ASIA</Text>
+        <Text style={styles.heroEyebrow}>{TRIP.dates.toUpperCase()}</Text>
+        <Text style={styles.wordmark}>
+          Epic <Text style={styles.wordmarkItalic}>Asia</Text>
+        </Text>
+        <Animated.View
+          style={[
+            styles.rule,
+            {
+              transform: [
+                {
+                  scaleX: heroIn.interpolate({
+                    inputRange: [0.3, 1],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  }),
+                },
+              ],
+            },
+          ]}
+        />
+        <Animated.Text
+          style={[
+            styles.heroRoute,
+            { opacity: heroIn.interpolate({ inputRange: [0.4, 1], outputRange: [0, 1], extrapolate: 'clamp' }) },
+          ]}
+        >
+          {TRIP.route.join('  ·  ')}
+        </Animated.Text>
+        <Animated.Text
+          style={[
+            styles.heroStats,
+            { opacity: heroIn.interpolate({ inputRange: [0.55, 1], outputRange: [0, 1], extrapolate: 'clamp' }) },
+          ]}
+        >
+          {TRIP.travelers} TRAVELERS · {TRIP.cities} CITIES · {TRIP.disneyDays} DISNEY DAYS
+        </Animated.Text>
       </Animated.View>
+
+      <Pressable style={StyleSheet.absoluteFill} onPress={finish} accessibilityLabel="Skip intro" />
     </Animated.View>
+  );
+}
+
+// Static perspective "turntable" the landmarks ride on: the orbit ellipse
+// plus a compass-style tick ring with bearing labels, like a 360° rig.
+function Dial({ cx, cy, rx, ry }: { cx: number; cy: number; rx: number; ry: number }) {
+  const ticks: ReactElement[] = [];
+  for (let deg = 0; deg < 360; deg += 5) {
+    const a = (deg * Math.PI) / 180;
+    const major = deg % 45 === 0;
+    const r0 = major ? 1.1 : 1.16;
+    const r1 = 1.22;
+    ticks.push(
+      <Line
+        key={deg}
+        x1={cx + rx * r0 * Math.sin(a)}
+        y1={cy + ry * r0 * Math.cos(a)}
+        x2={cx + rx * r1 * Math.sin(a)}
+        y2={cy + ry * r1 * Math.cos(a)}
+        stroke={major ? c.accent : '#ffffff'}
+        strokeOpacity={major ? 0.75 : 0.18}
+        strokeWidth={major ? 1.6 : 1}
+      />,
+    );
+  }
+  const labels = [0, 90, 180, 270].map((deg) => {
+    const a = (deg * Math.PI) / 180;
+    return (
+      <SvgText
+        key={deg}
+        x={cx + rx * 1.36 * Math.sin(a)}
+        y={cy + ry * 1.36 * Math.cos(a) + 4}
+        fill={c.inkTertiary}
+        fontSize={9}
+        fontFamily={fontFamily.mono}
+        letterSpacing={1}
+        textAnchor="middle"
+      >
+        {String(deg).padStart(3, '0')}
+      </SvgText>
+    );
+  });
+
+  return (
+    <G>
+      <Ellipse
+        cx={cx}
+        cy={cy}
+        rx={rx * 1.22}
+        ry={ry * 1.22}
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity={0.09}
+      />
+      <Ellipse
+        cx={cx}
+        cy={cy}
+        rx={rx}
+        ry={ry}
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity={0.22}
+        strokeDasharray="2 7"
+        strokeLinecap="round"
+      />
+      {ticks}
+      {labels}
+      <Line x1={cx - 8} y1={cy} x2={cx + 8} y2={cy} stroke={c.accent} strokeOpacity={0.6} />
+      <Line x1={cx} y1={cy - 8} x2={cx} y2={cy + 8} stroke={c.accent} strokeOpacity={0.6} />
+    </G>
+  );
+}
+
+// Camera viewfinder corner brackets.
+function Corners({ inset, top, bottom }: { inset: number; top: number; bottom: number }) {
+  const edge = { position: 'absolute' as const, width: 22, height: 22, borderColor: `${c.accent}88` };
+  return (
+    <>
+      <View style={[edge, { top: top + inset, left: inset, borderTopWidth: 1.5, borderLeftWidth: 1.5 }]} />
+      <View style={[edge, { top: top + inset, right: inset, borderTopWidth: 1.5, borderRightWidth: 1.5 }]} />
+      <View style={[edge, { bottom: bottom + inset, left: inset, borderBottomWidth: 1.5, borderLeftWidth: 1.5 }]} />
+      <View style={[edge, { bottom: bottom + inset, right: inset, borderBottomWidth: 1.5, borderRightWidth: 1.5 }]} />
+    </>
   );
 }
 
@@ -182,37 +360,109 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFill,
     zIndex: 100,
+  },
+  badge: {
+    position: 'absolute',
+    width: BADGE,
+    height: BADGE,
+    borderRadius: BADGE / 2,
+    borderWidth: 1.5,
+    backgroundColor: c.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mapWrap: {
-    width: MAP_SIZE,
-    height: MAP_SIZE,
-  },
-  label: {
+  hudTop: {
     position: 'absolute',
-    color: darkColors.inkTertiary,
+    left: 48,
+    right: 48,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  recRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  recDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: c.accent,
+  },
+  hudText: {
+    fontFamily: fontFamily.monoSemiBold,
+    fontSize: 10,
+    letterSpacing: 1.6,
+    color: c.inkTertiary,
+  },
+  readout: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: 4,
+  },
+  readoutBearing: {
+    fontFamily: fontFamily.mono,
     fontSize: 11,
     letterSpacing: 2,
+    color: c.inkTertiary,
   },
-  plane: {
-    position: 'absolute',
-    left: -8,
-    top: -8,
+  readoutName: {
+    fontFamily: fontFamily.monoSemiBold,
+    fontSize: 13,
+    letterSpacing: 2.4,
   },
-  wordmarkWrap: {
-    position: 'absolute',
+  readoutCity: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: c.inkSecondary,
+  },
+  hero: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  heroEyebrow: {
+    fontFamily: fontFamily.monoSemiBold,
+    fontSize: 11,
+    letterSpacing: 2.2,
+    color: c.accent,
+    marginBottom: 14,
   },
   wordmark: {
     fontFamily: fontFamily.display,
-    fontSize: 38,
-    color: darkColors.ink,
+    fontSize: 64,
+    lineHeight: 68,
+    letterSpacing: -0.8,
+    color: c.ink,
   },
-  tagline: {
+  wordmarkItalic: {
+    fontFamily: fontFamily.displayItalic,
+    color: c.accent,
+  },
+  rule: {
+    width: 64,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: c.accent,
+    marginTop: 18,
+    marginBottom: 16,
+  },
+  heroRoute: {
+    fontFamily: fontFamily.monoSemiBold,
+    fontSize: 12,
+    letterSpacing: 2,
+    color: c.inkSecondary,
+  },
+  heroStats: {
+    fontFamily: fontFamily.mono,
+    fontSize: 10,
+    letterSpacing: 1.8,
+    color: c.inkTertiary,
     marginTop: 10,
-    fontSize: 11,
-    letterSpacing: 3,
-    color: darkColors.inkTertiary,
   },
 });

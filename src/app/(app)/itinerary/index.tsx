@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../../lib/AuthProvider';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
+import { legColorForCity } from '../../../theme/colors';
 import { type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
@@ -99,17 +100,22 @@ export default function ItineraryList() {
             </Text>
           ) : null}
 
-          {days.map((day) => (
+          {days.map((day) => {
+            const dayItems = items.filter((i) => i.day === day);
+            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.accent;
+            return (
             <View key={day} style={styles.dayGroup}>
-              <Text style={[type.caption, styles.dayHeader, { color: colors.accent }]}>
-                {formatDayHeader(day)}
-              </Text>
+              <View style={styles.dayHeader}>
+                <View style={[styles.legDot, { backgroundColor: legColor }]} />
+                <Text style={[type.caption, { color: legColor }]}>{formatDayHeader(day)}</Text>
+              </View>
               <View
-                style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[
+                  styles.card,
+                  { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: legColor },
+                ]}
               >
-                {items
-                  .filter((i) => i.day === day)
-                  .map((item, idx, arr) => (
+                {dayItems.map((item, idx, arr) => (
                     <View
                       key={item.id}
                       style={[
@@ -122,7 +128,7 @@ export default function ItineraryList() {
                     >
                       <View style={styles.rowMain}>
                         <View style={styles.rowTop}>
-                          <Text style={[type.body, styles.rowTitle, { color: colors.ink }]}>
+                          <Text style={[type.bodyStrong, styles.rowTitle, { color: colors.ink }]}>
                             {item.title}
                           </Text>
                           {item.start_time ? (
@@ -151,7 +157,8 @@ export default function ItineraryList() {
                   ))}
               </View>
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </View>
@@ -180,11 +187,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   dayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 8,
+  },
+  legDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
   card: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
     overflow: 'hidden',
   },
   row: {

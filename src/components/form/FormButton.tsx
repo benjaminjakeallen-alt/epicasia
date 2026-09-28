@@ -39,7 +39,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
       {loading ? (
         <ActivityIndicator color={colors.onAccent} />
       ) : (
-        <Text style={[type.body, styles.buttonLabel, { color: colors.onAccent }]}>{label}</Text>
+        <Text style={[type.button, { color: colors.onAccent }]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -51,9 +51,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  buttonLabel: {
-    fontWeight: '600',
   },
   textButton: {
     alignItems: 'center',
