@@ -6,7 +6,7 @@ type Props = TextInputProps & {
   label: string;
 };
 
-export default function AuthField({ label, style, ...inputProps }: Props) {
+export default function FormField({ label, style, ...inputProps }: Props) {
   const colors = useTheme();
 
   return (

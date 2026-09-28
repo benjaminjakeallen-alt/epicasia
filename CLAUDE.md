@@ -9,7 +9,7 @@ trip logistics instead of a family reunion.
 ## Planned feature set
 
 Shared (all trip members, editable by all or an organizer role):
-- Itinerary (day-by-day, grouped by day/city), Flights, Lodging
+- **Itinerary — built** (day-by-day, grouped by day/city, see below), Flights, Lodging
 - Group chat (reuse reunion-app's polling-based pattern)
 - Expense splitting — who paid, who owes, settle-up view
 - Shared photo gallery
@@ -23,6 +23,46 @@ Utilities (client-side/API only, no backend needed):
 
 Explicitly deferred: gamification/points/trivia (was reunion-specific,
 revisit later if wanted).
+
+### Itinerary (built)
+
+`src/lib/itinerary.ts` (fetch/create/delete against `itinerary_items`),
+`src/app/(app)/itinerary/index.tsx` (list, grouped by day, refetches via
+`useFocusEffect` from `expo-router` — not `@react-navigation/native`, which
+isn't a direct dependency here; Expo Router vendors its own react-navigation
+core and re-exports `useFocusEffect` itself), `src/app/(app)/itinerary/new.tsx`
+(add form). Delete is only shown for a row's own creator
+(`item.created_by === session.user.id`) — matches the RLS policy, which
+also allows an admin to delete any row, but there's no admin-specific UI
+for that yet. Day/time are plain text fields (`"2027-06-06"`,
+`"9:00 AM"`), validated and parsed client-side (see `parseTimeInput`/
+`isValidDay` in `new.tsx`) rather than a native date/time picker — a
+deliberate scope cut to avoid picker version-compat risk unverifiable in
+this environment; a real picker is a reasonable fast-follow.
+
+Verified live end-to-end (see the network-egress note under Testing):
+logged in, added "Tokyo DisneySea" via the real form, confirmed it rendered
+correctly grouped under its day header with time/city/description, deleted
+it and the test account afterward.
+
+**Real trip content exists and needs seeding.** The user has an actual
+itinerary already drafted as a Claude Artifact ("Asia Disney Adventure") —
+a 14-day plan, Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, June
+6–19, 2027, three families/13 travelers, four Disney park days. It was
+extracted once (day/title/city/description for all 14 days) but not yet
+inserted, because `itinerary_items.created_by` is a required FK to a real
+`profiles` row and no real user account existed at the time. Once the user
+has a real account, seed these via `mcp__Supabase__execute_sql` (fast,
+accurate) rather than asking them to retype 14 entries through the form —
+re-read the artifact (`https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT`)
+for the exact data if this wasn't done in the same session that extracted
+it.
+
+`src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
+`src/components/auth/Auth*` — renamed once it became clear they're generic
+form primitives needed well beyond login/register (itinerary's `new.tsx`
+already reuses them). Reuse them for future add/edit forms rather than
+rebuilding input/button/screen chrome per feature.
 
 ## Stack
 
@@ -230,6 +270,25 @@ Fix is `add_repo` for the specific owner/repo first; for a public repo this
 only grants read-level API access, not push — don't over-grant just to
 unblock a CLI's asset download if `push` access would be excessive for what
 you actually need.
+
+**⚠️ Never sign up test accounts with a made-up `@gmail.com` (or any real
+mail-provider domain) address.** Doing this during earlier live-testing
+triggered a real Supabase bounce-rate warning email to the project owner,
+threatening to restrict the project's email-sending privileges — Gmail's
+servers actively bounce mail to addresses that don't exist, and enough
+bounces trip Supabase's abuse detection. This is a materially different
+failure mode from using `@example.com` (which Supabase rejects outright as
+an invalid domain before ever attempting delivery, so it *can't* bounce) —
+`@example.com` is the safe choice for testing signup validation, but it
+can't be used to test the full confirm/login flow since Supabase won't
+send it a real email either. If the full email round-trip genuinely needs
+testing again: use a "+"-alias of a real inbox the user actually controls
+(e.g. `theirrealaddress+test1@gmail.com` — Gmail delivers this to the base
+inbox, so it can't bounce), and confirm with the user first rather than
+picking an address unilaterally. Every test account created this way so
+far has been cleaned up afterward (`auth.users`/`profiles` both back to 0
+rows each time) — but the bounce had already been sent by the time cleanup
+happened, since it fires on delivery attempt, not on account lifetime.
 
 **Supabase network-egress note (resolved):** this container's network
 policy originally returned a 403 from the proxy itself (not from Supabase)

@@ -10,7 +10,7 @@ type Props = {
   variant?: 'primary' | 'text';
 };
 
-export default function AuthButton({ label, onPress, loading, disabled, variant = 'primary' }: Props) {
+export default function FormButton({ label, onPress, loading, disabled, variant = 'primary' }: Props) {
   const colors = useTheme();
   const isDisabled = disabled || loading;
 

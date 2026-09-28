@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../lib/AuthProvider';
@@ -6,8 +7,8 @@ import { supabase } from '../../lib/supabase';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
-const SECTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: 'Itinerary', icon: 'calendar-outline' },
+const SECTIONS: { label: string; icon: keyof typeof Ionicons.glyphMap; href?: string }[] = [
+  { label: 'Itinerary', icon: 'calendar-outline', href: '/(app)/itinerary' },
   { label: 'Flights', icon: 'airplane-outline' },
   { label: 'Lodging', icon: 'bed-outline' },
   { label: 'Packing List', icon: 'briefcase-outline' },
@@ -18,6 +19,7 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const colors = useTheme();
   const { session } = useAuth();
+  const router = useRouter();
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
@@ -37,8 +39,10 @@ export default function Home() {
 
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {SECTIONS.map((section, i) => (
-            <View
+            <Pressable
               key={section.label}
+              disabled={!section.href}
+              onPress={() => section.href && router.push(section.href)}
               style={[
                 styles.row,
                 i < SECTIONS.length - 1 && {
@@ -49,12 +53,18 @@ export default function Home() {
             >
               <View style={styles.rowLeft}>
                 <Ionicons name={section.icon} size={19} color={colors.accent} />
-                <Text style={[type.body, styles.rowLabel, { color: colors.ink }]}>
+                <Text
+                  style={[
+                    type.body,
+                    styles.rowLabel,
+                    { color: section.href ? colors.ink : colors.inkTertiary },
+                  ]}
+                >
                   {section.label}
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
-            </View>
+            </Pressable>
           ))}
         </View>
 

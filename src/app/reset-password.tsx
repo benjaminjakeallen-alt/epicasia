@@ -1,9 +1,9 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import AuthButton from '../components/auth/AuthButton';
-import AuthField from '../components/auth/AuthField';
-import AuthScreen from '../components/auth/AuthScreen';
+import FormButton from '../components/form/FormButton';
+import FormField from '../components/form/FormField';
+import FormScreen from '../components/form/FormScreen';
 import { supabase } from '../lib/supabase';
 
 // Landing screen for the link sent by forgot-password.tsx's
@@ -67,30 +67,30 @@ export default function ResetPassword() {
 
   if (done) {
     return (
-      <AuthScreen title="Password Updated" subtitle="Sign in with your new password.">
-        <AuthButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
-      </AuthScreen>
+      <FormScreen title="Password Updated" subtitle="Sign in with your new password.">
+        <FormButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
+      </FormScreen>
     );
   }
 
   if (exchanging) {
-    return <AuthScreen title="Reset Password" subtitle="Verifying your link..." />;
+    return <FormScreen title="Reset Password" subtitle="Verifying your link..." />;
   }
 
   if (exchangeError) {
     return (
-      <AuthScreen title="Link Problem" error={exchangeError}>
-        <AuthButton
+      <FormScreen title="Link Problem" error={exchangeError}>
+        <FormButton
           label="Request a new link"
           onPress={() => router.replace('/(auth)/forgot-password')}
         />
-      </AuthScreen>
+      </FormScreen>
     );
   }
 
   return (
-    <AuthScreen title="Set New Password" error={saveError}>
-      <AuthField
+    <FormScreen title="Set New Password" error={saveError}>
+      <FormField
         label="New Password"
         value={password}
         onChangeText={setPassword}
@@ -98,7 +98,7 @@ export default function ResetPassword() {
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <AuthField
+      <FormField
         label="Confirm Password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
@@ -106,7 +106,7 @@ export default function ResetPassword() {
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <AuthButton label="Save Password" onPress={handleSave} loading={saving} />
-    </AuthScreen>
+      <FormButton label="Save Password" onPress={handleSave} loading={saving} />
+    </FormScreen>
   );
 }

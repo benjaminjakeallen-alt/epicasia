@@ -1,9 +1,9 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import AuthButton from '../../components/auth/AuthButton';
-import AuthField from '../../components/auth/AuthField';
-import AuthScreen from '../../components/auth/AuthScreen';
+import FormButton from '../../components/form/FormButton';
+import FormField from '../../components/form/FormField';
+import FormScreen from '../../components/form/FormScreen';
 import { supabase } from '../../lib/supabase';
 
 export default function ForgotPassword() {
@@ -30,25 +30,25 @@ export default function ForgotPassword() {
 
   if (sent) {
     return (
-      <AuthScreen
+      <FormScreen
         title="Check your email"
         subtitle={`If an account exists for ${email}, a reset link is on its way.`}
       >
-        <AuthButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
-      </AuthScreen>
+        <FormButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
+      </FormScreen>
     );
   }
 
   return (
-    <AuthScreen
+    <FormScreen
       title="Reset Password"
       subtitle="We'll email you a link to set a new one."
       error={error}
       footer={
-        <AuthButton label="Back to Sign In" variant="text" onPress={() => router.back()} />
+        <FormButton label="Back to Sign In" variant="text" onPress={() => router.back()} />
       }
     >
-      <AuthField
+      <FormField
         label="Email"
         value={email}
         onChangeText={setEmail}
@@ -56,7 +56,7 @@ export default function ForgotPassword() {
         textContentType="emailAddress"
         autoComplete="email"
       />
-      <AuthButton label="Send Reset Link" onPress={handleSend} loading={loading} />
-    </AuthScreen>
+      <FormButton label="Send Reset Link" onPress={handleSend} loading={loading} />
+    </FormScreen>
   );
 }

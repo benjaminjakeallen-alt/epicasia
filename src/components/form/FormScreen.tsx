@@ -19,7 +19,7 @@ type Props = {
   footer?: ReactNode;
 };
 
-export default function AuthScreen({ title, subtitle, error, children, footer }: Props) {
+export default function FormScreen({ title, subtitle, error, children, footer }: Props) {
   const colors = useTheme();
   const insets = useSafeAreaInsets();
 

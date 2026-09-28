@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import AuthButton from '../../components/auth/AuthButton';
-import AuthField from '../../components/auth/AuthField';
-import AuthScreen from '../../components/auth/AuthScreen';
+import FormButton from '../../components/form/FormButton';
+import FormField from '../../components/form/FormField';
+import FormScreen from '../../components/form/FormScreen';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -53,30 +53,30 @@ export default function Register() {
 
   if (confirmationSent) {
     return (
-      <AuthScreen
+      <FormScreen
         title="Check your email"
         subtitle={`We sent a confirmation link to ${email}. Click it, then come back and sign in.`}
       >
-        <AuthButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
-      </AuthScreen>
+        <FormButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
+      </FormScreen>
     );
   }
 
   return (
-    <AuthScreen
+    <FormScreen
       title="Create Account"
       subtitle="Join the trip"
       error={error}
       footer={
-        <AuthButton
+        <FormButton
           label="Already have an account? Sign in"
           variant="text"
           onPress={() => router.push('/(auth)/login')}
         />
       }
     >
-      <AuthField label="Name" value={displayName} onChangeText={setDisplayName} autoCapitalize="words" />
-      <AuthField
+      <FormField label="Name" value={displayName} onChangeText={setDisplayName} autoCapitalize="words" />
+      <FormField
         label="Email"
         value={email}
         onChangeText={setEmail}
@@ -84,7 +84,7 @@ export default function Register() {
         textContentType="emailAddress"
         autoComplete="email"
       />
-      <AuthField
+      <FormField
         label="Password"
         value={password}
         onChangeText={setPassword}
@@ -92,7 +92,7 @@ export default function Register() {
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <AuthField
+      <FormField
         label="Confirm Password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
@@ -100,7 +100,7 @@ export default function Register() {
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <AuthButton label="Create Account" onPress={handleRegister} loading={loading} />
-    </AuthScreen>
+      <FormButton label="Create Account" onPress={handleRegister} loading={loading} />
+    </FormScreen>
   );
 }

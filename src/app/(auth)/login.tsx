@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import AuthButton from '../../components/auth/AuthButton';
-import AuthField from '../../components/auth/AuthField';
-import AuthScreen from '../../components/auth/AuthScreen';
+import FormButton from '../../components/form/FormButton';
+import FormField from '../../components/form/FormField';
+import FormScreen from '../../components/form/FormScreen';
 import { supabase } from '../../lib/supabase';
 
 export default function Login() {
@@ -25,18 +25,18 @@ export default function Login() {
   }
 
   return (
-    <AuthScreen
+    <FormScreen
       title="Epic Asia"
       subtitle="Sign in to your trip"
       error={error}
       footer={
         <>
-          <AuthButton
+          <FormButton
             label="Forgot password?"
             variant="text"
             onPress={() => router.push('/(auth)/forgot-password')}
           />
-          <AuthButton
+          <FormButton
             label="Create an account"
             variant="text"
             onPress={() => router.push('/(auth)/register')}
@@ -44,7 +44,7 @@ export default function Login() {
         </>
       }
     >
-      <AuthField
+      <FormField
         label="Email"
         value={email}
         onChangeText={setEmail}
@@ -52,7 +52,7 @@ export default function Login() {
         textContentType="emailAddress"
         autoComplete="email"
       />
-      <AuthField
+      <FormField
         label="Password"
         value={password}
         onChangeText={setPassword}
@@ -60,7 +60,7 @@ export default function Login() {
         textContentType="password"
         autoComplete="password"
       />
-      <AuthButton label="Sign In" onPress={handleSignIn} loading={loading} />
-    </AuthScreen>
+      <FormButton label="Sign In" onPress={handleSignIn} loading={loading} />
+    </FormScreen>
   );
 }
