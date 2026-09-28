@@ -1,17 +1,31 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
 import Wordmark from '../../components/Wordmark';
+import { recordSignIn, REMEMBER_DAYS, savedEmail } from '../../lib/rememberMe';
 import { supabase } from '../../lib/supabase';
+import { type } from '../../theme/typography';
+import { useTheme } from '../../theme/useTheme';
 
 export default function Login() {
   const router = useRouter();
+  const colors = useTheme();
   const [email, setEmail] = useState('');
+  const [remember, setRemember] = useState(true);
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Pre-fill the email from the last "keep me signed in" sign-in.
+  useEffect(() => {
+    savedEmail()
+      .then((saved) => saved && setEmail((current) => current || saved))
+      .catch(() => {});
+  }, []);
 
   async function handleSignIn() {
     setError(null);
@@ -20,7 +34,9 @@ export default function Login() {
     setLoading(false);
     if (signInError) {
       setError(signInError.message);
+      return;
     }
+    await recordSignIn(remember, email).catch(() => {});
     // On success, AuthProvider's onAuthStateChange updates the session and
     // (app)/_layout.tsx's Redirect takes over — nothing else to do here.
   }
@@ -50,8 +66,8 @@ export default function Login() {
         value={email}
         onChangeText={setEmail}
         keyboardType="email-address"
-        textContentType="emailAddress"
-        autoComplete="email"
+        textContentType="username"
+        autoComplete="username"
       />
       <FormField
         label="Password"
@@ -61,7 +77,46 @@ export default function Login() {
         textContentType="password"
         autoComplete="password"
       />
+      <Pressable
+        testID="remember-me"
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: remember }}
+        onPress={() => setRemember((r) => !r)}
+        hitSlop={8}
+        style={styles.remember}
+      >
+        <View
+          style={[
+            styles.box,
+            { borderColor: remember ? colors.highlight : colors.border },
+            remember && { backgroundColor: colors.highlight },
+          ]}
+        >
+          {remember ? <Ionicons name="checkmark" size={14} color={colors.background} /> : null}
+        </View>
+        <Text style={[type.body, { color: colors.inkSecondary }]}>
+          Keep me signed in for {REMEMBER_DAYS} days
+        </Text>
+      </Pressable>
       <FormButton label="Sign In" onPress={handleSignIn} loading={loading} />
     </FormScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  remember: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -4,
+    marginBottom: 22,
+  },
+  box: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

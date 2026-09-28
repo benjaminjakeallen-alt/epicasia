@@ -250,7 +250,12 @@ them.
   `Animated.modulo`; spring-snaps to the nearest item, one extra item max
   for a fast flick); the front badge is selected — tap it or "Open …" to
   navigate, tap a side badge (or the ‹ › arrows) to turn it to the front.
-  Haptic tick on each snap (`expo-haptics`, native only). Items without an
+  Haptics via `src/lib/haptics.ts`: tick as each item passes the front,
+  firmer tap on open. Native uses `expo-haptics`; web uses the Vibration
+  API (Android) or, on iOS Safari (18+), clicks a hidden
+  `<input type="checkbox" switch>`, which only works inside a user
+  gesture, so ticks fire from the rotation listener (inside the drag's
+  touch handler) rather than from an effect. Items without an
   `href` show "Coming soon". Icons are line art in `MenuIcons.tsx` on the
   landmark grid (`Frame` exported from `Landmarks.tsx`); the dial is shared
   with the intro via `OrbitDial.tsx`. **Web gotcha:** RN-web fires a child
@@ -367,3 +372,16 @@ vars must be set in Vercel's project settings — Expo bakes them into the
 bundle at build time, so changing them needs a redeploy. After the site
 URL exists, set it as Supabase Auth's Site URL + a redirect URL so
 confirmation and password-reset emails land on the app.
+
+## Sign-in persistence ("Keep me signed in for 30 days")
+
+`src/lib/rememberMe.ts`, checked once at startup in `AuthProvider`. Login
+has a checkbox, on by default. Checked: session kept 30 days
+(`epicasia.rememberUntil`) and the email is pre-filled next time. Unchecked:
+signed out when the app is closed (native: module flag reset on cold start;
+web: a `sessionStorage` marker, so a reload keeps you in but a new tab or
+browser restart doesn't). Sessions from before this feature get a fresh 30
+days rather than a sign-out. Passwords are never stored by the app: the
+email field is `textContentType`/`autoComplete` = `username` and the
+password field `password`, so iCloud Keychain and browser password managers
+offer to save them.

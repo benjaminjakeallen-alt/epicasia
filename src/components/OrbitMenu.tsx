@@ -1,10 +1,8 @@
-import * as Haptics from 'expo-haptics';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   AccessibilityInfo,
   Animated,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +11,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import Svg from 'react-native-svg';
+import { confirmTap, selectionTick } from '../lib/haptics';
 import { type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
 import OrbitDial from './OrbitDial';
@@ -75,24 +74,30 @@ export default function OrbitMenu({
     });
   }, []);
 
+  // A light tick each time a new item passes the front slot. Fired from the
+  // listener (not an effect) so on web it runs inside the drag's touch
+  // handler — iOS Safari only allows the haptic during a user gesture.
+  const lastFront = useRef(0);
   useEffect(() => {
     const id = rotation.addListener(({ value }) => {
       current.current = value;
       const idx = mod(Math.round(value), N);
+      if (idx !== lastFront.current) {
+        lastFront.current = idx;
+        selectionTick();
+      }
       setFront((prev) => (prev === idx ? prev : idx));
     });
     return () => rotation.removeListener(id);
   }, [rotation, N]);
 
-  // A light tick each time a new item clicks into the front slot.
-  const firstFront = useRef(true);
-  useEffect(() => {
-    if (firstFront.current) {
-      firstFront.current = false;
-      return;
-    }
-    if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
-  }, [front]);
+  const open = useCallback(
+    (item: OrbitMenuItem) => {
+      confirmTap();
+      onOpen(item);
+    },
+    [onOpen],
+  );
 
   const orbit = useMemo(() => {
     const wrapped = Animated.modulo(rotation, N);
@@ -217,9 +222,10 @@ export default function OrbitMenu({
                   onPress={() => {
                     if (justDragged()) return;
                     if (isFront || screenReader.current) {
-                      if (item.href) onOpen(item);
+                      if (item.href) open(item);
                       else goTo(i);
                     } else {
+                      selectionTick();
                       goTo(i);
                     }
                   }}
@@ -242,7 +248,11 @@ export default function OrbitMenu({
             <Text style={[styles.bearing, { color: c.inkTertiary }]}>{bearing}</Text>
             <View style={styles.selectRow}>
               <Pressable
-                onPress={() => !justDragged() && goTo(front - 1)}
+                onPress={() => {
+                  if (justDragged()) return;
+                  selectionTick();
+                  goTo(front - 1);
+                }}
                 hitSlop={14}
                 accessibilityLabel="Previous"
                 style={styles.arrow}
@@ -253,7 +263,11 @@ export default function OrbitMenu({
                 {selected.label.toUpperCase()}
               </Text>
               <Pressable
-                onPress={() => !justDragged() && goTo(front + 1)}
+                onPress={() => {
+                  if (justDragged()) return;
+                  selectionTick();
+                  goTo(front + 1);
+                }}
                 hitSlop={14}
                 accessibilityLabel="Next"
                 style={styles.arrow}
@@ -265,7 +279,7 @@ export default function OrbitMenu({
             <Pressable
               testID="orbit-open"
               disabled={!selected.href}
-              onPress={() => !justDragged() && onOpen(selected)}
+              onPress={() => !justDragged() && open(selected)}
               style={({ pressed }) => [
                 styles.open,
                 selected.href
