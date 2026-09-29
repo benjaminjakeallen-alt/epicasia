@@ -72,7 +72,7 @@ components:
   text-button: "highlight, WorkSans 500"
   input: "white, radius 16, sentence-case label above, shadow.card"
   place-card: "150×196 photo, radius 22, dark fade at bottom, white city/dates, round arrow"
-  orbit-menu: "3D-rendered icons on clouds as hubs (tools/menu-icons), joined by a soft blurred gold line (gold #d4a64a) that brightens while dragging; no dial; serif label in the item color under the ring; accent 'Open' pill or accent-soft 'Coming soon'; click + haptic per step"
+  orbit-menu: "rustic, realistic 3D-rendered objects on clouds as hubs (tools/menu-icons), joined by a soft translucent gold glow only — no solid line — (gold #d4a64a) that brightens while dragging; no dial; serif label in the item color under the ring; accent 'Open' pill or accent-soft 'Coming soon'; quiet click + haptic per step"
   itinerary-day: "rail: weekday + leg-colored day circle + dashed connector; white card per item with photo thumb"
 ---
 
@@ -90,7 +90,8 @@ dark; see `CLAUDE.md` → Design direction for the history.
 - White cards separated by soft shadow, not borders.
 - One action color (sage green). One warm touch only: the vermilion seal.
 - Real photographs of the trip's places carry the atmosphere. Menu icons
-  are soft 3D miniatures on clouds (the one exception: gold connector glow).
+  are rustic, realistic 3D miniatures (weathered leather, paper, wood,
+  thatch, brass) on clouds — never glossy/cartoony.
 - Serif (Newsreader) for headlines and titles; Work Sans for everything
   else; mono only for boarding-pass data.
 

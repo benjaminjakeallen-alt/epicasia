@@ -257,16 +257,24 @@ has them).
   bearing readout (removed at the user's request).
   - **Hubs** are rendered 3D icons sitting on clouds
     (`assets/images/menu/*.png`), styled after the user's reference of
-    miniature landmarks on clouds — original objects (map + pin, plane,
-    inn, suitcase, journal, controller), not copies of real landmarks.
-    Source scenes + re-render instructions: `tools/menu-icons/`.
+    miniature landmarks on clouds, then pushed **rustic and realistic** at
+    the user's request (first pass read as cartoony): aged folded map +
+    brass compass, vintage aluminium prop airliner, thatched farmhouse inn
+    with stone lantern and pine, worn leather suitcase with travel labels,
+    cord-wrapped leather journal + pencil + ticket stub, wooden Go board
+    with stones and bowl. Procedural canvas textures (leather, paper,
+    wood, thatch, stone, brass) drive colour + bump. Original objects, not
+    copies of real landmarks. Source + re-render steps: `tools/menu-icons/`.
   - **Gold connector:** one `Animated.View` segment per neighbouring pair,
     pre-sampled like the hubs (midpoint, length via `scaleX`, unwrapped
-    angle via `rotate`, depth → opacity), drawn under the hubs; a
-    translucent band + `boxShadow` makes it a soft blurred gold line
-    (`gold`/`goldLight` tokens), brightened while dragging (`glow` value).
+    angle via `rotate`, depth → opacity), drawn under the hubs. It is ONLY
+    a translucent gold band + blurred `boxShadow` glow — the user removed
+    the solid gold core line, don't add it back. Brightens while dragging
+    (`glow` value).
   - **Feedback** (`src/lib/feedback.ts`): every step, in either direction,
-    = click sound + haptic tick; opening = firmer tap + "tock". Sounds:
+    = click sound + haptic tick; opening = firmer tap + "tock". Kept
+    deliberately quiet (the user asked for a softer click): native
+    volume 0.35/0.4, web peak gain ~0.05. Sounds:
     native `src/lib/sound.ts` plays `assets/sounds/tick.wav`/`confirm.wav`
     (generated for this app) via `expo-audio`, respecting the silent switch
     and mixing with music; web `sound.web.ts` synthesizes the same sounds

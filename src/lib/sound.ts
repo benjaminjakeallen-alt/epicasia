@@ -18,11 +18,11 @@ export function preloadSounds() {
   // previous one off mid-sound.
   ticks = [0, 1, 2].map(() => {
     const p = createAudioPlayer(require('../../assets/sounds/tick.wav'));
-    p.volume = 0.7;
+    p.volume = 0.35;
     return p;
   });
   confirmPlayer = createAudioPlayer(require('../../assets/sounds/confirm.wav'));
-  confirmPlayer.volume = 0.7;
+  confirmPlayer.volume = 0.4;
 }
 
 function replay(p: AudioPlayer | null | undefined) {

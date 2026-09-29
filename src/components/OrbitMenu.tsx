@@ -34,8 +34,7 @@ const SAMPLES_PER_ITEM = 16;
 const HUB = 108;
 const READOUT = 150;
 
-// The glowing gold connector between neighbouring hubs.
-const LINE_CORE = 2;
+// The soft gold glow connecting neighbouring hubs.
 const LINE_GLOW = 10;
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
@@ -45,7 +44,7 @@ const mod = (n: number, m: number) => ((n % m) + m) % m;
 // (or the Open button) to go there; tapping any other hub turns it to the
 // front. `rotation` is measured in items and unbounded — Animated.modulo
 // wraps it for the pre-sampled orbit paths, so it spins forever either way.
-// Neighbouring hubs are joined by a soft gold line whose segments ride the
+// Neighbouring hubs are joined by a soft gold glow whose segments ride the
 // same pre-sampled paths (position, length, angle) and glow brighter while
 // the ring is being dragged. Each step plays a click + haptic tick.
 export default function OrbitMenu({
@@ -293,7 +292,6 @@ export default function OrbitMenu({
               ]}
             >
               <Animated.View style={[styles.segmentGlow, { opacity: glowOpacity }]} />
-              <View style={styles.segmentCore} />
             </Animated.View>
           ))}
 
@@ -400,7 +398,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 0,
   },
-  // Soft blurred halo: translucent gold band + wide gold shadow.
+  // Soft blurred halo only — translucent gold band + wide gold shadow, no
+  // solid core line (the user preferred the glow on its own).
   segmentGlow: {
     position: 'absolute',
     top: 0,
@@ -410,12 +409,6 @@ const styles = StyleSheet.create({
     borderRadius: LINE_GLOW / 2,
     backgroundColor: `${palette.gold}40`,
     boxShadow: `0px 0px 12px 3px ${palette.gold}8c`,
-  },
-  segmentCore: {
-    height: LINE_CORE,
-    borderRadius: LINE_CORE / 2,
-    backgroundColor: palette.gold,
-    boxShadow: `0px 0px 4px ${palette.goldLight}`,
   },
   hubWrap: {
     position: 'absolute',

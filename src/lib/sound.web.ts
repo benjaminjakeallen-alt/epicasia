@@ -54,8 +54,8 @@ export function playTick() {
   const c = audio();
   if (!c) return;
   const t = c.currentTime;
-  tone(c, 1900, t, 0.035, 0.16);
-  tone(c, 3800, t, 0.015, 0.05);
+  tone(c, 1500, t, 0.03, 0.05);
+  tone(c, 3000, t, 0.012, 0.012);
   if (!noise) {
     const len = Math.floor(c.sampleRate * 0.01);
     noise = c.createBuffer(1, len, c.sampleRate);
@@ -68,7 +68,7 @@ export function playTick() {
   hp.type = 'highpass';
   hp.frequency.value = 2500;
   const g = c.createGain();
-  g.gain.value = 0.12;
+  g.gain.value = 0.025;
   src.connect(hp).connect(g).connect(c.destination);
   src.start(t);
 }
@@ -77,6 +77,6 @@ export function playConfirm() {
   const c = audio();
   if (!c) return;
   const t = c.currentTime;
-  tone(c, 880, t, 0.09, 0.16);
-  tone(c, 1320, t + 0.012, 0.07, 0.1);
+  tone(c, 880, t, 0.09, 0.07);
+  tone(c, 1320, t + 0.012, 0.07, 0.04);
 }

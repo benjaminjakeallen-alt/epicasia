@@ -12,18 +12,22 @@
 </head>
 <body>
 <script type="module">
+// Rustic, realistic menu icons: each a small three.js scene of a weathered
+// real-world object on a cloud, with procedural canvas textures (leather,
+// aged paper, wood, thatch, stone, brushed aluminium, brass) for colour +
+// bump detail. See README.md for how to render.
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const SIZE = 600;
+const SIZE = 1200;
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1);
 renderer.setSize(SIZE, SIZE);
 renderer.setClearColor(0x000000, 0);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.98;
+renderer.toneMappingExposure = 0.95;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
@@ -31,10 +35,139 @@ document.body.appendChild(renderer.domElement);
 const pmrem = new THREE.PMREMGenerator(renderer);
 const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 
-const std = (color, rough = 0.55, extra = {}) =>
-  new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, ...extra });
-const phys = (color, extra = {}) =>
-  new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, ...extra });
+// ---------- seeded random + canvas texture helpers ----------
+let seed = 1;
+const rand = () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const rr = (a, b) => a + rand() * (b - a);
+
+function tex(w, h, draw, { srgb = true, repeat = [1, 1] } = {}) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(repeat[0], repeat[1]);
+  t.anisotropy = 8;
+  return t;
+}
+
+function speckle(x, w, h, n, colors, rmin, rmax) {
+  for (let i = 0; i < n; i++) {
+    x.fillStyle = colors[Math.floor(rand() * colors.length)];
+    x.beginPath();
+    x.ellipse(rand() * w, rand() * h, rr(rmin, rmax), rr(rmin, rmax) * rr(0.5, 1), rand() * Math.PI, 0, Math.PI * 2);
+    x.fill();
+  }
+}
+
+function vignette(x, w, h, color, strength) {
+  const g = x.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.25, w / 2, h / 2, Math.max(w, h) * 0.75);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, color.replace('A', String(strength)));
+  x.fillStyle = g; x.fillRect(0, 0, w, h);
+}
+
+function leather(base, { stitch = true, dark = 'rgba(40,20,8,A)' } = {}) {
+  return tex(1024, 1024, (x, w, h) => {
+    x.fillStyle = base; x.fillRect(0, 0, w, h);
+    speckle(x, w, h, 5000, ['rgba(255,235,200,0.05)', 'rgba(60,30,10,0.07)', 'rgba(0,0,0,0.05)'], 2, 14);
+    speckle(x, w, h, 26000, ['rgba(0,0,0,0.08)', 'rgba(255,255,255,0.05)'], 0.6, 1.8);
+    for (let i = 0; i < 40; i++) { // scuffs
+      x.strokeStyle = `rgba(255,230,190,${rr(0.04, 0.12)})`; x.lineWidth = rr(1, 4);
+      x.beginPath(); const sx = rand() * w, sy = rand() * h; x.moveTo(sx, sy); x.lineTo(sx + rr(-60, 60), sy + rr(-20, 20)); x.stroke();
+    }
+    vignette(x, w, h, dark, 0.45);
+    if (stitch) {
+      x.strokeStyle = 'rgba(236,214,170,0.75)'; x.lineWidth = 5; x.setLineDash([16, 12]);
+      x.strokeRect(46, 46, w - 92, h - 92); x.setLineDash([]);
+    }
+  });
+}
+
+function wood(base, dark, light, { knots = 2, repeat = [1, 1] } = {}) {
+  return tex(1024, 1024, (x, w, h) => {
+    x.fillStyle = base; x.fillRect(0, 0, w, h);
+    for (let i = 0; i < 260; i++) {
+      const y0 = rand() * h, amp = rr(2, 10), f = rr(0.004, 0.012), ph = rand() * 6;
+      x.strokeStyle = rand() < 0.6 ? dark : light; x.globalAlpha = rr(0.08, 0.35); x.lineWidth = rr(0.8, 3.2);
+      x.beginPath();
+      for (let px = 0; px <= w; px += 8) { const py = y0 + Math.sin(px * f + ph) * amp; px ? x.lineTo(px, py) : x.moveTo(px, py); }
+      x.stroke();
+    }
+    x.globalAlpha = 1;
+    for (let k = 0; k < knots; k++) {
+      const kx = rand() * w, ky = rand() * h;
+      for (let r = 4; r < 36; r += 5) { x.strokeStyle = dark; x.globalAlpha = 0.25; x.lineWidth = 2; x.beginPath(); x.ellipse(kx, ky, r * 1.8, r * 0.7, 0, 0, Math.PI * 2); x.stroke(); }
+      x.globalAlpha = 1;
+    }
+    speckle(x, w, h, 12000, ['rgba(0,0,0,0.06)', 'rgba(255,255,255,0.04)'], 0.5, 1.6);
+  }, { repeat });
+}
+
+function paperBase(x, w, h, base = '#e8d9b8') {
+  x.fillStyle = base; x.fillRect(0, 0, w, h);
+  speckle(x, w, h, 30000, ['rgba(120,90,40,0.05)', 'rgba(255,255,255,0.06)'], 0.5, 1.5);
+  for (let i = 0; i < 500; i++) { // fibres
+    x.strokeStyle = `rgba(110,85,50,${rr(0.04, 0.1)})`; x.lineWidth = 0.8;
+    x.beginPath(); const sx = rand() * w, sy = rand() * h; x.moveTo(sx, sy); x.lineTo(sx + rr(-12, 12), sy + rr(-12, 12)); x.stroke();
+  }
+  for (let i = 0; i < 6; i++) { // stains
+    const g = x.createRadialGradient(0, 0, 0, 0, 0, 1);
+    const sx = rand() * w, sy = rand() * h, r = rr(40, 140);
+    x.save(); x.translate(sx, sy); x.scale(r, r * rr(0.6, 1));
+    g.addColorStop(0, 'rgba(150,105,50,0.10)'); g.addColorStop(0.8, 'rgba(150,105,50,0.05)'); g.addColorStop(1, 'rgba(150,105,50,0)');
+    x.fillStyle = g; x.beginPath(); x.arc(0, 0, 1, 0, Math.PI * 2); x.fill(); x.restore();
+  }
+}
+
+function mapTexture() {
+  return tex(2048, 1280, (x, w, h) => {
+    paperBase(x, w, h);
+    const land = (pts, col) => {
+      x.fillStyle = col; x.strokeStyle = 'rgba(90,70,40,0.55)'; x.lineWidth = 3;
+      x.beginPath();
+      pts.forEach(([a, b], i) => { const px = a * w, py = b * h; i ? x.lineTo(px + rr(-6, 6), py + rr(-6, 6)) : x.moveTo(px, py); });
+      x.closePath(); x.fill(); x.stroke();
+    };
+    x.fillStyle = 'rgba(120,150,150,0.22)'; x.fillRect(0, 0, w, h); // faded sea tint
+    land([[0.05, 0.1], [0.3, 0.06], [0.42, 0.25], [0.38, 0.55], [0.22, 0.68], [0.07, 0.5]], 'rgba(214,190,140,0.9)');
+    land([[0.55, 0.12], [0.86, 0.08], [0.95, 0.35], [0.85, 0.72], [0.62, 0.8], [0.52, 0.5]], 'rgba(214,190,140,0.9)');
+    land([[0.42, 0.75], [0.5, 0.72], [0.54, 0.9], [0.45, 0.96], [0.37, 0.88]], 'rgba(214,190,140,0.9)');
+    speckle(x, w, h, 60, ['rgba(110,130,80,0.18)'], 20, 60); // faded forests
+    x.strokeStyle = 'rgba(90,70,40,0.25)'; x.lineWidth = 2; // lat/long grid
+    for (let i = 1; i < 8; i++) { x.beginPath(); x.moveTo((w / 8) * i, 0); x.lineTo((w / 8) * i, h); x.stroke(); }
+    for (let i = 1; i < 5; i++) { x.beginPath(); x.moveTo(0, (h / 5) * i); x.lineTo(w, (h / 5) * i); x.stroke(); }
+    x.strokeStyle = 'rgba(150,45,30,0.75)'; x.lineWidth = 7; x.setLineDash([26, 20]); x.lineCap = 'round';
+    x.beginPath(); x.moveTo(0.16 * w, 0.35 * h); x.bezierCurveTo(0.4 * w, 0.15 * h, 0.5 * w, 0.7 * h, 0.74 * w, 0.4 * h); x.stroke(); x.setLineDash([]);
+    x.fillStyle = 'rgba(150,45,30,0.8)'; [[0.16, 0.35], [0.74, 0.4]].forEach(([a, b]) => { x.beginPath(); x.arc(a * w, b * h, 14, 0, Math.PI * 2); x.fill(); });
+    x.fillStyle = 'rgba(80,60,35,0.6)'; x.font = 'italic 44px Georgia, serif';
+    x.fillText('Mare Orientalis', 0.44 * w, 0.62 * h);
+    // compass rose
+    x.save(); x.translate(0.88 * w, 0.84 * h); x.strokeStyle = 'rgba(80,60,35,0.6)'; x.fillStyle = 'rgba(80,60,35,0.45)'; x.lineWidth = 2;
+    x.beginPath(); x.arc(0, 0, 70, 0, Math.PI * 2); x.stroke();
+    for (let i = 0; i < 4; i++) { x.rotate(Math.PI / 2); x.beginPath(); x.moveTo(0, -95); x.lineTo(14, 0); x.lineTo(-14, 0); x.closePath(); x.fill(); }
+    x.restore();
+    // folds + burnt edges
+    x.strokeStyle = 'rgba(80,60,30,0.25)'; x.lineWidth = 4;
+    for (let i = 1; i < 3; i++) { x.beginPath(); x.moveTo((w / 3) * i, 0); x.lineTo((w / 3) * i, h); x.stroke(); }
+    vignette(x, w, h, 'rgba(90,55,20,A)', 0.55);
+  });
+}
+
+// ---------- material helpers ----------
+const std = (params) => new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0, ...params });
+const phys = (params) => new THREE.MeshPhysicalMaterial({ roughness: 0.4, ...params });
+const withBump = (map, scale, params = {}) => std({ map, bumpMap: map, bumpScale: scale, ...params });
+
+function brassMat() {
+  const t = tex(512, 512, (x, w, h) => {
+    x.fillStyle = '#a9843f'; x.fillRect(0, 0, w, h);
+    speckle(x, w, h, 900, ['rgba(70,80,45,0.25)', 'rgba(60,40,15,0.25)', 'rgba(255,230,160,0.15)'], 2, 10);
+    speckle(x, w, h, 8000, ['rgba(0,0,0,0.08)'], 0.5, 1.2);
+  });
+  return std({ map: t, bumpMap: t, bumpScale: 0.6, metalness: 0.85, roughness: 0.42 });
+}
 
 function mesh(geo, mat, cast = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -43,273 +176,344 @@ function mesh(geo, mat, cast = true) {
   return m;
 }
 
-// Puffy cloud the object sits on (the reference style: miniatures on clouds).
+// ---------- cloud ----------
 function cloud(scale = 1) {
+  seed = 99;
   const g = new THREE.Group();
-  const mat = std(0xfbfcfe, 0.95, { emissive: 0xeef3f8, emissiveIntensity: 0.06 });
-  const puffs = [
-    [0, 0, 0, 1.05], [1.05, -0.12, 0.15, 0.8], [-1.05, -0.1, 0.1, 0.85],
-    [0.55, 0.2, -0.55, 0.8], [-0.55, 0.18, -0.55, 0.78], [0.35, -0.2, 0.72, 0.72],
-    [-0.45, -0.22, 0.7, 0.66], [1.65, -0.32, -0.2, 0.55], [-1.65, -0.32, -0.1, 0.55],
-    [0, -0.3, 1.0, 0.5], [1.2, -0.3, 0.75, 0.45], [-1.2, -0.32, 0.72, 0.45],
-  ];
+  const bump = tex(512, 512, (x, w, h) => { x.fillStyle = '#808080'; x.fillRect(0, 0, w, h); speckle(x, w, h, 1400, ['rgba(255,255,255,0.12)', 'rgba(0,0,0,0.1)'], 6, 28); }, { srgb: false });
+  const mat = std({ color: 0xfcfcfd, roughness: 0.92, bumpMap: bump, bumpScale: 1.2, emissive: 0xe8eef6, emissiveIntensity: 0.04 });
+  const puffs = [];
+  for (let i = 0; i < 46; i++) {
+    const a = rand() * Math.PI * 2, d = Math.sqrt(rand());
+    const x = Math.cos(a) * d * 1.75, z = Math.sin(a) * d * 1.05;
+    const r = rr(0.28, 0.72) * (1.15 - d * 0.55);
+    const y = (1 - d) * 0.28 + rr(-0.12, 0.12);
+    puffs.push([x, y, z, r]);
+  }
   for (const [x, y, z, r] of puffs) {
-    const m = mesh(new THREE.SphereGeometry(r, 64, 40), mat, false);
+    const geo = new THREE.IcosahedronGeometry(r, 5);
+    const m = mesh(geo, mat, false);
     m.position.set(x, y, z);
-    m.scale.y = 0.62;
+    m.scale.y = 0.7;
     g.add(m);
   }
   g.scale.setScalar(scale);
   return g;
 }
 
-function mapTexture() {
-  const c = document.createElement('canvas');
-  c.width = 1024; c.height = 640;
-  const x = c.getContext('2d');
-  x.fillStyle = '#8fc3d2'; x.fillRect(0, 0, 1024, 640); // sea
-  const land = (pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); x.fill(); };
-  land([[60, 90], [380, 60], [470, 200], [420, 360], [250, 420], [90, 330]], '#e6d29c');
-  land([[110, 140], [330, 120], [380, 240], [300, 330], [150, 300]], '#86b86f');
-  land([[560, 120], [900, 80], [980, 260], [880, 470], [640, 520], [540, 330]], '#e6d29c');
-  land([[620, 180], [840, 150], [900, 300], [800, 420], [650, 400]], '#79ad66');
-  land([[420, 470], [520, 450], [560, 560], [450, 600], [380, 560]], '#e6d29c');
-  x.strokeStyle = '#c0533f'; x.lineWidth = 9; x.setLineDash([22, 18]); x.lineCap = 'round';
-  x.beginPath(); x.moveTo(180, 230); x.bezierCurveTo(420, 120, 520, 420, 760, 300); x.stroke();
-  x.setLineDash([]);
-  x.fillStyle = '#c0533f'; [[180, 230], [760, 300]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 14, 0, Math.PI * 2); x.fill(); });
-  x.strokeStyle = 'rgba(80,90,80,0.25)'; x.lineWidth = 3;
-  for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo((1024 / 4) * i, 0); x.lineTo((1024 / 4) * i, 640); x.stroke(); }
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8;
-  return t;
-}
-
+// ---------- builders ----------
 const builders = {
   itinerary() {
-    const g = new THREE.Group();
-    const tex = mapTexture();
-    const panels = 4, pw = 0.8, ph = 2.1;
+    seed = 11;
+    const root = new THREE.Group();
+    const mapTex = mapTexture();
+    const panels = 3, pw = 1.02, ph = 2.3;
+    const paperEdge = std({ color: 0xd9c49a, roughness: 0.9 });
     for (let i = 0; i < panels; i++) {
-      const geo = new THREE.BoxGeometry(pw, 0.03, ph);
-      // map the panel to its quarter of the texture on the top face
+      const geo = new THREE.BoxGeometry(pw, 0.02, ph, 8, 1, 8);
       const uv = geo.attributes.uv;
       for (let k = 0; k < uv.count; k++) uv.setX(k, (i + uv.getX(k)) / panels);
-      const mats = [std(0xf1ead6), std(0xf1ead6), std(0xffffff, 0.7, { map: tex }), std(0xe9e1c9), std(0xf1ead6), std(0xf1ead6)];
-      const m = mesh(geo, mats);
-      const tilt = i % 2 === 0 ? 0.22 : -0.22;
-      m.rotation.z = tilt;
-      m.position.set((i - (panels - 1) / 2) * pw * Math.cos(0.22), 0.08 + (i % 2 === 0 ? 0 : 0), 0);
-      g.add(m);
+      const top = std({ map: mapTex, bumpMap: mapTex, bumpScale: 0.5, roughness: 0.88 });
+      const m = mesh(geo, [paperEdge, paperEdge, top, paperEdge, paperEdge, paperEdge]);
+      m.rotation.z = i === 1 ? -0.1 : 0.1;
+      m.position.set((i - 1) * pw * 0.995, i === 1 ? 0.05 : 0, 0);
+      root.add(m);
     }
-    g.rotation.y = -0.35;
-    g.rotation.x = 0.08;
-    // pin
-    const pin = new THREE.Group();
-    const needle = mesh(new THREE.CylinderGeometry(0.03, 0.012, 0.8, 16), std(0xb8bcc2, 0.25, { metalness: 0.9 }));
-    needle.position.y = 0.4;
-    const head = mesh(new THREE.SphereGeometry(0.24, 48, 32), phys(0xc8452f));
-    head.position.y = 0.86;
-    pin.add(needle, head);
-    pin.position.set(0.55, 0.12, -0.1);
-    pin.rotation.z = -0.18;
-    const root = new THREE.Group();
-    root.add(g, pin);
-    root.position.y = 0.28;
+    // brass compass
+    const compass = new THREE.Group();
+    const brass = brassMat();
+    const casing = mesh(new THREE.CylinderGeometry(0.42, 0.44, 0.14, 64), brass); compass.add(casing);
+    const rim = mesh(new THREE.TorusGeometry(0.42, 0.035, 16, 64), brass); rim.rotation.x = Math.PI / 2; rim.position.y = 0.07; compass.add(rim);
+    const face = tex(512, 512, (x, w, h) => {
+      x.fillStyle = '#efe4c8'; x.fillRect(0, 0, w, h);
+      speckle(x, w, h, 4000, ['rgba(120,90,40,0.06)'], 0.5, 1.4);
+      x.translate(w / 2, h / 2); x.strokeStyle = '#3c3024'; x.fillStyle = '#3c3024';
+      for (let i = 0; i < 72; i++) { x.save(); x.rotate((i / 72) * Math.PI * 2); x.lineWidth = i % 9 === 0 ? 4 : 1.5; x.beginPath(); x.moveTo(0, -230); x.lineTo(0, i % 9 === 0 ? -195 : -212); x.stroke(); x.restore(); }
+      x.font = 'bold 58px Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(([l, d]) => { x.save(); x.rotate((d * Math.PI) / 180); x.fillText(l, 0, -150); x.restore(); });
+    });
+    const dial = mesh(new THREE.CircleGeometry(0.36, 64), std({ map: face, roughness: 0.7 }), false);
+    dial.rotation.x = -Math.PI / 2; dial.position.y = 0.071; compass.add(dial);
+    const needleShape = new THREE.Shape(); needleShape.moveTo(0, 0.3); needleShape.lineTo(0.045, 0); needleShape.lineTo(0, -0.3); needleShape.lineTo(-0.045, 0); needleShape.closePath();
+    const needle = mesh(new THREE.ShapeGeometry(needleShape), std({ color: 0x8e2f22, roughness: 0.4, side: THREE.DoubleSide }), false);
+    needle.rotation.set(-Math.PI / 2, 0, 0.6); needle.position.y = 0.08; compass.add(needle);
+    const glass = mesh(new THREE.CylinderGeometry(0.38, 0.38, 0.01, 64), phys({ color: 0xffffff, roughness: 0.03, transparent: true, opacity: 0.18, clearcoat: 1 }), false);
+    glass.position.y = 0.09; compass.add(glass);
+    const bail = mesh(new THREE.TorusGeometry(0.09, 0.025, 12, 32), brass); bail.position.set(0, 0.03, -0.5); bail.rotation.x = Math.PI / 2 - 0.3; compass.add(bail);
+    compass.position.set(0.55, 0.12, 0.35);
+    compass.rotation.y = 0.4;
+    root.add(compass);
+    root.rotation.y = -0.4;
+    root.position.y = 0.3;
     return root;
   },
 
   flights() {
+    seed = 21;
     const g = new THREE.Group();
-    const white = phys(0xf6f7f8);
-    const accent = phys(0x4f7a5c);
-    const body = mesh(new THREE.CapsuleGeometry(0.28, 2.3, 16, 48), white);
-    body.rotation.z = Math.PI / 2;
-    g.add(body);
-    // tail fin
-    const finShape = new THREE.Shape();
-    finShape.moveTo(0, 0); finShape.lineTo(0.55, 0); finShape.lineTo(0.2, 0.75); finShape.lineTo(-0.05, 0.75); finShape.closePath();
-    const fin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 4 }), accent);
-    fin.position.set(-1.45, 0.15, -0.03);
-    g.add(fin);
-    // wings
+    // brushed aluminium with panel lines, rivets and a green cheatline + windows
+    const skin = tex(2048, 1024, (x, w, h) => {
+      x.fillStyle = '#c5cad0'; x.fillRect(0, 0, w, h);
+      for (let i = 0; i < 1400; i++) { x.strokeStyle = `rgba(${rand() < 0.5 ? '255,255,255' : '60,65,70'},${rr(0.03, 0.08)})`; x.lineWidth = 1; const y = rand() * h; x.beginPath(); x.moveTo(0, y); x.lineTo(w, y + rr(-3, 3)); x.stroke(); }
+      x.strokeStyle = 'rgba(70,75,80,0.35)'; x.lineWidth = 2;
+      for (let i = 1; i < 14; i++) { x.beginPath(); x.moveTo(0, (h / 14) * i); x.lineTo(w, (h / 14) * i); x.stroke(); }
+      for (let i = 1; i < 10; i++) { x.beginPath(); x.moveTo((w / 10) * i, 0); x.lineTo((w / 10) * i, h); x.stroke(); }
+      x.fillStyle = 'rgba(70,75,80,0.4)';
+      for (let i = 1; i < 14; i++) for (let px = 0; px < w; px += 18) { x.beginPath(); x.arc(px, (h / 14) * i + 6, 1.6, 0, Math.PI * 2); x.fill(); }
+      // Lathe u runs around the fuselage; after the -90° z rotation the
+      // sides are u = 0 / 0.5 / 1 (0 and 1 are the same seam).
+      for (const cxu of [0, 0.5, 1]) { // cheatline + windows on both sides
+        x.fillStyle = '#3f5f49'; x.fillRect(cxu * w - 60, 0.12 * h, 120, 0.78 * h);
+        x.fillStyle = '#e9e2cf'; x.fillRect(cxu * w - 60, 0.12 * h, 120, 10); x.fillRect(cxu * w + 50, 0.12 * h, 10, 0.78 * h);
+        x.fillStyle = '#1d2830';
+        for (let i = 0; i < 15; i++) { const wy = 0.2 * h + i * 0.042 * h; x.beginPath(); x.roundRect(cxu * w - 22, wy, 44, 26, 10); x.fill(); }
+      }
+      vignette(x, w, h, 'rgba(60,55,45,A)', 0.2);
+    });
+    const alu = std({ map: skin, bumpMap: skin, bumpScale: 0.35, metalness: 0.78, roughness: 0.36 });
+    const prof = [];
+    const L = 3.4;
+    for (let i = 0; i <= 40; i++) {
+      const t = i / 40, y = t * L - L / 2;
+      let r;
+      if (t < 0.14) r = 0.36 * Math.sqrt(t / 0.14) * (0.35 + 0.65 * (t / 0.14)) + 0.02;
+      else if (t < 0.62) r = 0.38;
+      else r = 0.38 - (t - 0.62) / 0.38 * 0.3;
+      prof.push(new THREE.Vector2(Math.max(0.001, r), y));
+    }
+    prof[prof.length - 1].x = 0.001;
+    const fus = mesh(new THREE.LatheGeometry(prof, 64), alu);
+    fus.rotation.z = -Math.PI / 2; // nose toward +x
+    g.add(fus);
+    const plainAlu = std({ color: 0xc8cdd3, metalness: 0.8, roughness: 0.34 });
     const wingShape = new THREE.Shape();
-    wingShape.moveTo(0, 0); wingShape.lineTo(0.7, 0); wingShape.lineTo(0.05, 1.55); wingShape.lineTo(-0.25, 1.55); wingShape.closePath();
-    const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.03, bevelSegments: 4 });
-    const w1 = mesh(wingGeo, white); w1.rotation.x = -Math.PI / 2; w1.position.set(-0.2, -0.08, 0.2); g.add(w1);
-    const w2 = mesh(wingGeo, white); w2.rotation.x = Math.PI / 2; w2.position.set(-0.2, -0.08, -0.2); g.add(w2);
-    // tailplanes
-    const tp = new THREE.Shape(); tp.moveTo(0, 0); tp.lineTo(0.35, 0); tp.lineTo(0.05, 0.55); tp.lineTo(-0.1, 0.55); tp.closePath();
-    const tpGeo = new THREE.ExtrudeGeometry(tp, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 3 });
-    const t1 = mesh(tpGeo, white); t1.rotation.x = -Math.PI / 2; t1.position.set(-1.45, 0.1, 0.12); g.add(t1);
-    const t2 = mesh(tpGeo, white); t2.rotation.x = Math.PI / 2; t2.position.set(-1.45, 0.1, -0.12); g.add(t2);
-    // engines
-    for (const z of [0.62, -0.62]) {
-      const e = mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.42, 32), accent);
-      e.rotation.z = Math.PI / 2; e.position.set(0.1, -0.24, z); g.add(e);
+    wingShape.moveTo(0, 0); wingShape.lineTo(0.95, 0); wingShape.quadraticCurveTo(0.5, 1.4, 0.35, 1.95); wingShape.quadraticCurveTo(0.12, 2.05, 0.02, 1.9); wingShape.lineTo(-0.1, 0.4); wingShape.closePath();
+    const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.035, bevelSegments: 5, curveSegments: 24 });
+    for (const side of [1, -1]) {
+      const w = mesh(wingGeo, plainAlu);
+      w.rotation.x = side * -Math.PI / 2; w.rotation.y = side * 0.05;
+      w.position.set(-0.35, -0.2, side * 0.25);
+      g.add(w);
+      // engine nacelle + propeller
+      const nac = mesh(new THREE.CylinderGeometry(0.12, 0.15, 0.7, 32), plainAlu); nac.rotation.z = Math.PI / 2; nac.position.set(0.15, -0.2, side * 0.95); g.add(nac);
+      const spinner = mesh(new THREE.ConeGeometry(0.1, 0.2, 32), std({ color: 0x3f5f49, roughness: 0.4 })); spinner.rotation.z = -Math.PI / 2; spinner.position.set(0.6, -0.2, side * 0.95); g.add(spinner);
+      const prop = new THREE.Group();
+      for (let b = 0; b < 3; b++) { const blade = mesh(new THREE.BoxGeometry(0.02, 0.62, 0.08), std({ color: 0x2a2a2a, roughness: 0.5 })); blade.position.y = 0.31; const holder = new THREE.Group(); holder.add(blade); holder.rotation.x = (b / 3) * Math.PI * 2 + side * 0.3; prop.add(holder); }
+      prop.position.set(0.52, -0.2, side * 0.95); g.add(prop);
     }
-    // windows + cockpit
-    const winMat = std(0x2b3a44, 0.2);
-    for (let i = 0; i < 9; i++) {
-      const w = mesh(new THREE.SphereGeometry(0.045, 16, 12), winMat, false);
-      w.position.set(0.95 - i * 0.2, 0.08, 0.265); g.add(w);
-    }
-    const cockpit = mesh(new THREE.SphereGeometry(0.1, 24, 16), winMat, false);
-    cockpit.scale.set(1.3, 0.6, 1.6); cockpit.position.set(1.33, 0.1, 0); g.add(cockpit);
-    // accent stripe
-    const stripe = mesh(new THREE.CylinderGeometry(0.285, 0.285, 1.9, 48, 1, true, Math.PI * 1.05, Math.PI * 0.9), accent, false);
-    stripe.rotation.z = Math.PI / 2; stripe.position.y = -0.005; stripe.scale.set(1, 1, 1);
-    g.add(stripe);
-    g.rotation.set(0.15, -0.55, 0.18);
+    const finShape = new THREE.Shape(); finShape.moveTo(0, 0); finShape.lineTo(0.75, 0); finShape.quadraticCurveTo(0.35, 0.35, 0.28, 0.8); finShape.quadraticCurveTo(0.12, 0.9, 0.02, 0.8); finShape.closePath();
+    const fin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.02, bevelSize: 0.02, bevelSegments: 4, curveSegments: 16 }), std({ color: 0x3f5f49, roughness: 0.5, metalness: 0.2 }));
+    fin.position.set(-1.72, 0.12, -0.03); g.add(fin);
+    const stab = new THREE.Shape(); stab.moveTo(0, 0); stab.lineTo(0.5, 0); stab.quadraticCurveTo(0.2, 0.5, 0.1, 0.65); stab.lineTo(-0.02, 0.6); stab.closePath();
+    const stabGeo = new THREE.ExtrudeGeometry(stab, { depth: 0.02, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 3 });
+    for (const side of [1, -1]) { const s = mesh(stabGeo, plainAlu); s.rotation.x = side * -Math.PI / 2; s.position.set(-1.7, 0.08, side * 0.06); g.add(s); }
+    g.rotation.set(0.12, -0.6, 0.12);
     g.position.y = 0.75;
-    g.scale.setScalar(0.95);
+    g.scale.setScalar(0.9);
     return g;
   },
 
   lodging() {
+    seed = 31;
     const g = new THREE.Group();
-    const walls = mesh(new RoundedBoxGeometry(1.7, 0.85, 1.2, 4, 0.04), std(0xf2ead8, 0.8));
-    walls.position.y = 0.45; g.add(walls);
-    // timber frame
-    const wood = std(0x5b4636, 0.7);
-    for (const x of [-0.84, -0.28, 0.28, 0.84]) { const p = mesh(new THREE.BoxGeometry(0.07, 0.86, 0.07), wood); p.position.set(x, 0.45, 0.61); g.add(p); }
-    const beam = mesh(new THREE.BoxGeometry(1.76, 0.07, 0.07), wood); beam.position.set(0, 0.86, 0.61); g.add(beam);
-    // warm lit windows (shoji)
-    const glow = std(0xffe2a8, 0.6, { emissive: 0xffc970, emissiveIntensity: 0.85 });
-    for (const x of [-0.56, 0.56]) { const w = mesh(new THREE.BoxGeometry(0.4, 0.32, 0.02), glow, false); w.position.set(x, 0.5, 0.605); g.add(w); }
-    const door = mesh(new THREE.BoxGeometry(0.34, 0.55, 0.02), wood, false); door.position.set(0, 0.32, 0.605); g.add(door);
-    // curved-eave roof: extruded profile across the width
-    const rs = new THREE.Shape();
-    rs.moveTo(-1.0, 0); rs.quadraticCurveTo(-0.75, 0.05, -0.55, 0.28); rs.lineTo(0, 0.62); rs.lineTo(0.55, 0.28);
-    rs.quadraticCurveTo(0.75, 0.05, 1.0, 0); rs.lineTo(0.9, -0.06); rs.lineTo(0, 0.5); rs.lineTo(-0.9, -0.06); rs.closePath();
-    const roofGeo = new THREE.ExtrudeGeometry(rs, { depth: 2.1, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 4 });
-    roofGeo.translate(0, 0, -1.05);
-    const roof = mesh(roofGeo, phys(0x46545f, { roughness: 0.5, clearcoat: 0.3 }));
-    roof.rotation.y = Math.PI / 2; roof.position.set(0, 0.86, 0); roof.scale.set(0.82, 1, 1);
-    g.add(roof);
-    const ridge = mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.15, 24), phys(0x39444d)); ridge.rotation.z = Math.PI / 2; ridge.position.set(0, 1.37, 0); g.add(ridge);
-    // lantern
-    const lantern = mesh(new THREE.SphereGeometry(0.11, 32, 24), std(0xd0503a, 0.5, { emissive: 0xc8452f, emissiveIntensity: 0.35 }));
-    lantern.scale.y = 1.3; lantern.position.set(0.95, 0.62, 0.72); g.add(lantern);
-    // little pine tree
-    const trunk = mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.5, 16), wood); trunk.position.set(-1.2, 0.3, 0.3); g.add(trunk);
-    const leaf = std(0x5d8a5f, 0.8);
-    [[0.6, 0.34], [0.8, 0.27], [0.98, 0.2]].forEach(([y, r]) => { const s = mesh(new THREE.SphereGeometry(r, 32, 24), leaf); s.scale.y = 0.6; s.position.set(-1.2, y, 0.3); g.add(s); });
-    g.rotation.y = -0.45;
-    g.position.y = 0.2;
-    g.scale.setScalar(0.95);
+    const stone = tex(1024, 512, (x, w, h) => {
+      x.fillStyle = '#8d8a82'; x.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++) { const v = rr(95, 165); x.fillStyle = `rgba(${v},${v - 3},${v - 8},0.95)`; x.strokeStyle = 'rgba(40,38,34,0.7)'; x.lineWidth = 4; const sx = rand() * w, sy = rand() * h, r = rr(30, 70); x.beginPath(); x.ellipse(sx, sy, r, r * rr(0.5, 0.8), rr(-0.3, 0.3), 0, Math.PI * 2); x.fill(); x.stroke(); }
+      speckle(x, w, h, 12000, ['rgba(0,0,0,0.1)', 'rgba(255,255,255,0.07)'], 0.6, 2);
+    });
+    const base = mesh(new RoundedBoxGeometry(2.1, 0.22, 1.5, 3, 0.05), withBump(stone, 2.5, { roughness: 0.95 }));
+    base.position.y = 0.11; g.add(base);
+    const plaster = tex(1024, 1024, (x, w, h) => { x.fillStyle = '#e4d9c3'; x.fillRect(0, 0, w, h); speckle(x, w, h, 1500, ['rgba(150,120,80,0.08)', 'rgba(255,255,255,0.1)'], 4, 30); speckle(x, w, h, 20000, ['rgba(0,0,0,0.05)'], 0.5, 1.5); vignette(x, w, h, 'rgba(120,90,50,A)', 0.35); });
+    const walls = mesh(new THREE.BoxGeometry(1.8, 0.78, 1.2), withBump(plaster, 1.5, { roughness: 0.95 }));
+    walls.position.y = 0.61; g.add(walls);
+    const darkWood = withBump(wood('#4a3526', '#23170e', '#6b5039'), 2, { roughness: 0.8 });
+    for (const x of [-0.88, -0.3, 0.3, 0.88]) { const p = mesh(new THREE.BoxGeometry(0.08, 0.8, 0.08), darkWood); p.position.set(x, 0.61, 0.61); g.add(p); }
+    for (const y of [0.24, 0.99]) { const b = mesh(new THREE.BoxGeometry(1.86, 0.08, 0.08), darkWood); b.position.set(0, y, 0.61); g.add(b); }
+    // shoji: warm paper with lattice, softly lit from inside
+    const shoji = tex(512, 512, (x, w, h) => { x.fillStyle = '#f6e3b8'; x.fillRect(0, 0, w, h); speckle(x, w, h, 3000, ['rgba(160,120,60,0.08)'], 0.5, 2); x.strokeStyle = '#3a2a1d'; x.lineWidth = 12; for (let i = 0; i <= 4; i++) { x.beginPath(); x.moveTo((w / 4) * i, 0); x.lineTo((w / 4) * i, h); x.stroke(); } for (let i = 0; i <= 5; i++) { x.beginPath(); x.moveTo(0, (h / 5) * i); x.lineTo(w, (h / 5) * i); x.stroke(); } });
+    for (const x of [-0.59, 0.59]) { const s = mesh(new THREE.PlaneGeometry(0.5, 0.62), std({ map: shoji, emissive: 0xffc26e, emissiveMap: shoji, emissiveIntensity: 0.55, roughness: 0.9 }), false); s.position.set(x, 0.62, 0.605); g.add(s); }
+    const door = mesh(new THREE.PlaneGeometry(0.46, 0.66), darkWood, false); door.position.set(0, 0.6, 0.606); g.add(door);
+    const deck = mesh(new THREE.BoxGeometry(1.9, 0.05, 0.3), withBump(wood('#7a5a3c', '#3e2a19', '#9c7a55', { repeat: [2, 1] }), 1.5)); deck.position.set(0, 0.26, 0.78); g.add(deck);
+    // thick thatched hip roof
+    const straw = tex(1024, 1024, (x, w, h) => {
+      x.fillStyle = '#8f7446'; x.fillRect(0, 0, w, h);
+      for (let i = 0; i < 9000; i++) { x.strokeStyle = rand() < 0.5 ? `rgba(60,42,20,${rr(0.2, 0.5)})` : `rgba(210,180,120,${rr(0.2, 0.5)})`; x.lineWidth = rr(1, 2.5); const sx = rand() * w, sy = rand() * h, l = rr(18, 60); x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + rr(-4, 4), sy + l); x.stroke(); }
+      for (let i = 1; i < 6; i++) { x.fillStyle = 'rgba(40,28,14,0.25)'; x.fillRect(0, (h / 6) * i - 6, w, 12); }
+      vignette(x, w, h, 'rgba(40,30,15,A)', 0.3);
+    });
+    const thatch = withBump(straw, 4, { roughness: 1 });
+    const slabGeo = new RoundedBoxGeometry(2.45, 0.24, 1.15, 4, 0.1);
+    for (const side of [1, -1]) {
+      const slab = mesh(slabGeo, thatch);
+      slab.rotation.x = side * 0.62;
+      slab.position.set(0, 1.32, side * 0.42);
+      g.add(slab);
+    }
+    // gable ends: plaster triangle with a dark timber frame
+    const gable = new THREE.Shape(); gable.moveTo(-0.62, 0); gable.lineTo(0.62, 0); gable.lineTo(0, 0.62); gable.closePath();
+    const gableGeo = new THREE.ExtrudeGeometry(gable, { depth: 0.04, bevelEnabled: false });
+    for (const side of [1, -1]) {
+      const gw = mesh(gableGeo, withBump(plaster, 1.5, { roughness: 0.95 }));
+      gw.rotation.y = Math.PI / 2; gw.position.set(side * 0.9 - 0.02, 1.0, 0); g.add(gw);
+      const post = mesh(new THREE.BoxGeometry(0.06, 0.6, 0.06), darkWood); post.position.set(side * 0.93, 1.3, 0); g.add(post);
+    }
+    const ridge = mesh(new RoundedBoxGeometry(2.5, 0.18, 0.26, 3, 0.07), withBump(straw, 3, { roughness: 1, color: 0x9a8a6a })); ridge.position.set(0, 1.72, 0); g.add(ridge);
+    // stone lantern
+    const lstone = withBump(stone, 2, { roughness: 0.95 });
+    const lantern = new THREE.Group();
+    [[0.1, 0.06, 0.2, 0.04], [0.05, 0.05, 0.42, 0.28], [0.17, 0.17, 0.06, 0.53], [0.12, 0.12, 0.16, 0.64], [0.02, 0.2, 0.12, 0.78]].forEach(([rt, rb, h, y]) => { const m = mesh(new THREE.CylinderGeometry(rt, rb, h, 6), lstone); m.position.y = y; lantern.add(m); });
+    const lampGlow = mesh(new THREE.BoxGeometry(0.1, 0.08, 0.2), std({ color: 0xffd08a, emissive: 0xffb04a, emissiveIntensity: 0.8 }), false); lampGlow.position.y = 0.64; lantern.add(lampGlow);
+    lantern.position.set(1.25, 0.18, 0.62); g.add(lantern);
+    // pine
+    const needles = tex(512, 512, (x, w, h) => { x.fillStyle = '#3d5a36'; x.fillRect(0, 0, w, h); for (let i = 0; i < 5000; i++) { x.strokeStyle = rand() < 0.5 ? 'rgba(20,35,18,0.5)' : 'rgba(110,145,90,0.5)'; x.lineWidth = 1.5; const sx = rand() * w, sy = rand() * h; x.beginPath(); x.moveTo(sx, sy); x.lineTo(sx + rr(-8, 8), sy + rr(-8, 8)); x.stroke(); } });
+    const leaf = withBump(needles, 3, { roughness: 0.95 });
+    const trunk = mesh(new THREE.CylinderGeometry(0.05, 0.08, 1.0, 12), darkWood); trunk.position.set(-1.3, 0.62, 0.1); trunk.rotation.z = 0.12; g.add(trunk);
+    [[1.05, 0.34, -1.2], [1.25, 0.27, -1.33], [0.85, 0.3, -1.4]].forEach(([y, r, x]) => { const s = mesh(new THREE.IcosahedronGeometry(r, 3), leaf); s.scale.set(1.3, 0.55, 1.1); s.position.set(x, y, 0.1); g.add(s); });
+    g.rotation.y = -0.5;
+    g.position.y = 0.12;
+    g.scale.setScalar(0.88);
     return g;
   },
 
   packing() {
+    seed = 41;
     const g = new THREE.Group();
-    const leather = phys(0xc28f5c, { roughness: 0.55, clearcoat: 0.25 });
-    const body = mesh(new RoundedBoxGeometry(1.8, 1.25, 0.62, 6, 0.14), leather);
-    body.position.y = 0.72; g.add(body);
-    const strapMat = std(0x6e4a2e, 0.6);
-    for (const x of [-0.45, 0.45]) { const s = mesh(new RoundedBoxGeometry(0.16, 1.3, 0.66, 3, 0.03), strapMat); s.position.set(x, 0.72, 0); g.add(s); }
-    const brass = std(0xd4a64a, 0.3, { metalness: 0.85 });
-    for (const x of [-0.45, 0.45]) { const b = mesh(new RoundedBoxGeometry(0.2, 0.14, 0.05, 2, 0.02), brass); b.position.set(x, 0.95, 0.34); g.add(b); }
-    for (const [x, y] of [[-0.86, 0.12], [0.86, 0.12], [-0.86, 1.32], [0.86, 1.32]]) { const c = mesh(new THREE.SphereGeometry(0.09, 24, 16), brass); c.position.set(x, y, 0.28); g.add(c); }
-    const handle = mesh(new THREE.TorusGeometry(0.22, 0.05, 20, 48, Math.PI), strapMat); handle.position.set(0, 1.35, 0); g.add(handle);
-    // travel stickers
-    const stickers = [[0xe7dcb8, -0.05, 0.45, 0.2], [0x4f7a5c, 0.72, 0.4, 0.14], [0xc0667d, -0.75, 0.95, 0.13], [0x4c7db0, 0.1, 1.1, 0.12]];
-    for (const [col, x, y, r] of stickers) { const d = mesh(new THREE.CylinderGeometry(r, r, 0.012, 40), std(col, 0.6), false); d.rotation.x = Math.PI / 2; d.position.set(x, y, 0.315); g.add(d); }
-    g.rotation.set(0, -0.5, 0.06);
+    const hide = withBump(leather('#8a5a32'), 1.6, { roughness: 0.62 });
+    const darkHide = withBump(leather('#4e3019', { stitch: false }), 1.4, { roughness: 0.6 });
+    const brass = brassMat();
+    const body = mesh(new RoundedBoxGeometry(1.95, 1.3, 0.62, 6, 0.1), hide); body.position.y = 0.72; g.add(body);
+    const seam = mesh(new RoundedBoxGeometry(1.99, 1.34, 0.06, 4, 0.03), darkHide); seam.position.set(0, 0.72, 0.12); g.add(seam);
+    for (const x of [-0.5, 0.5]) {
+      const strap = mesh(new RoundedBoxGeometry(0.17, 1.36, 0.66, 3, 0.03), darkHide); strap.position.set(x, 0.72, 0); g.add(strap);
+      const buckleShape = new THREE.Shape(); buckleShape.moveTo(-0.13, -0.1); buckleShape.lineTo(0.13, -0.1); buckleShape.lineTo(0.13, 0.1); buckleShape.lineTo(-0.13, 0.1); buckleShape.closePath();
+      const hole = new THREE.Path(); hole.moveTo(-0.09, -0.06); hole.lineTo(0.09, -0.06); hole.lineTo(0.09, 0.06); hole.lineTo(-0.09, 0.06); hole.closePath(); buckleShape.holes.push(hole);
+      const buckle = mesh(new THREE.ExtrudeGeometry(buckleShape, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.01, bevelSize: 0.01, bevelSegments: 3 }), brass);
+      buckle.position.set(x, 0.98, 0.33); g.add(buckle);
+    }
+    for (const [x, y] of [[-0.9, 0.14], [0.9, 0.14], [-0.9, 1.3], [0.9, 1.3]]) { const c = mesh(new RoundedBoxGeometry(0.24, 0.24, 0.68, 3, 0.06), darkHide); c.position.set(x, y, 0); g.add(c); }
+    for (const x of [-0.72, 0.72]) { const l = mesh(new RoundedBoxGeometry(0.14, 0.1, 0.06, 2, 0.02), brass); l.position.set(x, 1.14, 0.32); g.add(l); }
+    const handle = mesh(new THREE.TorusGeometry(0.24, 0.06, 20, 48, Math.PI), darkHide); handle.position.set(0, 1.39, 0); g.add(handle);
+    for (const x of [-0.24, 0.24]) { const r = mesh(new THREE.TorusGeometry(0.05, 0.015, 10, 24), brass); r.position.set(x, 1.39, 0); r.rotation.y = Math.PI / 2; g.add(r); }
+    const label = (text, bg, fg, w, h, x, y, rot) => {
+      const t = tex(512, Math.round(512 * (h / w)), (c, W, H) => {
+        paperBase(c, W, H, bg);
+        c.strokeStyle = fg; c.lineWidth = 10; c.strokeRect(18, 18, W - 36, H - 36);
+        c.fillStyle = fg; c.font = `bold ${Math.round(H * 0.3)}px Georgia, serif`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, W / 2, H / 2);
+        vignette(c, W, H, 'rgba(90,60,25,A)', 0.5);
+      });
+      const m = mesh(new THREE.PlaneGeometry(w, h), std({ map: t, roughness: 0.85 }), false);
+      m.position.set(x, y, 0.315); m.rotation.z = rot; g.add(m);
+    };
+    label('TOKYO', '#e9dcb8', '#8e2f22', 0.5, 0.3, -0.05, 0.42, -0.08);
+    label('KYOTO', '#dfe6d2', '#3f5f49', 0.38, 0.24, 0.76, 0.55, 0.1);
+    label('HONG KONG', '#e6d8c0', '#2f4a6b', 0.46, 0.22, -0.78, 0.98, 0.06);
+    g.rotation.set(0, -0.5, 0.05);
     g.position.y = 0.12;
     return g;
   },
 
   journal() {
+    seed = 51;
     const g = new THREE.Group();
-    const cover = phys(0x3e6349, { roughness: 0.6, clearcoat: 0.2 });
-    const back = mesh(new RoundedBoxGeometry(1.5, 0.07, 2.0, 3, 0.03), cover); back.position.y = 0.05; g.add(back);
-    const pages = mesh(new RoundedBoxGeometry(1.42, 0.24, 1.92, 2, 0.02), std(0xf6efdc, 0.9)); pages.position.set(0.02, 0.2, 0); g.add(pages);
-    const front = mesh(new RoundedBoxGeometry(1.5, 0.07, 2.0, 3, 0.03), cover); front.position.y = 0.35; g.add(front);
-    const spine = mesh(new THREE.CylinderGeometry(0.17, 0.17, 2.0, 32, 1, false, Math.PI / 2, Math.PI), cover); spine.rotation.x = Math.PI / 2; spine.position.set(-0.75, 0.2, 0); g.add(spine);
-    const band = mesh(new THREE.BoxGeometry(0.06, 0.42, 2.02), std(0x1e2721, 0.5)); band.position.set(0.5, 0.2, 0); g.add(band);
-    const ribbon = mesh(new THREE.BoxGeometry(0.1, 0.01, 0.5), std(0xc8452f, 0.5)); ribbon.position.set(0.1, 0.06, 1.2); ribbon.rotation.x = 0.35; g.add(ribbon);
-    // gold foil emblem
-    const emblem = mesh(new THREE.TorusGeometry(0.18, 0.025, 12, 48), std(0xd4a64a, 0.3, { metalness: 0.85 })); emblem.rotation.x = Math.PI / 2; emblem.position.set(0.05, 0.395, -0.1); g.add(emblem);
-    // pen
-    const pen = new THREE.Group();
-    const barrel = mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 32), phys(0x1e2721)); pen.add(barrel);
-    const tip = mesh(new THREE.ConeGeometry(0.06, 0.2, 32), std(0xd4a64a, 0.3, { metalness: 0.85 })); tip.position.y = -0.85; tip.rotation.x = Math.PI; pen.add(tip);
-    const clip = mesh(new THREE.BoxGeometry(0.03, 0.45, 0.02), std(0xd4a64a, 0.3, { metalness: 0.85 })); clip.position.set(0.07, 0.45, 0); pen.add(clip);
-    pen.rotation.set(Math.PI / 2, 0, 0.9); pen.position.set(0.15, 0.47, 0.1);
-    g.add(pen);
-    g.rotation.set(0.12, -0.5, 0);
+    const cover = withBump(leather('#5a3a22', { dark: 'rgba(20,10,4,A)' }), 1.6, { roughness: 0.62 });
+    const pagesTex = tex(1024, 256, (x, w, h) => { x.fillStyle = '#efe3c6'; x.fillRect(0, 0, w, h); for (let i = 0; i < 160; i++) { x.strokeStyle = `rgba(120,95,60,${rr(0.1, 0.35)})`; x.lineWidth = 1; const y = rand() * h; x.beginPath(); x.moveTo(0, y); x.lineTo(w, y + rr(-2, 2)); x.stroke(); } vignette(x, w, h, 'rgba(130,95,45,A)', 0.4); });
+    const pagesMat = withBump(pagesTex, 1.2, { roughness: 0.95 });
+    const back = mesh(new RoundedBoxGeometry(1.55, 0.07, 2.05, 3, 0.03), cover); back.position.y = 0.05; g.add(back);
+    const pages = mesh(new RoundedBoxGeometry(1.46, 0.3, 1.95, 2, 0.02), pagesMat); pages.position.set(0.03, 0.23, 0); g.add(pages);
+    const front = mesh(new RoundedBoxGeometry(1.55, 0.07, 2.05, 3, 0.03), cover); front.position.set(0, 0.42, 0); front.rotation.z = -0.015; g.add(front);
+    const spine = mesh(new THREE.CylinderGeometry(0.2, 0.2, 2.05, 32, 1, false, Math.PI / 2, Math.PI), cover); spine.rotation.x = Math.PI / 2; spine.position.set(-0.77, 0.235, 0); g.add(spine);
+    // ticket stub peeking out
+    const ticket = tex(512, 256, (x, w, h) => { paperBase(x, w, h, '#d9c7a0'); x.fillStyle = '#8e2f22'; x.font = 'bold 60px Georgia, serif'; x.fillText('ADMIT ONE', 40, 150); x.setLineDash([10, 8]); x.strokeStyle = 'rgba(80,60,30,0.6)'; x.lineWidth = 4; x.beginPath(); x.moveTo(w - 90, 0); x.lineTo(w - 90, h); x.stroke(); });
+    const stub = mesh(new THREE.PlaneGeometry(0.6, 0.3), std({ map: ticket, roughness: 0.85, side: THREE.DoubleSide }), false);
+    stub.rotation.set(-Math.PI / 2, 0, 0.3); stub.position.set(0.55, 0.3, -1.02); g.add(stub);
+    // leather cord wrapped around the book
+    const cordMat = withBump(leather('#3a2414', { stitch: false }), 1, { roughness: 0.7 });
+    const pts = [[0.2, 0.47, 1.06], [0.2, 0.25, 1.1], [0.2, 0.0, 1.06], [0.2, -0.02, 0], [0.2, 0.0, -1.06], [0.2, 0.25, -1.1], [0.2, 0.47, -1.06], [0.2, 0.48, 0]].map((p) => new THREE.Vector3(...p));
+    const cord = mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 80, 0.022, 10, true), cordMat); g.add(cord);
+    const tail = mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3([new THREE.Vector3(0.2, 0.47, 0.2), new THREE.Vector3(0.45, 0.5, 0.5), new THREE.Vector3(0.8, 0.46, 0.75), new THREE.Vector3(1.05, 0.2, 0.9)]), 40, 0.02, 8), cordMat); g.add(tail);
+    // wooden pencil
+    const pencilWood = withBump(wood('#c89a5e', '#8a6035', '#e0bb86'), 0.8, { roughness: 0.7 });
+    const pencil = new THREE.Group();
+    const barrel = mesh(new THREE.CylinderGeometry(0.055, 0.055, 1.5, 6), std({ color: 0x3f5f49, roughness: 0.55 })); pencil.add(barrel);
+    const cone = mesh(new THREE.ConeGeometry(0.055, 0.2, 6), pencilWood); cone.position.y = 0.85; pencil.add(cone);
+    const lead = mesh(new THREE.ConeGeometry(0.018, 0.06, 12), std({ color: 0x2b2b2b, roughness: 0.4 })); lead.position.y = 0.97; pencil.add(lead);
+    const ferrule = mesh(new THREE.CylinderGeometry(0.058, 0.058, 0.12, 16), brassMat()); ferrule.position.y = -0.8; pencil.add(ferrule);
+    const eraser = mesh(new THREE.CylinderGeometry(0.052, 0.052, 0.08, 16), std({ color: 0xb5655a, roughness: 0.9 })); eraser.position.y = -0.9; pencil.add(eraser);
+    pencil.rotation.set(Math.PI / 2, 0, 1.05); pencil.position.set(-0.1, 0.53, -0.05);
+    g.add(pencil);
+    g.rotation.set(0.1, -0.55, 0);
     g.position.y = 0.3;
     return g;
   },
 
   games() {
+    seed = 61;
     const g = new THREE.Group();
-    const s = new THREE.Shape();
-    s.moveTo(-0.7, 0.45);
-    s.lineTo(0.7, 0.45);
-    s.bezierCurveTo(1.2, 0.45, 1.35, 0.1, 1.4, -0.3);
-    s.bezierCurveTo(1.45, -0.8, 1.2, -0.95, 0.95, -0.9);
-    s.bezierCurveTo(0.7, -0.85, 0.6, -0.5, 0.4, -0.4);
-    s.lineTo(-0.4, -0.4);
-    s.bezierCurveTo(-0.6, -0.5, -0.7, -0.85, -0.95, -0.9);
-    s.bezierCurveTo(-1.2, -0.95, -1.45, -0.8, -1.4, -0.3);
-    s.bezierCurveTo(-1.35, 0.1, -1.2, 0.45, -0.7, 0.45);
-    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 10, curveSegments: 48 });
-    geo.center();
-    const body = mesh(geo, phys(0xf3efe6, { roughness: 0.4 }));
-    g.add(body);
-    const dark = phys(0x2f3a33);
-    const dh = mesh(new RoundedBoxGeometry(0.42, 0.13, 0.08, 2, 0.03), dark); dh.position.set(-0.78, 0.1, 0.27); g.add(dh);
-    const dv = mesh(new RoundedBoxGeometry(0.13, 0.42, 0.08, 2, 0.03), dark); dv.position.set(-0.78, 0.1, 0.27); g.add(dv);
-    const btn = [[0xc8452f, 0.78, 0.28], [0x4f7a5c, 0.98, 0.1], [0x4c7db0, 0.58, 0.1], [0xd4a64a, 0.78, -0.08]];
-    for (const [col, x, y] of btn) { const b = mesh(new THREE.SphereGeometry(0.085, 32, 24), phys(col)); b.scale.z = 0.6; b.position.set(x, y, 0.27); g.add(b); }
-    for (const x of [-0.32, 0.32]) {
-      const base = mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.08, 32), dark); base.rotation.x = Math.PI / 2; base.position.set(x, -0.2, 0.27); g.add(base);
-      const cap = mesh(new THREE.SphereGeometry(0.13, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), dark); cap.rotation.x = Math.PI / 2; cap.position.set(x, -0.2, 0.3); g.add(cap);
-    }
-    g.rotation.set(-1.05, 0, 0.12);
-    g.rotation.order = 'XYZ';
-    const root = new THREE.Group();
-    g.position.y = 0.55;
-    root.add(g);
-    root.rotation.y = -0.35;
-    return root;
+    const kaya = wood('#d6ad6c', '#a07436', '#ecc98f', { knots: 1 });
+    const boardTop = tex(1024, 1024, (x, w, h) => {
+      x.drawImage(kaya.image, 0, 0, w, h);
+      x.strokeStyle = 'rgba(30,20,10,0.8)'; x.lineWidth = 3;
+      const m = 90, n = 9, s = (w - 2 * m) / (n - 1);
+      for (let i = 0; i < n; i++) { x.beginPath(); x.moveTo(m, m + i * s); x.lineTo(w - m, m + i * s); x.stroke(); x.beginPath(); x.moveTo(m + i * s, m); x.lineTo(m + i * s, h - m); x.stroke(); }
+      x.fillStyle = 'rgba(30,20,10,0.85)'; [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]].forEach(([a, b]) => { x.beginPath(); x.arc(m + a * s, m + b * s, 9, 0, Math.PI * 2); x.fill(); });
+      vignette(x, w, h, 'rgba(90,55,20,A)', 0.3);
+    });
+    const side = withBump(kaya, 1.2, { roughness: 0.55 });
+    const top = std({ map: boardTop, bumpMap: boardTop, bumpScale: 0.8, roughness: 0.5 });
+    const board = mesh(new THREE.BoxGeometry(1.8, 0.34, 1.8), [side, side, top, side, side, side]); board.position.y = 0.33; g.add(board);
+    const legMat = withBump(wood('#6b4a2c', '#3a2515', '#8c6843'), 1, { roughness: 0.6 });
+    for (const [x, z] of [[-0.62, -0.62], [0.62, -0.62], [-0.62, 0.62], [0.62, 0.62]]) { const leg = mesh(new THREE.CylinderGeometry(0.12, 0.09, 0.18, 16), legMat); leg.position.set(x, 0.09, z); g.add(leg); }
+    const blackStone = phys({ color: 0x151617, roughness: 0.25, clearcoat: 0.8 });
+    const whiteStone = phys({ color: 0xefeae0, roughness: 0.3, clearcoat: 0.5, sheen: 0.3 });
+    const stoneGeo = new THREE.SphereGeometry(0.085, 32, 16);
+    const s = (1.8 - 2 * 0.158) / 8;
+    const at = (a, b) => [-0.742 + a * s, -0.742 + b * s];
+    const place = (a, b, mat) => { const [x, z] = at(a, b); const st = mesh(stoneGeo, mat); st.scale.y = 0.42; st.position.set(x, 0.535, z); g.add(st); };
+    [[2, 2], [3, 3], [5, 2], [4, 5], [6, 6], [3, 6]].forEach(([a, b]) => place(a, b, blackStone));
+    [[3, 2], [4, 3], [5, 5], [2, 5], [6, 4], [4, 6]].forEach(([a, b]) => place(a, b, whiteStone));
+    // wooden bowl of stones
+    const bowlProfile = [[0.001, 0], [0.24, 0.0], [0.33, 0.06], [0.37, 0.18], [0.35, 0.3], [0.3, 0.34], [0.28, 0.3], [0.31, 0.2], [0.26, 0.08], [0.001, 0.06]].map(([r, y]) => new THREE.Vector2(r, y));
+    const bowl = mesh(new THREE.LatheGeometry(bowlProfile, 64), withBump(wood('#5c3a1f', '#2e1c0e', '#7d5634'), 1, { roughness: 0.45 }));
+    bowl.position.set(1.25, 0, 0.55); g.add(bowl);
+    for (let i = 0; i < 9; i++) { const st = mesh(stoneGeo, whiteStone); st.scale.y = 0.45; st.position.set(1.25 + rr(-0.16, 0.16), 0.24 + rr(0, 0.05), 0.55 + rr(-0.16, 0.16)); g.add(st); }
+    g.rotation.y = -0.45;
+    g.position.y = 0.2;
+    g.scale.setScalar(0.92);
+    return g;
   },
 };
 
 window.renderIcon = (name) => {
   const scene = new THREE.Scene();
   scene.environment = envTex;
-  scene.environmentIntensity = 0.45;
-  scene.add(new THREE.HemisphereLight(0xe6effc, 0xcdbfa6, 0.85));
-  const key = new THREE.DirectionalLight(0xfff1dc, 2.9);
+  scene.environmentIntensity = 0.4;
+  scene.add(new THREE.HemisphereLight(0xe8f0fb, 0xbfc9d6, 0.7));
+  const key = new THREE.DirectionalLight(0xffecd2, 3.2);
   key.position.set(-4, 7, 5);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(4096, 4096);
   key.shadow.camera.left = -4; key.shadow.camera.right = 4; key.shadow.camera.top = 4; key.shadow.camera.bottom = -4;
-  key.shadow.bias = -0.0006;
-  key.shadow.radius = 6;
+  key.shadow.bias = -0.0004;
+  key.shadow.normalBias = 0.02;
+  key.shadow.radius = 5;
   scene.add(key);
-  const rim = new THREE.DirectionalLight(0xdfe9ff, 0.8);
+  const rim = new THREE.DirectionalLight(0xdbe6ff, 0.9);
   rim.position.set(5, 3, -4);
   scene.add(rim);
 
   const group = new THREE.Group();
-  const c = cloud(0.8);
-  group.add(c);
+  group.add(cloud(0.82));
   const obj = builders[name]();
-  obj.scale.multiplyScalar(1.32);
-  obj.position.y = obj.position.y * 1.32 + 0.3;
+  obj.scale.multiplyScalar(1.28);
+  obj.position.y = obj.position.y * 1.28 + 0.28;
   group.add(obj);
   scene.add(group);
 
-  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 100);
   const box = new THREE.Box3().setFromObject(group);
   const sphere = box.getBoundingSphere(new THREE.Sphere());
-  const dist = (sphere.radius / Math.sin(THREE.MathUtils.degToRad(28 / 2))) * 1.02;
-  const dir = new THREE.Vector3(0, 0.33, 1).normalize();
+  const dist = (sphere.radius / Math.sin(THREE.MathUtils.degToRad(26 / 2))) * 1.0;
+  const dir = new THREE.Vector3(0, 0.34, 1).normalize();
   camera.position.copy(sphere.center).addScaledVector(dir, dist);
   camera.lookAt(sphere.center);
   renderer.render(scene, camera);
