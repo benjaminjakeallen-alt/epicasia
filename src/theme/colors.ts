@@ -27,9 +27,13 @@ export const colors = {
 
   onAccent: '#ffffff',
 
-  // The only warm color: the hanko seal next to the wordmark (and the
-  // intro's REC dot).
+  // The hanko seal next to the wordmark (and the intro's REC dot) — the
+  // only red in the app.
   seal: '#c8452f',
+
+  // Soft gold for the home orbit's glowing connector line only.
+  gold: '#d4a64a',
+  goldLight: '#ffe2a3',
 
   // Top of the sky backdrop; fades down into `background`.
   sky: '#dde7ea',

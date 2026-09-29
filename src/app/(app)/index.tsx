@@ -1,14 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  FlightsIcon,
-  GamesIcon,
-  ItineraryIcon,
-  JournalIcon,
-  LodgingIcon,
-  PackingIcon,
-} from '../../components/MenuIcons';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import PlaceCard from '../../components/PlaceCard';
 import SkyBackdrop from '../../components/SkyBackdrop';
@@ -21,16 +13,16 @@ import { colors as palette, legColors } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
-// Ring order = swipe order. Colors reuse the leg palette so the menu sits in
-// the same family as the intro's landmarks; items without an href are on
-// the ring but show "Coming soon" until their screen exists.
+// Ring order = swipe order. Icons are the rendered 3D-on-a-cloud images
+// (tools/menu-icons); `color` tints the selected label. Items without an
+// href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
-  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, Icon: ItineraryIcon, href: '/(app)/itinerary' },
-  { key: 'flights', label: 'Flights', caption: 'Coming soon', color: legColors.beijing, Icon: FlightsIcon },
-  { key: 'lodging', label: 'Lodging', caption: 'Coming soon', color: legColors.hongKong, Icon: LodgingIcon },
-  { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, Icon: PackingIcon },
-  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, Icon: JournalIcon },
-  { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, Icon: GamesIcon },
+  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
+  { key: 'flights', label: 'Flights', caption: 'Coming soon', color: legColors.beijing, image: require('../../../assets/images/menu/flights.png') },
+  { key: 'lodging', label: 'Lodging', caption: 'Coming soon', color: legColors.hongKong, image: require('../../../assets/images/menu/lodging.png') },
+  { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, image: require('../../../assets/images/menu/packing.png') },
+  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
+  { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, image: require('../../../assets/images/menu/games.png') },
 ];
 
 export default function Home() {

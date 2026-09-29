@@ -19,6 +19,7 @@ colors:
   highlight: "#4f7a5c"
   on-accent: "#ffffff"
   seal: "#c8452f"
+  gold: "#d4a64a"
   error: "#b4533e"
   leg-tokyo: "#c0667d"
   leg-kyoto: "#b7893f"
@@ -71,7 +72,7 @@ components:
   text-button: "highlight, WorkSans 500"
   input: "white, radius 16, sentence-case label above, shadow.card"
   place-card: "150×196 photo, radius 22, dark fade at bottom, white city/dates, round arrow"
-  orbit-menu: "white badges with shadow; front badge gets a 2px ring in its color + float shadow; serif label under the ring; accent 'Open' pill or accent-soft 'Coming soon'"
+  orbit-menu: "3D-rendered icons on clouds as hubs (tools/menu-icons), joined by a soft blurred gold line (gold #d4a64a) that brightens while dragging; no dial; serif label in the item color under the ring; accent 'Open' pill or accent-soft 'Coming soon'; click + haptic per step"
   itinerary-day: "rail: weekday + leg-colored day circle + dashed connector; white card per item with photo thumb"
 ---
 
@@ -88,8 +89,8 @@ dark; see `CLAUDE.md` → Design direction for the history.
 - Paper background with a pale sky fading in at the top of each screen.
 - White cards separated by soft shadow, not borders.
 - One action color (sage green). One warm touch only: the vermilion seal.
-- Real photographs of the trip's places carry the atmosphere; icons stay
-  thin line art.
+- Real photographs of the trip's places carry the atmosphere. Menu icons
+  are soft 3D miniatures on clouds (the one exception: gold connector glow).
 - Serif (Newsreader) for headlines and titles; Work Sans for everything
   else; mono only for boarding-pass data.
 
@@ -111,7 +112,7 @@ dark; see `CLAUDE.md` → Design direction for the history.
 ### Do
 - Put `SkyBackdrop` first on new top-level screens.
 - Use `shadow.card` for elevation and white cards on the paper background.
-- Use real photos for places; keep icons as thin line art.
+- Use real photos for places; small UI icons (Ionicons) stay thin line art.
 - Keep leg colors stable per city.
 
 ### Don't

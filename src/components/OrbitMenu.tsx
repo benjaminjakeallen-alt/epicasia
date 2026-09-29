@@ -1,44 +1,53 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
+  Easing,
+  Image,
   PanResponder,
   Pressable,
   StyleSheet,
   Text,
   View,
   useWindowDimensions,
+  type ImageSourcePropType,
   type LayoutChangeEvent,
 } from 'react-native';
-import Svg from 'react-native-svg';
-import { confirmTap, selectionTick } from '../lib/haptics';
-import { shadow } from '../theme/colors';
+import { openFeedback, preloadSounds, stepFeedback } from '../lib/feedback';
+import { colors as palette } from '../theme/colors';
 import { fontFamily, type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
-import OrbitDial from './OrbitDial';
 
 export type OrbitMenuItem = {
   key: string;
   label: string;
   caption: string;
   color: string;
-  Icon: ComponentType<{ color: string; size: number }>;
+  /** Rendered 3D icon on a cloud (assets/images/menu, see tools/menu-icons). */
+  image: ImageSourcePropType;
   /** Omitted = not built yet; the item still sits on the ring but can't open. */
   href?: string;
 };
 
 const TAU = Math.PI * 2;
 const SAMPLES_PER_ITEM = 16;
-const BADGE = 82;
+const HUB = 108;
 const READOUT = 150;
+
+// The glowing gold connector between neighbouring hubs.
+const LINE_CORE = 2;
+const LINE_GLOW = 10;
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
 // The launch sequence's 360° ring, as the home menu: swipe left/right to
 // turn it, the item at the front (bottom of the ellipse) is selected, tap it
-// (or the Open button) to go there; tapping any other badge turns it to the
+// (or the Open button) to go there; tapping any other hub turns it to the
 // front. `rotation` is measured in items and unbounded — Animated.modulo
 // wraps it for the pre-sampled orbit paths, so it spins forever either way.
+// Neighbouring hubs are joined by a soft gold line whose segments ride the
+// same pre-sampled paths (position, length, angle) and glow brighter while
+// the ring is being dragged. Each step plays a click + haptic tick.
 export default function OrbitMenu({
   items,
   onOpen,
@@ -64,15 +73,16 @@ export default function OrbitMenu({
   const [front, setFront] = useState(0);
   const screenReader = useRef(false);
 
-  // Dial labels sit at 1.36·rx, so 0.33·width keeps them on screen.
-  const rx = Math.min(width * 0.33, 160);
-  const ry = rx * 0.56;
+  const rx = Math.min(width * 0.36, 165);
+  const ry = rx * 0.5;
   const cx = width / 2;
-  const cy = Math.max(ry * 1.4 + 20, (height - READOUT) / 2);
+  const cy = Math.max(ry + HUB * 0.62, (height - READOUT) / 2);
+  const glow = useRef(new Animated.Value(0)).current;
   // Horizontal drag distance that turns the ring by one item.
   const step = Math.max(96, width / 3.2);
 
   useEffect(() => {
+    preloadSounds();
     AccessibilityInfo.isScreenReaderEnabled().then((on) => {
       screenReader.current = on;
     });
@@ -88,7 +98,7 @@ export default function OrbitMenu({
       const idx = mod(Math.round(value), N);
       if (idx !== lastFront.current) {
         lastFront.current = idx;
-        selectionTick();
+        stepFeedback();
       }
       setFront((prev) => (prev === idx ? prev : idx));
     });
@@ -97,7 +107,7 @@ export default function OrbitMenu({
 
   const open = useCallback(
     (item: OrbitMenuItem) => {
-      confirmTap();
+      openFeedback();
       onOpen(item);
     },
     [onOpen],
@@ -117,7 +127,7 @@ export default function OrbitMenu({
         const depth = (Math.cos(theta) + 1) / 2;
         xs.push(rx * Math.sin(theta));
         ys.push(ry * Math.cos(theta));
-        scales.push(0.52 + 0.6 * depth);
+        scales.push(0.5 + 0.74 * depth);
         opacities.push(0.22 + 0.78 * depth);
       }
       return {
@@ -128,6 +138,66 @@ export default function OrbitMenu({
       };
     });
   }, [items, rotation, N, rx, ry]);
+
+  // Connector segment k joins hub k to hub k+1. Pre-sampled like the hubs;
+  // angles are unwrapped so interpolation never spins the long way round.
+  const segments = useMemo(() => {
+    const wrapped = Animated.modulo(rotation, N);
+    const samples = N * SAMPLES_PER_ITEM;
+    const input = Array.from({ length: samples + 1 }, (_, k) => (k / samples) * N);
+    const pos = (i: number, r: number) => {
+      const theta = ((i - r) / N) * TAU;
+      return { x: rx * Math.sin(theta), y: ry * Math.cos(theta) };
+    };
+    const raw = items.map((_, k) =>
+      input.map((r) => {
+        const a = pos(k, r);
+        const b = pos((k + 1) % N, r);
+        const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        return {
+          mid,
+          len: Math.hypot(b.x - a.x, b.y - a.y),
+          angle: (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI,
+          depth: (mid.y / ry + 1) / 2,
+        };
+      }),
+    );
+    const base = Math.max(...raw.flat().map((p) => p.len));
+    return {
+      base,
+      list: raw.map((pts) => {
+        const angles: number[] = [];
+        for (const p of pts) {
+          let a = p.angle;
+          const prev = angles[angles.length - 1];
+          if (prev !== undefined) {
+            while (a - prev > 180) a -= 360;
+            while (a - prev < -180) a += 360;
+          }
+          angles.push(a);
+        }
+        return {
+          translateX: wrapped.interpolate({ inputRange: input, outputRange: pts.map((p) => p.mid.x) }),
+          translateY: wrapped.interpolate({ inputRange: input, outputRange: pts.map((p) => p.mid.y) }),
+          rotate: wrapped.interpolate({ inputRange: input, outputRange: angles.map((a) => `${a}deg`) }),
+          scaleX: wrapped.interpolate({ inputRange: input, outputRange: pts.map((p) => p.len / base) }),
+          opacity: wrapped.interpolate({ inputRange: input, outputRange: pts.map((p) => 0.3 + 0.7 * p.depth) }),
+        };
+      }),
+    };
+  }, [items, rotation, N, rx, ry]);
+
+  const setGlow = useCallback(
+    (on: boolean) => {
+      Animated.timing(glow, {
+        toValue: on ? 1 : 0,
+        duration: on ? 160 : 700,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
+    },
+    [glow],
+  );
 
   const settle = useCallback(
     (target: number) => {
@@ -160,6 +230,7 @@ export default function OrbitMenu({
         onMoveShouldSetPanResponderCapture: (_, g) =>
           Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy),
         onPanResponderGrant: () => {
+          setGlow(true);
           dragStart.current = current.current;
           rotation.stopAnimation((v) => {
             dragStart.current = v;
@@ -170,6 +241,7 @@ export default function OrbitMenu({
         },
         onPanResponderRelease: (_, g) => {
           lastDragEnd.current = Date.now();
+          setGlow(false);
           // Carry the flick a little past the finger, capped at one extra
           // item; any deliberate swipe moves at least one item.
           const start = dragStart.current;
@@ -180,17 +252,18 @@ export default function OrbitMenu({
         },
         onPanResponderTerminate: (_, g) => {
           lastDragEnd.current = Date.now();
+          setGlow(false);
           settle(dragStart.current - g.dx / step);
         },
         onPanResponderTerminationRequest: () => false,
       }),
-    [rotation, settle, step],
+    [rotation, settle, step, setGlow],
   );
 
   const onLayout = (e: LayoutChangeEvent) => setHeight(e.nativeEvent.layout.height);
 
   const selected = items[front];
-  const bearing = `${String(Math.round((front * 360) / N)).padStart(3, '0')}°`;
+  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
   return (
     <View
@@ -200,24 +273,43 @@ export default function OrbitMenu({
     >
       {height > 0 && (
         <>
-          <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
-            <OrbitDial cx={cx} cy={cy} rx={rx} ry={ry} />
-          </Svg>
+          {segments.list.map((seg, k) => (
+            <Animated.View
+              key={`seg-${items[k].key}`}
+              style={[
+                styles.segment,
+                {
+                  width: segments.base,
+                  left: cx - segments.base / 2,
+                  top: cy - LINE_GLOW / 2,
+                  opacity: seg.opacity,
+                  transform: [
+                    { translateX: seg.translateX },
+                    { translateY: seg.translateY },
+                    { rotate: seg.rotate },
+                    { scaleX: seg.scaleX },
+                  ],
+                },
+              ]}
+            >
+              <Animated.View style={[styles.segmentGlow, { opacity: glowOpacity }]} />
+              <View style={styles.segmentCore} />
+            </Animated.View>
+          ))}
 
           {orbit.map((o, i) => {
             const item = items[i];
-            const { Icon } = item;
             const depth = Math.cos(((i - front) / N) * TAU);
             const isFront = i === front;
             return (
               <Animated.View
                 key={item.key}
                 style={[
-                  styles.badgeWrap,
+                  styles.hubWrap,
                   {
-                    left: cx - BADGE / 2,
-                    top: cy - BADGE / 2,
-                    zIndex: Math.round((depth + 1) * 50),
+                    left: cx - HUB / 2,
+                    top: cy - HUB / 2,
+                    zIndex: 1 + Math.round((depth + 1) * 50),
                     opacity: o.opacity,
                     transform: [{ translateX: o.translateX }, { translateY: o.translateY }, { scale: o.scale }],
                   },
@@ -233,33 +325,24 @@ export default function OrbitMenu({
                       if (item.href) open(item);
                       else goTo(i);
                     } else {
-                      selectionTick();
+                      stepFeedback();
                       goTo(i);
                     }
                   }}
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor: c.card,
-                      borderColor: isFront ? item.color : 'transparent',
-                      borderWidth: 2,
-                      boxShadow: isFront ? shadow.float : shadow.card,
-                    },
-                  ]}
+                  style={styles.hub}
                 >
-                  <Icon color={item.color} size={48} />
+                  <Image source={item.image} style={styles.hubImage} resizeMode="contain" />
                 </Pressable>
               </Animated.View>
             );
           })}
 
-          <View style={[styles.readout, { top: cy + ry * 1.36 + BADGE * 0.62 }]}>
-            <Text style={[styles.bearing, { color: c.inkTertiary }]}>{bearing}</Text>
+          <View style={[styles.readout, { top: cy + ry + HUB * 0.62 }]}>
             <View style={styles.selectRow}>
               <Pressable
                 onPress={() => {
                   if (justDragged()) return;
-                  selectionTick();
+                  stepFeedback();
                   goTo(front - 1);
                 }}
                 hitSlop={14}
@@ -274,7 +357,7 @@ export default function OrbitMenu({
               <Pressable
                 onPress={() => {
                   if (justDragged()) return;
-                  selectionTick();
+                  stepFeedback();
                   goTo(front + 1);
                 }}
                 hitSlop={14}
@@ -292,7 +375,7 @@ export default function OrbitMenu({
               style={({ pressed }) => [
                 styles.open,
                 selected.href
-                  ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: shadow.card }
+                  ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: '0px 6px 20px rgba(30,39,33,0.07)' }
                   : { backgroundColor: c.accentSoft },
               ]}
             >
@@ -308,20 +391,47 @@ export default function OrbitMenu({
 }
 
 const styles = StyleSheet.create({
-  // userSelect: stops web from text-selecting the dial labels mid-drag.
+  // userSelect: stops web from text-selecting labels mid-drag.
   root: { width: '100%', userSelect: 'none' },
   flex: { flex: 1 },
-  badgeWrap: {
+  segment: {
     position: 'absolute',
-    width: BADGE,
-    height: BADGE,
+    height: LINE_GLOW,
+    justifyContent: 'center',
+    zIndex: 0,
   },
-  badge: {
-    width: BADGE,
-    height: BADGE,
-    borderRadius: BADGE / 2,
+  // Soft blurred halo: translucent gold band + wide gold shadow.
+  segmentGlow: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: LINE_GLOW / 2,
+    backgroundColor: `${palette.gold}40`,
+    boxShadow: `0px 0px 12px 3px ${palette.gold}8c`,
+  },
+  segmentCore: {
+    height: LINE_CORE,
+    borderRadius: LINE_CORE / 2,
+    backgroundColor: palette.gold,
+    boxShadow: `0px 0px 4px ${palette.goldLight}`,
+  },
+  hubWrap: {
+    position: 'absolute',
+    width: HUB,
+    height: HUB,
+  },
+  hub: {
+    width: HUB,
+    height: HUB,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // Explicit size: RN-web only scales images correctly with dimensions.
+  hubImage: {
+    width: HUB,
+    height: HUB,
   },
   readout: {
     position: 'absolute',
@@ -329,11 +439,6 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     gap: 6,
-  },
-  bearing: {
-    ...type.mono,
-    fontSize: 11,
-    letterSpacing: 2,
   },
   selectRow: {
     flexDirection: 'row',

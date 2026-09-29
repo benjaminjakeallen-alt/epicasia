@@ -1,0 +1,321 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>html,body{margin:0;background:transparent}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "./node_modules/three/build/three.module.js",
+  "three/addons/": "./node_modules/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const SIZE = 600;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(SIZE, SIZE);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.98;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const std = (color, rough = 0.55, extra = {}) =>
+  new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, ...extra });
+const phys = (color, extra = {}) =>
+  new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3, ...extra });
+
+function mesh(geo, mat, cast = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.castShadow = cast;
+  m.receiveShadow = true;
+  return m;
+}
+
+// Puffy cloud the object sits on (the reference style: miniatures on clouds).
+function cloud(scale = 1) {
+  const g = new THREE.Group();
+  const mat = std(0xfbfcfe, 0.95, { emissive: 0xeef3f8, emissiveIntensity: 0.06 });
+  const puffs = [
+    [0, 0, 0, 1.05], [1.05, -0.12, 0.15, 0.8], [-1.05, -0.1, 0.1, 0.85],
+    [0.55, 0.2, -0.55, 0.8], [-0.55, 0.18, -0.55, 0.78], [0.35, -0.2, 0.72, 0.72],
+    [-0.45, -0.22, 0.7, 0.66], [1.65, -0.32, -0.2, 0.55], [-1.65, -0.32, -0.1, 0.55],
+    [0, -0.3, 1.0, 0.5], [1.2, -0.3, 0.75, 0.45], [-1.2, -0.32, 0.72, 0.45],
+  ];
+  for (const [x, y, z, r] of puffs) {
+    const m = mesh(new THREE.SphereGeometry(r, 64, 40), mat, false);
+    m.position.set(x, y, z);
+    m.scale.y = 0.62;
+    g.add(m);
+  }
+  g.scale.setScalar(scale);
+  return g;
+}
+
+function mapTexture() {
+  const c = document.createElement('canvas');
+  c.width = 1024; c.height = 640;
+  const x = c.getContext('2d');
+  x.fillStyle = '#8fc3d2'; x.fillRect(0, 0, 1024, 640); // sea
+  const land = (pts, col) => { x.fillStyle = col; x.beginPath(); pts.forEach(([a, b], i) => i ? x.lineTo(a, b) : x.moveTo(a, b)); x.closePath(); x.fill(); };
+  land([[60, 90], [380, 60], [470, 200], [420, 360], [250, 420], [90, 330]], '#e6d29c');
+  land([[110, 140], [330, 120], [380, 240], [300, 330], [150, 300]], '#86b86f');
+  land([[560, 120], [900, 80], [980, 260], [880, 470], [640, 520], [540, 330]], '#e6d29c');
+  land([[620, 180], [840, 150], [900, 300], [800, 420], [650, 400]], '#79ad66');
+  land([[420, 470], [520, 450], [560, 560], [450, 600], [380, 560]], '#e6d29c');
+  x.strokeStyle = '#c0533f'; x.lineWidth = 9; x.setLineDash([22, 18]); x.lineCap = 'round';
+  x.beginPath(); x.moveTo(180, 230); x.bezierCurveTo(420, 120, 520, 420, 760, 300); x.stroke();
+  x.setLineDash([]);
+  x.fillStyle = '#c0533f'; [[180, 230], [760, 300]].forEach(([a, b]) => { x.beginPath(); x.arc(a, b, 14, 0, Math.PI * 2); x.fill(); });
+  x.strokeStyle = 'rgba(80,90,80,0.25)'; x.lineWidth = 3;
+  for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo((1024 / 4) * i, 0); x.lineTo((1024 / 4) * i, 640); x.stroke(); }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  return t;
+}
+
+const builders = {
+  itinerary() {
+    const g = new THREE.Group();
+    const tex = mapTexture();
+    const panels = 4, pw = 0.8, ph = 2.1;
+    for (let i = 0; i < panels; i++) {
+      const geo = new THREE.BoxGeometry(pw, 0.03, ph);
+      // map the panel to its quarter of the texture on the top face
+      const uv = geo.attributes.uv;
+      for (let k = 0; k < uv.count; k++) uv.setX(k, (i + uv.getX(k)) / panels);
+      const mats = [std(0xf1ead6), std(0xf1ead6), std(0xffffff, 0.7, { map: tex }), std(0xe9e1c9), std(0xf1ead6), std(0xf1ead6)];
+      const m = mesh(geo, mats);
+      const tilt = i % 2 === 0 ? 0.22 : -0.22;
+      m.rotation.z = tilt;
+      m.position.set((i - (panels - 1) / 2) * pw * Math.cos(0.22), 0.08 + (i % 2 === 0 ? 0 : 0), 0);
+      g.add(m);
+    }
+    g.rotation.y = -0.35;
+    g.rotation.x = 0.08;
+    // pin
+    const pin = new THREE.Group();
+    const needle = mesh(new THREE.CylinderGeometry(0.03, 0.012, 0.8, 16), std(0xb8bcc2, 0.25, { metalness: 0.9 }));
+    needle.position.y = 0.4;
+    const head = mesh(new THREE.SphereGeometry(0.24, 48, 32), phys(0xc8452f));
+    head.position.y = 0.86;
+    pin.add(needle, head);
+    pin.position.set(0.55, 0.12, -0.1);
+    pin.rotation.z = -0.18;
+    const root = new THREE.Group();
+    root.add(g, pin);
+    root.position.y = 0.28;
+    return root;
+  },
+
+  flights() {
+    const g = new THREE.Group();
+    const white = phys(0xf6f7f8);
+    const accent = phys(0x4f7a5c);
+    const body = mesh(new THREE.CapsuleGeometry(0.28, 2.3, 16, 48), white);
+    body.rotation.z = Math.PI / 2;
+    g.add(body);
+    // tail fin
+    const finShape = new THREE.Shape();
+    finShape.moveTo(0, 0); finShape.lineTo(0.55, 0); finShape.lineTo(0.2, 0.75); finShape.lineTo(-0.05, 0.75); finShape.closePath();
+    const fin = mesh(new THREE.ExtrudeGeometry(finShape, { depth: 0.06, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.03, bevelSegments: 4 }), accent);
+    fin.position.set(-1.45, 0.15, -0.03);
+    g.add(fin);
+    // wings
+    const wingShape = new THREE.Shape();
+    wingShape.moveTo(0, 0); wingShape.lineTo(0.7, 0); wingShape.lineTo(0.05, 1.55); wingShape.lineTo(-0.25, 1.55); wingShape.closePath();
+    const wingGeo = new THREE.ExtrudeGeometry(wingShape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.03, bevelSegments: 4 });
+    const w1 = mesh(wingGeo, white); w1.rotation.x = -Math.PI / 2; w1.position.set(-0.2, -0.08, 0.2); g.add(w1);
+    const w2 = mesh(wingGeo, white); w2.rotation.x = Math.PI / 2; w2.position.set(-0.2, -0.08, -0.2); g.add(w2);
+    // tailplanes
+    const tp = new THREE.Shape(); tp.moveTo(0, 0); tp.lineTo(0.35, 0); tp.lineTo(0.05, 0.55); tp.lineTo(-0.1, 0.55); tp.closePath();
+    const tpGeo = new THREE.ExtrudeGeometry(tp, { depth: 0.03, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.015, bevelSegments: 3 });
+    const t1 = mesh(tpGeo, white); t1.rotation.x = -Math.PI / 2; t1.position.set(-1.45, 0.1, 0.12); g.add(t1);
+    const t2 = mesh(tpGeo, white); t2.rotation.x = Math.PI / 2; t2.position.set(-1.45, 0.1, -0.12); g.add(t2);
+    // engines
+    for (const z of [0.62, -0.62]) {
+      const e = mesh(new THREE.CylinderGeometry(0.12, 0.13, 0.42, 32), accent);
+      e.rotation.z = Math.PI / 2; e.position.set(0.1, -0.24, z); g.add(e);
+    }
+    // windows + cockpit
+    const winMat = std(0x2b3a44, 0.2);
+    for (let i = 0; i < 9; i++) {
+      const w = mesh(new THREE.SphereGeometry(0.045, 16, 12), winMat, false);
+      w.position.set(0.95 - i * 0.2, 0.08, 0.265); g.add(w);
+    }
+    const cockpit = mesh(new THREE.SphereGeometry(0.1, 24, 16), winMat, false);
+    cockpit.scale.set(1.3, 0.6, 1.6); cockpit.position.set(1.33, 0.1, 0); g.add(cockpit);
+    // accent stripe
+    const stripe = mesh(new THREE.CylinderGeometry(0.285, 0.285, 1.9, 48, 1, true, Math.PI * 1.05, Math.PI * 0.9), accent, false);
+    stripe.rotation.z = Math.PI / 2; stripe.position.y = -0.005; stripe.scale.set(1, 1, 1);
+    g.add(stripe);
+    g.rotation.set(0.15, -0.55, 0.18);
+    g.position.y = 0.75;
+    g.scale.setScalar(0.95);
+    return g;
+  },
+
+  lodging() {
+    const g = new THREE.Group();
+    const walls = mesh(new RoundedBoxGeometry(1.7, 0.85, 1.2, 4, 0.04), std(0xf2ead8, 0.8));
+    walls.position.y = 0.45; g.add(walls);
+    // timber frame
+    const wood = std(0x5b4636, 0.7);
+    for (const x of [-0.84, -0.28, 0.28, 0.84]) { const p = mesh(new THREE.BoxGeometry(0.07, 0.86, 0.07), wood); p.position.set(x, 0.45, 0.61); g.add(p); }
+    const beam = mesh(new THREE.BoxGeometry(1.76, 0.07, 0.07), wood); beam.position.set(0, 0.86, 0.61); g.add(beam);
+    // warm lit windows (shoji)
+    const glow = std(0xffe2a8, 0.6, { emissive: 0xffc970, emissiveIntensity: 0.85 });
+    for (const x of [-0.56, 0.56]) { const w = mesh(new THREE.BoxGeometry(0.4, 0.32, 0.02), glow, false); w.position.set(x, 0.5, 0.605); g.add(w); }
+    const door = mesh(new THREE.BoxGeometry(0.34, 0.55, 0.02), wood, false); door.position.set(0, 0.32, 0.605); g.add(door);
+    // curved-eave roof: extruded profile across the width
+    const rs = new THREE.Shape();
+    rs.moveTo(-1.0, 0); rs.quadraticCurveTo(-0.75, 0.05, -0.55, 0.28); rs.lineTo(0, 0.62); rs.lineTo(0.55, 0.28);
+    rs.quadraticCurveTo(0.75, 0.05, 1.0, 0); rs.lineTo(0.9, -0.06); rs.lineTo(0, 0.5); rs.lineTo(-0.9, -0.06); rs.closePath();
+    const roofGeo = new THREE.ExtrudeGeometry(rs, { depth: 2.1, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 4 });
+    roofGeo.translate(0, 0, -1.05);
+    const roof = mesh(roofGeo, phys(0x46545f, { roughness: 0.5, clearcoat: 0.3 }));
+    roof.rotation.y = Math.PI / 2; roof.position.set(0, 0.86, 0); roof.scale.set(0.82, 1, 1);
+    g.add(roof);
+    const ridge = mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.15, 24), phys(0x39444d)); ridge.rotation.z = Math.PI / 2; ridge.position.set(0, 1.37, 0); g.add(ridge);
+    // lantern
+    const lantern = mesh(new THREE.SphereGeometry(0.11, 32, 24), std(0xd0503a, 0.5, { emissive: 0xc8452f, emissiveIntensity: 0.35 }));
+    lantern.scale.y = 1.3; lantern.position.set(0.95, 0.62, 0.72); g.add(lantern);
+    // little pine tree
+    const trunk = mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.5, 16), wood); trunk.position.set(-1.2, 0.3, 0.3); g.add(trunk);
+    const leaf = std(0x5d8a5f, 0.8);
+    [[0.6, 0.34], [0.8, 0.27], [0.98, 0.2]].forEach(([y, r]) => { const s = mesh(new THREE.SphereGeometry(r, 32, 24), leaf); s.scale.y = 0.6; s.position.set(-1.2, y, 0.3); g.add(s); });
+    g.rotation.y = -0.45;
+    g.position.y = 0.2;
+    g.scale.setScalar(0.95);
+    return g;
+  },
+
+  packing() {
+    const g = new THREE.Group();
+    const leather = phys(0xc28f5c, { roughness: 0.55, clearcoat: 0.25 });
+    const body = mesh(new RoundedBoxGeometry(1.8, 1.25, 0.62, 6, 0.14), leather);
+    body.position.y = 0.72; g.add(body);
+    const strapMat = std(0x6e4a2e, 0.6);
+    for (const x of [-0.45, 0.45]) { const s = mesh(new RoundedBoxGeometry(0.16, 1.3, 0.66, 3, 0.03), strapMat); s.position.set(x, 0.72, 0); g.add(s); }
+    const brass = std(0xd4a64a, 0.3, { metalness: 0.85 });
+    for (const x of [-0.45, 0.45]) { const b = mesh(new RoundedBoxGeometry(0.2, 0.14, 0.05, 2, 0.02), brass); b.position.set(x, 0.95, 0.34); g.add(b); }
+    for (const [x, y] of [[-0.86, 0.12], [0.86, 0.12], [-0.86, 1.32], [0.86, 1.32]]) { const c = mesh(new THREE.SphereGeometry(0.09, 24, 16), brass); c.position.set(x, y, 0.28); g.add(c); }
+    const handle = mesh(new THREE.TorusGeometry(0.22, 0.05, 20, 48, Math.PI), strapMat); handle.position.set(0, 1.35, 0); g.add(handle);
+    // travel stickers
+    const stickers = [[0xe7dcb8, -0.05, 0.45, 0.2], [0x4f7a5c, 0.72, 0.4, 0.14], [0xc0667d, -0.75, 0.95, 0.13], [0x4c7db0, 0.1, 1.1, 0.12]];
+    for (const [col, x, y, r] of stickers) { const d = mesh(new THREE.CylinderGeometry(r, r, 0.012, 40), std(col, 0.6), false); d.rotation.x = Math.PI / 2; d.position.set(x, y, 0.315); g.add(d); }
+    g.rotation.set(0, -0.5, 0.06);
+    g.position.y = 0.12;
+    return g;
+  },
+
+  journal() {
+    const g = new THREE.Group();
+    const cover = phys(0x3e6349, { roughness: 0.6, clearcoat: 0.2 });
+    const back = mesh(new RoundedBoxGeometry(1.5, 0.07, 2.0, 3, 0.03), cover); back.position.y = 0.05; g.add(back);
+    const pages = mesh(new RoundedBoxGeometry(1.42, 0.24, 1.92, 2, 0.02), std(0xf6efdc, 0.9)); pages.position.set(0.02, 0.2, 0); g.add(pages);
+    const front = mesh(new RoundedBoxGeometry(1.5, 0.07, 2.0, 3, 0.03), cover); front.position.y = 0.35; g.add(front);
+    const spine = mesh(new THREE.CylinderGeometry(0.17, 0.17, 2.0, 32, 1, false, Math.PI / 2, Math.PI), cover); spine.rotation.x = Math.PI / 2; spine.position.set(-0.75, 0.2, 0); g.add(spine);
+    const band = mesh(new THREE.BoxGeometry(0.06, 0.42, 2.02), std(0x1e2721, 0.5)); band.position.set(0.5, 0.2, 0); g.add(band);
+    const ribbon = mesh(new THREE.BoxGeometry(0.1, 0.01, 0.5), std(0xc8452f, 0.5)); ribbon.position.set(0.1, 0.06, 1.2); ribbon.rotation.x = 0.35; g.add(ribbon);
+    // gold foil emblem
+    const emblem = mesh(new THREE.TorusGeometry(0.18, 0.025, 12, 48), std(0xd4a64a, 0.3, { metalness: 0.85 })); emblem.rotation.x = Math.PI / 2; emblem.position.set(0.05, 0.395, -0.1); g.add(emblem);
+    // pen
+    const pen = new THREE.Group();
+    const barrel = mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.5, 32), phys(0x1e2721)); pen.add(barrel);
+    const tip = mesh(new THREE.ConeGeometry(0.06, 0.2, 32), std(0xd4a64a, 0.3, { metalness: 0.85 })); tip.position.y = -0.85; tip.rotation.x = Math.PI; pen.add(tip);
+    const clip = mesh(new THREE.BoxGeometry(0.03, 0.45, 0.02), std(0xd4a64a, 0.3, { metalness: 0.85 })); clip.position.set(0.07, 0.45, 0); pen.add(clip);
+    pen.rotation.set(Math.PI / 2, 0, 0.9); pen.position.set(0.15, 0.47, 0.1);
+    g.add(pen);
+    g.rotation.set(0.12, -0.5, 0);
+    g.position.y = 0.3;
+    return g;
+  },
+
+  games() {
+    const g = new THREE.Group();
+    const s = new THREE.Shape();
+    s.moveTo(-0.7, 0.45);
+    s.lineTo(0.7, 0.45);
+    s.bezierCurveTo(1.2, 0.45, 1.35, 0.1, 1.4, -0.3);
+    s.bezierCurveTo(1.45, -0.8, 1.2, -0.95, 0.95, -0.9);
+    s.bezierCurveTo(0.7, -0.85, 0.6, -0.5, 0.4, -0.4);
+    s.lineTo(-0.4, -0.4);
+    s.bezierCurveTo(-0.6, -0.5, -0.7, -0.85, -0.95, -0.9);
+    s.bezierCurveTo(-1.2, -0.95, -1.45, -0.8, -1.4, -0.3);
+    s.bezierCurveTo(-1.35, 0.1, -1.2, 0.45, -0.7, 0.45);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: 0.22, bevelEnabled: true, bevelThickness: 0.14, bevelSize: 0.12, bevelSegments: 10, curveSegments: 48 });
+    geo.center();
+    const body = mesh(geo, phys(0xf3efe6, { roughness: 0.4 }));
+    g.add(body);
+    const dark = phys(0x2f3a33);
+    const dh = mesh(new RoundedBoxGeometry(0.42, 0.13, 0.08, 2, 0.03), dark); dh.position.set(-0.78, 0.1, 0.27); g.add(dh);
+    const dv = mesh(new RoundedBoxGeometry(0.13, 0.42, 0.08, 2, 0.03), dark); dv.position.set(-0.78, 0.1, 0.27); g.add(dv);
+    const btn = [[0xc8452f, 0.78, 0.28], [0x4f7a5c, 0.98, 0.1], [0x4c7db0, 0.58, 0.1], [0xd4a64a, 0.78, -0.08]];
+    for (const [col, x, y] of btn) { const b = mesh(new THREE.SphereGeometry(0.085, 32, 24), phys(col)); b.scale.z = 0.6; b.position.set(x, y, 0.27); g.add(b); }
+    for (const x of [-0.32, 0.32]) {
+      const base = mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.08, 32), dark); base.rotation.x = Math.PI / 2; base.position.set(x, -0.2, 0.27); g.add(base);
+      const cap = mesh(new THREE.SphereGeometry(0.13, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), dark); cap.rotation.x = Math.PI / 2; cap.position.set(x, -0.2, 0.3); g.add(cap);
+    }
+    g.rotation.set(-1.05, 0, 0.12);
+    g.rotation.order = 'XYZ';
+    const root = new THREE.Group();
+    g.position.y = 0.55;
+    root.add(g);
+    root.rotation.y = -0.35;
+    return root;
+  },
+};
+
+window.renderIcon = (name) => {
+  const scene = new THREE.Scene();
+  scene.environment = envTex;
+  scene.environmentIntensity = 0.45;
+  scene.add(new THREE.HemisphereLight(0xe6effc, 0xcdbfa6, 0.85));
+  const key = new THREE.DirectionalLight(0xfff1dc, 2.9);
+  key.position.set(-4, 7, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.camera.left = -4; key.shadow.camera.right = 4; key.shadow.camera.top = 4; key.shadow.camera.bottom = -4;
+  key.shadow.bias = -0.0006;
+  key.shadow.radius = 6;
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0xdfe9ff, 0.8);
+  rim.position.set(5, 3, -4);
+  scene.add(rim);
+
+  const group = new THREE.Group();
+  const c = cloud(0.8);
+  group.add(c);
+  const obj = builders[name]();
+  obj.scale.multiplyScalar(1.32);
+  obj.position.y = obj.position.y * 1.32 + 0.3;
+  group.add(obj);
+  scene.add(group);
+
+  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+  const box = new THREE.Box3().setFromObject(group);
+  const sphere = box.getBoundingSphere(new THREE.Sphere());
+  const dist = (sphere.radius / Math.sin(THREE.MathUtils.degToRad(28 / 2))) * 1.02;
+  const dir = new THREE.Vector3(0, 0.33, 1).normalize();
+  camera.position.copy(sphere.center).addScaledVector(dir, dist);
+  camera.lookAt(sphere.center);
+  renderer.render(scene, camera);
+  return renderer.domElement.toDataURL('image/png');
+};
+window.ready = true;
+</script>
+</body>
+</html>

@@ -247,25 +247,37 @@ has them).
   depth. **Don't animate SVG props** (`Animated.createAnimatedComponent`
   on `react-native-svg` shapes) — it logs a web-only `collapsable` DOM
   error and isn't needed.
-- **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items defined in
-  `MENU` in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the
-  main navigation. Swipe left/right to turn it (PanResponder →
-  `rotation` Animated.Value measured in items, unbounded, wrapped with
+- **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
+  in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
+  navigation. Swipe left/right to turn it (PanResponder → `rotation`
+  Animated.Value measured in items, unbounded, wrapped with
   `Animated.modulo`; spring-snaps to the nearest item, one extra item max
-  for a fast flick); the front badge is selected — tap it or "Open …" to
-  navigate, tap a side badge (or the ‹ › arrows) to turn it to the front.
-  Haptics via `src/lib/haptics.ts`: tick as each item passes the front,
-  firmer tap on open. Native uses `expo-haptics`; web uses the Vibration
-  API (Android) or, on iOS Safari (18+), clicks a hidden
-  `<input type="checkbox" switch>`, which only works inside a user
-  gesture, so ticks fire from the rotation listener (inside the drag's
-  touch handler) rather than from an effect. Items without an
-  `href` show "Coming soon". Icons are line art in `MenuIcons.tsx` on the
-  landmark grid (`Frame` exported from `Landmarks.tsx`); the dial is shared
-  with the intro via `OrbitDial.tsx`. **Web gotcha:** RN-web fires a child
-  Pressable's `onPress` even after the parent PanResponder captured the
-  gesture as a drag, so presses within 350ms of a drag end are ignored
-  (`justDragged`) — keep that guard if the interaction is reworked.
+  for a fast flick); the front hub is selected — tap it or "Open …" to
+  navigate, tap a side hub (or ‹ ›) to turn it to the front. No dial or
+  bearing readout (removed at the user's request).
+  - **Hubs** are rendered 3D icons sitting on clouds
+    (`assets/images/menu/*.png`), styled after the user's reference of
+    miniature landmarks on clouds — original objects (map + pin, plane,
+    inn, suitcase, journal, controller), not copies of real landmarks.
+    Source scenes + re-render instructions: `tools/menu-icons/`.
+  - **Gold connector:** one `Animated.View` segment per neighbouring pair,
+    pre-sampled like the hubs (midpoint, length via `scaleX`, unwrapped
+    angle via `rotate`, depth → opacity), drawn under the hubs; a
+    translucent band + `boxShadow` makes it a soft blurred gold line
+    (`gold`/`goldLight` tokens), brightened while dragging (`glow` value).
+  - **Feedback** (`src/lib/feedback.ts`): every step, in either direction,
+    = click sound + haptic tick; opening = firmer tap + "tock". Sounds:
+    native `src/lib/sound.ts` plays `assets/sounds/tick.wav`/`confirm.wav`
+    (generated for this app) via `expo-audio`, respecting the silent switch
+    and mixing with music; web `sound.web.ts` synthesizes the same sounds
+    with Web Audio (unlocked on first tap). Haptics `src/lib/haptics.ts`:
+    `expo-haptics` natively; on web the Vibration API or, on iOS Safari
+    18+, a hidden `<input type="checkbox" switch>` click (needs a user
+    gesture, hence ticks fire from the rotation listener inside the drag's
+    touch handler, not from an effect).
+  - **Web gotcha:** RN-web fires a child Pressable's `onPress` even after
+    the parent PanResponder captured the gesture as a drag, so presses
+    within 350ms of a drag end are ignored (`justDragged`).
 - **Itinerary** is a timeline: a rail with weekday + a leg-colored day
   circle and a dashed connector, and one white card per item (title,
   date · city in the leg color, description, a photo thumbnail on the

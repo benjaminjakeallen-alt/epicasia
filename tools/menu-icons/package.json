@@ -1,0 +1,8 @@
+{
+  "name": "epicasia-menu-icons",
+  "private": true,
+  "description": "Renders the home orbit menu's 3D-on-a-cloud icons (assets/images/menu). Not part of the app build.",
+  "dependencies": {
+    "three": "0.169.0"
+  }
+}
