@@ -6,6 +6,7 @@ import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
 import Wordmark from '../../components/Wordmark';
+import { PHOTOS } from '../../lib/places';
 import { recordSignIn, REMEMBER_DAYS, savedEmail } from '../../lib/rememberMe';
 import { supabase } from '../../lib/supabase';
 import { type } from '../../theme/typography';
@@ -43,8 +44,9 @@ export default function Login() {
 
   return (
     <FormScreen
-      title={<Wordmark size={40} />}
-      subtitle="Sign in to your trip"
+      hero={PHOTOS.kyotoKinkakuji}
+      title={<Wordmark size={42} />}
+      subtitle="Japan, China & Hong Kong · June 2027"
       error={error}
       footer={
         <>
@@ -88,11 +90,11 @@ export default function Login() {
         <View
           style={[
             styles.box,
-            { borderColor: remember ? colors.highlight : colors.border },
-            remember && { backgroundColor: colors.highlight },
+            { borderColor: remember ? colors.accent : colors.inkTertiary },
+            remember && { backgroundColor: colors.accent },
           ]}
         >
-          {remember ? <Ionicons name="checkmark" size={14} color={colors.background} /> : null}
+          {remember ? <Ionicons name="checkmark" size={14} color={colors.onAccent} /> : null}
         </View>
         <Text style={[type.body, { color: colors.inkSecondary }]}>
           Keep me signed in for {REMEMBER_DAYS} days

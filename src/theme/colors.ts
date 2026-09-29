@@ -1,46 +1,58 @@
-// Navy surfaces from the "Asia Disney Adventure" trip-plan artifact
-// (https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT), pushed toward an East
-// Asian lacquer feel: vermilion for fills, antique gold for text/lines and
-// card hairlines, and one jewel tone per leg of the trip.
-export const darkColors = {
-  background: '#0a1d38',
-  groupedBackground: '#0a1d38',
-  card: '#123059',
-  cardRaised: '#173a6b',
-  // Gold hairline on cards/inputs; row separators inside a card stay a
-  // neutral soft white so a list doesn't turn into a gold grid.
-  border: 'rgba(214,168,92,0.32)',
-  separator: 'rgba(255,255,255,0.08)',
+// "Natural" palette — light and airy, like morning mist over a garden: warm
+// paper background, white cards with soft shadows, a sage/forest green as
+// the one action color, and a single vermilion reserved for the 旅 seal.
+// Supersedes the navy + vermilion/gold "B+" direction (see CLAUDE.md →
+// Design direction for the history).
+export const colors = {
+  background: '#f3f1ea',
+  groupedBackground: '#f3f1ea',
+  card: '#ffffff',
+  cardRaised: '#faf9f5',
+  // Card/input edges and row separators — ink at low alpha so they read as
+  // soft edges, not drawn lines.
+  border: 'rgba(30,39,33,0.09)',
+  separator: 'rgba(30,39,33,0.07)',
 
-  ink: '#f3f6fa',
-  inkSecondary: '#a8bedd',
-  inkTertiary: '#6f89ac',
+  ink: '#1e2721',
+  inkSecondary: '#56635a',
+  inkTertiary: '#8f9a92',
 
-  // `accent` is for FILLS (primary buttons, the REC dot, the hero rule,
-  // background glow). `highlight` is for TEXT AND LINES (eyebrows, the
-  // italic "Asia", icons, dial ticks, text links). They're split because
-  // some accent colors (e.g. vermilion) read well as a filled shape but
-  // poorly as small text on navy.
-  accent: '#c8372d',
-  accentPressed: '#a52b22',
-  highlight: '#d6a85c',
-  glowSecondary: '#d6a85c',
+  // `accent` is for FILLS (primary buttons, day circles, selected states);
+  // `highlight` is for TEXT AND LINES (italic "Asia", links, icons). Same
+  // green today — kept as two tokens so they can diverge again.
+  accent: '#4f7a5c',
+  accentPressed: '#3e6349',
+  accentSoft: 'rgba(79,122,92,0.12)',
+  highlight: '#4f7a5c',
 
-  // Warm ivory on vermilion — button labels and the seal's glyph.
-  onAccent: '#fbf3e6',
+  onAccent: '#ffffff',
 
-  error: '#ef6b6b',
+  // The only warm color: the hanko seal next to the wordmark (and the
+  // intro's REC dot).
+  seal: '#c8452f',
+
+  // Top of the sky backdrop; fades down into `background`.
+  sky: '#dde7ea',
+
+  error: '#b4533e',
 };
 
-// One color per leg, in trip order. Same assignments as the artifact's
-// route line and leg cards — keep them stable so a city always reads as
-// the same color everywhere in the app.
+// Soft, diffuse elevation for cards and floating buttons. `boxShadow` is
+// supported on iOS, Android and web in this React Native version.
+export const shadow = {
+  card: '0px 6px 20px rgba(30,39,33,0.07)',
+  float: '0px 10px 28px rgba(30,39,33,0.13)',
+};
+
+// One color per leg, in trip order — kept stable so a city always reads as
+// the same color everywhere (itinerary dots, landmark and menu badges).
+// Deepened from the original artifact hues so they hold up on white.
 export const legColors = {
-  tokyo: '#c9577a',
-  kyoto: '#d9a15b',
-  beijing: '#4f8fe0',
-  shanghai: '#6fae8f',
-  hongKong: '#7b83d6',
+  tokyo: '#c0667d',
+  kyoto: '#b7893f',
+  beijing: '#4c7db0',
+  shanghai: '#3f8a6e',
+  hongKong: '#6c70b0',
 };
 
 const CITY_LEGS: [string, string][] = [
@@ -65,27 +77,4 @@ export function legColorForCity(city: string | null | undefined): string | null 
   return best?.color ?? null;
 }
 
-// Reserved, unused: the app is fixed-dark (see useTheme.ts).
-export const lightColors = {
-  background: '#f3f6fa',
-  groupedBackground: '#e8eef6',
-  card: '#ffffff',
-  cardRaised: '#f7f9fc',
-  border: 'rgba(10,29,56,0.14)',
-  separator: 'rgba(10,29,56,0.08)',
-
-  ink: '#0a1d38',
-  inkSecondary: '#3d5578',
-  inkTertiary: '#6f89ac',
-
-  accent: '#c85a26',
-  accentPressed: '#a4481d',
-  highlight: '#c85a26',
-  glowSecondary: '#7b83d6',
-
-  onAccent: '#ffffff',
-
-  error: '#c64545',
-};
-
-export type ThemeColors = typeof darkColors;
+export type ThemeColors = typeof colors;

@@ -1,10 +1,9 @@
-import { darkColors } from './colors';
+import { colors } from './colors';
 
-// Epic Asia has one signature look — fixed dark/brass luxury — rather than
-// adapting to the system's light/dark setting, the way most premium travel
-// and hospitality apps commit to a single brand appearance. `lightColors`
-// in ./colors is kept in reserve (e.g. a future user-facing theme toggle)
-// but isn't wired to the OS setting.
+// Epic Asia has one signature look — the light "natural" palette — rather
+// than following the system light/dark setting (app.json pins
+// userInterfaceStyle to "light"). Kept as a hook so a theme toggle could
+// slot in later without touching every screen.
 export function useTheme() {
-  return darkColors;
+  return colors;
 }

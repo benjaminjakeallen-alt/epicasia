@@ -1,192 +1,122 @@
 ---
 version: alpha
 name: Epic-Asia
-description: A premium, fixed-dark group-trip app for Japan, China and Hong Kong. Deep navy "night flight" surfaces, vermilion fills and antique-gold lines, an Instrument Serif wordmark locked up with a red 旅 seal stamp. Matches the "Asia Disney Adventure" trip-plan artifact, pushed toward East Asian red & gold. The app does not follow the device's light/dark setting.
+description: A light, natural group-trip app for Japan, China and Hong Kong — misty sky backdrops, white rounded cards with soft shadows, a sage-green primary, a Newsreader serif for headlines and real photos of the trip's places. One small vermilion 旅 seal is the only warm accent. Fixed light; does not follow the device's dark mode.
 
 colors:
-  background: "#0a1d38"
-  card: "#123059"
-  card-raised: "#173a6b"
-  border: "rgba(214,168,92,0.32)"
-  separator: "rgba(255,255,255,0.08)"
-  ink: "#f3f6fa"
-  ink-secondary: "#a8bedd"
-  ink-tertiary: "#6f89ac"
-  accent: "#c8372d"
-  accent-pressed: "#a52b22"
-  highlight: "#d6a85c"
-  on-accent: "#fbf3e6"
-  error: "#ef6b6b"
-  leg-tokyo: "#c9577a"
-  leg-kyoto: "#d9a15b"
-  leg-beijing: "#4f8fe0"
-  leg-shanghai: "#6fae8f"
-  leg-hong-kong: "#7b83d6"
+  background: "#f3f1ea"
+  sky: "#dde7ea"
+  card: "#ffffff"
+  card-raised: "#faf9f5"
+  border: "rgba(30,39,33,0.09)"
+  separator: "rgba(30,39,33,0.07)"
+  ink: "#1e2721"
+  ink-secondary: "#56635a"
+  ink-tertiary: "#8f9a92"
+  accent: "#4f7a5c"
+  accent-pressed: "#3e6349"
+  accent-soft: "rgba(79,122,92,0.12)"
+  highlight: "#4f7a5c"
+  on-accent: "#ffffff"
+  seal: "#c8452f"
+  error: "#b4533e"
+  leg-tokyo: "#c0667d"
+  leg-kyoto: "#b7893f"
+  leg-beijing: "#4c7db0"
+  leg-shanghai: "#3f8a6e"
+  leg-hong-kong: "#6c70b0"
+
+shadow:
+  card: "0 6px 20px rgba(30,39,33,0.07)"
+  float: "0 10px 28px rgba(30,39,33,0.13)"
 
 typography:
-  wordmark:
-    fontFamily: "InstrumentSerif_400Regular (+ _Italic for 'Asia')"
-    fontSize: 40px (screens) / 60px (intro hero)
-  large-title:
-    fontFamily: "InstrumentSerif_400Regular"
-    fontSize: 40px
+  headline:
+    fontFamily: "Newsreader_400Regular (+ _Italic for the accent word)"
+    fontSize: 38px
     lineHeight: 44px
   title:
-    fontFamily: "InstrumentSerif_400Regular"
-    fontSize: 28px
-    lineHeight: 32px
-  subtitle:
-    fontFamily: "WorkSans_400Regular"
-    fontSize: 15px
-    lineHeight: 21px
+    fontFamily: "Newsreader_400Regular"
+    fontSize: 22–26px
+  card-title:
+    fontFamily: "WorkSans_600SemiBold"
+    fontSize: 16px
   body:
     fontFamily: "WorkSans_400Regular"
-    fontSize: 16px
+    fontSize: 15px
     lineHeight: 22px
+  caption:
+    fontFamily: "WorkSans_500Medium"
+    fontSize: 12.5px
   button:
     fontFamily: "WorkSans_600SemiBold"
-    fontSize: 15px
-  caption:
-    fontFamily: "IBMPlexMono_600SemiBold"
-    fontSize: 11px
-    letterSpacing: 1.5px
-    textTransform: uppercase
+    fontSize: 16px
+  data:
+    fontFamily: "IBMPlexMono_500Medium"
+    use: "airport codes, flight numbers, intro HUD, dial bearings only"
 
 rounded:
-  card: 14px
-
-spacing:
-  screen-h: 20px
-  row-v: 15px
-  row-h: 16px
+  card: 20–24px
+  input: 16px
+  button: 27px (54px-tall pill)
+  circle-button: 22px (44px)
+  photo-card: 22px
 
 components:
-  wordmark:
-    text: "Epic *Asia*"
-    italicColor: "{colors.highlight}"
-    seal: "{components.seal}"
-  seal:
-    fill: "{colors.accent}"
-    glyph: "旅, {colors.on-accent}"
-    rotation: -4deg
-    size: 0.68 × wordmark size
-  header-glow:
-    red: "{colors.accent} @ 24%, radial from top-left"
-    gold: "{colors.highlight} @ 10%, radial from top-right"
-  grouped-card:
-    backgroundColor: "{colors.card}"
-    borderColor: "{colors.border}"
-    rounded: "{rounded.card}"
-  list-row:
-    textColor: "{colors.ink}"
-    typography: "{typography.body}"
-    iconColor: "{colors.highlight}"
-    chevronColor: "{colors.ink-tertiary}"
-    separatorColor: "{colors.separator}"
-  primary-button:
-    backgroundColor: "{colors.accent}"
-    textColor: "{colors.on-accent}"
-  text-button:
-    textColor: "{colors.highlight}"
-  eyebrow-label:
-    textColor: "{colors.highlight}"
-    typography: "{typography.caption}"
+  sky-backdrop: "SkyBackdrop.tsx — sky → paper gradient + soft clouds, first child of a screen"
+  wordmark: "Epic *Asia* (italic, highlight) + seal"
+  seal: "vermilion hanko, ivory 旅, rotated −4°"
+  circle-button: "white 44px round button, shadow.card, Ionicons in ink"
+  primary-button: "accent pill, white label, shadow.card"
+  text-button: "highlight, WorkSans 500"
+  input: "white, radius 16, sentence-case label above, shadow.card"
+  place-card: "150×196 photo, radius 22, dark fade at bottom, white city/dates, round arrow"
+  orbit-menu: "white badges with shadow; front badge gets a 2px ring in its color + float shadow; serif label under the ring; accent 'Open' pill or accent-soft 'Coming soon'"
+  itinerary-day: "rail: weekday + leg-colored day circle + dashed connector; white card per item with photo thumb"
 ---
 
 ## Overview
 
-Epic Asia is **fixed dark** — `useTheme()` always returns `darkColors`
-(`app.json` `userInterfaceStyle: "dark"`). The palette is the navy of the
-user's "Asia Disney Adventure" trip-plan artifact with East Asian red & gold
-accents ("B+", chosen from an A/B comparison). Earlier directions — lacquer
-red/jade "travel journal", charcoal + brass, navy + amber — were each
-rejected; see `CLAUDE.md` → Design direction for why.
+Light, calm, "natural" — morning mist rather than night flight. Built from
+two reference mockups the user chose: airy travel apps with sky
+backgrounds, white cards floating on soft shadows, a green primary, serif
+headlines and photo-led destination cards. Previous directions (lacquer
+red/jade, charcoal + brass, navy + amber, navy + vermilion/gold) were all
+dark; see `CLAUDE.md` → Design direction for the history.
 
 **Key characteristics:**
-- Navy surfaces; cards one step lighter with a **gold hairline** border.
-- **Two accent roles, never swapped:** vermilion (`accent`) for filled
-  shapes; antique gold (`highlight`) for text, icons and lines. Vermilion as
-  small text on navy is illegible-looking — don't.
-- One jewel tone per trip leg (`leg-*`) for itinerary days and landmarks.
-- Instrument Serif for display only; Work Sans for UI; IBM Plex Mono for
-  eyebrows/labels.
-- A single brand lockup (`Wordmark` + `Seal`) and a soft `HeaderGlow` at
-  the top of every top-level screen.
+- Paper background with a pale sky fading in at the top of each screen.
+- White cards separated by soft shadow, not borders.
+- One action color (sage green). One warm touch only: the vermilion seal.
+- Real photographs of the trip's places carry the atmosphere; icons stay
+  thin line art.
+- Serif (Newsreader) for headlines and titles; Work Sans for everything
+  else; mono only for boarding-pass data.
 
-## Colors
+## Screens
 
-- **Background** `#0a1d38` / **Card** `#123059` / **Card raised** `#173a6b`.
-- **Border** gold at 32% — cards and inputs. **Separator** white 8% — rows
-  inside a card (keeps lists from becoming a gold grid).
-- **Ink** `#f3f6fa`, **secondary** `#a8bedd`, **tertiary** `#6f89ac`.
-- **Accent** vermilion `#c8372d` (pressed `#a52b22`): primary buttons, seal,
-  hero rule, REC dot, header glow.
-- **Highlight** antique gold `#d6a85c`: eyebrows, italic "Asia", icons,
-  text buttons, dial ticks and crosshair.
-- **On accent** ivory `#fbf3e6`.
-- **Legs:** Tokyo `#c9577a`, Kyoto/Nara `#d9a15b`, Beijing `#4f8fe0`,
-  Shanghai `#6fae8f`, Hong Kong `#7b83d6` — via `legColorForCity()` (for
-  "Kyoto → Beijing" transit days, the last-named city wins).
-
-## Components
-
-**Wordmark** (`src/components/Wordmark.tsx`) — "Epic *Asia*" + seal in a
-row. The only way to render the brand name. It's a View, so never nest it in
-`<Text>`.
-
-**Seal** (`src/components/Seal.tsx`) — vermilion rounded-square hanko with
-an ivory inner frame and 旅 ("journey"), rotated −4°. The glyph is an
-embedded SVG path (from Noto Serif JP 900), so no CJK font ships.
-
-**HeaderGlow** (`src/components/HeaderGlow.tsx`) — absolute, touch-
-transparent radial wash; first child of a screen root.
-
-**Orbit menu** (`src/components/OrbitMenu.tsx`) — the home screen: the
-intro's dial and ring as a swipeable carousel of line-art badges (Itinerary
-gold, Flights blue, Lodging periwinkle, Packing jade, Journal rose, Games
-vermilion). Front badge gets a solid 2px ring in its color; the readout
-under it shows bearing, the label in its color, a mono caption, and a
-vermilion "Open" pill (or an outlined "Coming soon").
-
-**Grouped card / list row** — rounded 14px, gold hairline, gold outline
-icons, neutral separators, tertiary chevrons.
-
-**Form** (`src/components/form/`) — `FormScreen` (glow + title node or
-string + subtitle + error + footer), `FormField` (mono caps label, card-
-colored input with gold hairline), `FormButton` (primary vermilion / text
-gold).
-
-**Itinerary day** — mono caps date in the leg color with a leading dot;
-item cards carry a 3px left border in the leg color.
-
-## Launch Sequence
-
-`src/components/LaunchSequence.tsx` — every cold open, tap to skip,
-reduce-motion goes straight to the hero. A "360° camera" orbit: 8 line-art
-landmark badges (`src/components/Landmarks.tsx`) ride an ellipse around a
-dashed dial with gold ticks, HUD corners, a "360° SWEEP" REC readout and a
-bearing/name/city readout; one full eased turn, then the rig scales to 1.9×
-and dissolves into the hero (dates eyebrow, 60px Wordmark, vermilion rule,
-airport route, trip stats). Only View transforms/opacity animate (native
-driver). Don't animate SVG props.
+- **Login / Register** — full-width photo header with rounded bottom
+  corners (Kinkaku-ji / Great Wall), wordmark, subtitle, white inputs, green
+  pill, "Keep me signed in for 30 days".
+- **Home** — wordmark + avatar initial; "Where are we going, *Jake*?";
+  trip meta; the swipeable 360° orbit menu on the sky; "Your route" photo
+  cards for the five stops.
+- **Itinerary** — round back / add buttons, "Your Itinerary", a trip
+  summary card with photo and leg pips, then the day timeline.
+- **Launch sequence** — the landmark orbit on a light sky, dissolving into
+  the wordmark hero.
 
 ## Do's and Don'ts
 
 ### Do
-- Keep vermilion for fills and gold for lines/text.
-- Use `Wordmark` for the brand name and `HeaderGlow` on top-level screens.
-- Use leg colors only to identify cities.
+- Put `SkyBackdrop` first on new top-level screens.
+- Use `shadow.card` for elevation and white cards on the paper background.
+- Use real photos for places; keep icons as thin line art.
+- Keep leg colors stable per city.
 
 ### Don't
-- Don't add more reds/golds or new accent tokens — one seal, one glow per
-  screen is the ceiling. More reads as themed, not premium.
-- Don't add cartoon motifs (lanterns, dragons, brush-stroke fonts).
-- Don't add drop shadows; depth comes from the card/background step and
-  hairlines.
-- Don't reintroduce light-mode adaptation without being asked.
-
-## Known Gaps
-
-Documents only what's built: auth screens, home, itinerary list/add, and
-the launch sequence. Extend as Flights, Lodging, Chat, etc. are built,
-following these conventions.
+- Don't add more warm/red accents beyond the seal.
+- Don't use tracked uppercase mono labels for general UI — sentence case
+  Work Sans.
+- Don't hard-border cards; don't use heavy/dark shadows.
+- Don't reintroduce dark mode without being asked.

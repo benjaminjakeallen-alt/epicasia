@@ -1,4 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
+import { shadow } from '../../theme/colors';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
@@ -17,7 +18,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
   if (variant === 'text') {
     return (
       <Pressable onPress={onPress} disabled={isDisabled} style={styles.textButton} hitSlop={8}>
-        <Text style={[type.body, { color: colors.highlight, opacity: isDisabled ? 0.5 : 1 }]}>
+        <Text style={[type.bodyStrong, { color: colors.highlight, opacity: isDisabled ? 0.5 : 1 }]}>
           {label}
         </Text>
       </Pressable>
@@ -33,6 +34,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
         {
           backgroundColor: pressed ? colors.accentPressed : colors.accent,
           opacity: isDisabled ? 0.6 : 1,
+          boxShadow: shadow.card,
         },
       ]}
     >
@@ -47,8 +49,8 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
 
 const styles = StyleSheet.create({
   button: {
-    height: 48,
-    borderRadius: 10,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
   },

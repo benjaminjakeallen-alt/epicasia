@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import Svg from 'react-native-svg';
 import { confirmTap, selectionTick } from '../lib/haptics';
-import { type } from '../theme/typography';
+import { shadow } from '../theme/colors';
+import { fontFamily, type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
 import OrbitDial from './OrbitDial';
 
@@ -41,9 +42,12 @@ const mod = (n: number, m: number) => ((n % m) + m) % m;
 export default function OrbitMenu({
   items,
   onOpen,
+  height: fixedHeight,
 }: {
   items: OrbitMenuItem[];
   onOpen: (item: OrbitMenuItem) => void;
+  /** Fixed height (e.g. inside a ScrollView); fills its parent otherwise. */
+  height?: number;
 }) {
   const c = useTheme();
   const { width } = useWindowDimensions();
@@ -189,7 +193,11 @@ export default function OrbitMenu({
   const bearing = `${String(Math.round((front * 360) / N)).padStart(3, '0')}°`;
 
   return (
-    <View style={styles.flex} onLayout={onLayout} {...pan.panHandlers}>
+    <View
+      style={[styles.root, fixedHeight != null ? { height: fixedHeight } : styles.flex]}
+      onLayout={onLayout}
+      {...pan.panHandlers}
+    >
       {height > 0 && (
         <>
           <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
@@ -233,8 +241,9 @@ export default function OrbitMenu({
                     styles.badge,
                     {
                       backgroundColor: c.card,
-                      borderColor: isFront ? item.color : `${item.color}88`,
-                      borderWidth: isFront ? 2 : 1.5,
+                      borderColor: isFront ? item.color : 'transparent',
+                      borderWidth: 2,
+                      boxShadow: isFront ? shadow.float : shadow.card,
                     },
                   ]}
                 >
@@ -260,7 +269,7 @@ export default function OrbitMenu({
                 <Text style={[styles.arrowText, { color: c.inkTertiary }]}>‹</Text>
               </Pressable>
               <Text testID="orbit-selected" style={[styles.label, { color: selected.color }]}>
-                {selected.label.toUpperCase()}
+                {selected.label}
               </Text>
               <Pressable
                 onPress={() => {
@@ -283,11 +292,11 @@ export default function OrbitMenu({
               style={({ pressed }) => [
                 styles.open,
                 selected.href
-                  ? { backgroundColor: pressed ? c.accentPressed : c.accent }
-                  : { borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
+                  ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: shadow.card }
+                  : { backgroundColor: c.accentSoft },
               ]}
             >
-              <Text style={[type.button, { color: selected.href ? c.onAccent : c.inkTertiary }]}>
+              <Text style={[type.button, { color: selected.href ? c.onAccent : c.highlight }]}>
                 {selected.href ? `Open ${selected.label}` : 'Coming soon'}
               </Text>
             </Pressable>
@@ -300,7 +309,8 @@ export default function OrbitMenu({
 
 const styles = StyleSheet.create({
   // userSelect: stops web from text-selecting the dial labels mid-drag.
-  flex: { flex: 1, userSelect: 'none' },
+  root: { width: '100%', userSelect: 'none' },
+  flex: { flex: 1 },
   badgeWrap: {
     position: 'absolute',
     width: BADGE,
@@ -338,23 +348,21 @@ const styles = StyleSheet.create({
     lineHeight: 28,
   },
   label: {
-    ...type.caption,
-    fontSize: 15,
-    lineHeight: 20,
-    letterSpacing: 3,
-    minWidth: 150,
+    fontFamily: fontFamily.display,
+    fontSize: 28,
+    lineHeight: 34,
+    letterSpacing: -0.3,
+    minWidth: 170,
     textAlign: 'center',
   },
   caption: {
-    ...type.mono,
-    fontSize: 10.5,
-    letterSpacing: 1.8,
+    ...type.caption,
   },
   open: {
-    marginTop: 12,
-    height: 44,
-    paddingHorizontal: 26,
-    borderRadius: 22,
+    marginTop: 14,
+    height: 50,
+    paddingHorizontal: 30,
+    borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
   },

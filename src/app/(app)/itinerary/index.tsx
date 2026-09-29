@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,11 +11,13 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import HeaderGlow from '../../../components/HeaderGlow';
+import CircleButton from '../../../components/CircleButton';
+import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
-import { legColorForCity } from '../../../theme/colors';
-import { type } from '../../../theme/typography';
+import { photoForDay, STOPS } from '../../../lib/places';
+import { legColorForCity, shadow } from '../../../theme/colors';
+import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
 // "2027-06-06" -> a local Date at midnight. Deliberately not `new
@@ -26,10 +29,12 @@ function parseDay(day: string): Date {
   return new Date(y, m - 1, d);
 }
 
-function formatDayHeader(day: string): string {
-  return parseDay(day)
-    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-    .toUpperCase();
+function formatWeekday(day: string): string {
+  return parseDay(day).toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+function formatMonthDay(day: string): string {
+  return parseDay(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function formatTime(iso: string): string {
@@ -74,26 +79,39 @@ export default function ItineraryList() {
   const days = Array.from(new Set(items.map((i) => i.day))).sort();
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
-      <HeaderGlow />
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12}>
-          <Ionicons name="chevron-back" size={24} color={colors.ink} />
-        </Pressable>
-        <Text style={[type.title, { color: colors.ink }]}>Itinerary</Text>
-        <Pressable
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <SkyBackdrop />
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+        <CircleButton icon="chevron-back" label="Back" onPress={() => router.back()} />
+        <Text style={[styles.headerTitle, { color: colors.ink }]}>Your Itinerary</Text>
+        <CircleButton
+          icon="add"
+          label="Add to itinerary"
           testID="itinerary-add-button"
           onPress={() => router.push('/(app)/itinerary/new')}
-          hitSlop={12}
-        >
-          <Ionicons name="add" size={26} color={colors.highlight} />
-        </Pressable>
+        />
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.loading} color={colors.highlight} />
+        <ActivityIndicator style={styles.loading} color={colors.accent} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={[styles.summary, { backgroundColor: colors.card }]}>
+            <View style={styles.summaryText}>
+              <Text style={[styles.summaryTitle, { color: colors.ink }]}>Asia Disney Adventure</Text>
+              <Text style={[type.caption, { color: colors.inkSecondary }]}>
+                15 days · 14 nights · Jun 5 – 19
+              </Text>
+              <View style={styles.legRow}>
+                {STOPS.map((stop) => (
+                  <View key={stop.key} style={[styles.legPip, { backgroundColor: stop.color }]} />
+                ))}
+                <Text style={[type.caption, { color: colors.inkTertiary }]}>5 cities</Text>
+              </View>
+            </View>
+            <Image source={STOPS[1].photo} style={styles.summaryPhoto} resizeMode="cover" />
+          </View>
+
           {error ? <Text style={[type.body, { color: colors.error }]}>{error}</Text> : null}
 
           {days.length === 0 && !error ? (
@@ -102,63 +120,57 @@ export default function ItineraryList() {
             </Text>
           ) : null}
 
-          {days.map((day) => {
+          {days.map((day, dayIdx) => {
             const dayItems = items.filter((i) => i.day === day);
-            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.highlight;
+            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.accent;
+            const isLast = dayIdx === days.length - 1;
             return (
-            <View key={day} style={styles.dayGroup}>
-              <View style={styles.dayHeader}>
-                <View style={[styles.legDot, { backgroundColor: legColor }]} />
-                <Text style={[type.caption, { color: legColor }]}>{formatDayHeader(day)}</Text>
-              </View>
-              <View
-                style={[
-                  styles.card,
-                  { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: legColor },
-                ]}
-              >
-                {dayItems.map((item, idx, arr) => (
-                    <View
-                      key={item.id}
-                      style={[
-                        styles.row,
-                        idx < arr.length - 1 && {
-                          borderBottomWidth: StyleSheet.hairlineWidth,
-                          borderBottomColor: colors.separator,
-                        },
-                      ]}
-                    >
-                      <View style={styles.rowMain}>
-                        <View style={styles.rowTop}>
-                          <Text style={[type.bodyStrong, styles.rowTitle, { color: colors.ink }]}>
-                            {item.title}
+              <View key={day} style={styles.dayRow}>
+                <View style={styles.rail}>
+                  <Text style={[styles.weekday, { color: colors.inkTertiary }]}>{formatWeekday(day)}</Text>
+                  <View style={[styles.dayCircle, { backgroundColor: legColor }]}>
+                    <Text style={[styles.dayNum, { color: colors.onAccent }]}>{parseDay(day).getDate()}</Text>
+                  </View>
+                  {isLast ? null : <View style={[styles.railLine, { borderColor: `${legColor}66` }]} />}
+                </View>
+
+                <View style={styles.dayCards}>
+                  {dayItems.map((item, idx) => {
+                    const photo = idx === 0 ? photoForDay(item.title, item.city) : null;
+                    return (
+                      <View key={item.id} style={[styles.card, { backgroundColor: colors.card }]}>
+                        <View style={styles.cardMain}>
+                          <View style={styles.cardTop}>
+                            <Text style={[type.cardTitle, styles.cardTitle, { color: colors.ink }]}>
+                              {item.title}
+                            </Text>
+                            {item.created_by === session?.user.id ? (
+                              <Pressable
+                                onPress={() => handleDelete(item.id)}
+                                hitSlop={8}
+                                accessibilityLabel={`Delete ${item.title}`}
+                              >
+                                <Ionicons name="trash-outline" size={17} color={colors.inkTertiary} />
+                              </Pressable>
+                            ) : null}
+                          </View>
+                          <Text style={[type.caption, { color: legColor }]}>
+                            {formatMonthDay(day)}
+                            {item.city ? ` · ${item.city}` : ''}
+                            {item.start_time ? ` · ${formatTime(item.start_time)}` : ''}
                           </Text>
-                          {item.start_time ? (
-                            <Text style={[type.caption, { color: colors.inkTertiary }]}>
-                              {formatTime(item.start_time)}
+                          {item.description ? (
+                            <Text style={[type.body, styles.description, { color: colors.inkSecondary }]}>
+                              {item.description}
                             </Text>
                           ) : null}
                         </View>
-                        {item.city ? (
-                          <Text style={[type.subtitle, { color: colors.inkSecondary }]}>
-                            {item.city}
-                          </Text>
-                        ) : null}
-                        {item.description ? (
-                          <Text style={[type.subtitle, styles.description, { color: colors.inkSecondary }]}>
-                            {item.description}
-                          </Text>
-                        ) : null}
+                        {photo ? <Image source={photo} style={styles.thumb} resizeMode="cover" /> : null}
                       </View>
-                      {item.created_by === session?.user.id ? (
-                        <Pressable onPress={() => handleDelete(item.id)} hitSlop={8}>
-                          <Ionicons name="trash-outline" size={18} color={colors.inkTertiary} />
-                        </Pressable>
-                      ) : null}
-                    </View>
-                  ))}
+                    );
+                  })}
+                </View>
               </View>
-            </View>
             );
           })}
         </ScrollView>
@@ -176,56 +188,121 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingBottom: 14,
+  },
+  headerTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 22,
+    letterSpacing: -0.2,
   },
   loading: {
     marginTop: 40,
   },
   content: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
+    paddingBottom: 48,
   },
-  dayGroup: {
-    marginBottom: 24,
-  },
-  dayHeader: {
+  summary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+    borderRadius: 24,
+    padding: 16,
+    gap: 14,
+    marginBottom: 26,
+    boxShadow: shadow.card,
   },
-  legDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
+  summaryText: {
+    flex: 1,
+    gap: 6,
   },
-  card: {
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderLeftWidth: 3,
-    overflow: 'hidden',
+  summaryTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 22,
+    lineHeight: 27,
+    letterSpacing: -0.2,
   },
-  row: {
+  legRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  legPip: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  summaryPhoto: {
+    width: 96,
+    height: 84,
+    borderRadius: 18,
+  },
+  dayRow: {
+    flexDirection: 'row',
     gap: 12,
   },
-  rowMain: {
-    flex: 1,
+  rail: {
+    width: 38,
+    alignItems: 'center',
   },
-  rowTop: {
+  weekday: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  dayCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayNum: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 14,
+  },
+  railLine: {
+    flex: 1,
+    width: 0,
+    borderLeftWidth: 2,
+    borderStyle: 'dashed',
+    marginTop: 6,
+    marginBottom: -4,
+  },
+  dayCards: {
+    flex: 1,
+    gap: 10,
+    paddingTop: 16,
+    paddingBottom: 22,
+  },
+  card: {
+    flexDirection: 'row',
+    borderRadius: 20,
+    padding: 14,
+    gap: 12,
+    boxShadow: shadow.card,
+  },
+  cardMain: {
+    flex: 1,
+    gap: 3,
+  },
+  cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'baseline',
+    alignItems: 'flex-start',
     gap: 8,
   },
-  rowTitle: {
+  cardTitle: {
     flex: 1,
   },
   description: {
     marginTop: 4,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
   },
 });

@@ -10,12 +10,13 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg from 'react-native-svg';
 import { TRIP } from '../lib/trip';
-import { darkColors as c } from '../theme/colors';
+import { colors as c, shadow } from '../theme/colors';
 import { fontFamily } from '../theme/typography';
 import { LANDMARKS } from './Landmarks';
 import OrbitDial from './OrbitDial';
+import SkyBackdrop from './SkyBackdrop';
 import Wordmark from './Wordmark';
 
 const N = LANDMARKS.length;
@@ -153,20 +154,7 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
         { backgroundColor: c.background, opacity: overlay, pointerEvents: finished.current ? 'none' : 'auto' },
       ]}
     >
-      <Svg style={StyleSheet.absoluteFill} width={width} height={height}>
-        <Defs>
-          <RadialGradient id="glowAmber" cx="22%" cy="10%" rx="65%" ry="45%">
-            <Stop offset="0" stopColor={c.accent} stopOpacity={0.16} />
-            <Stop offset="1" stopColor={c.accent} stopOpacity={0} />
-          </RadialGradient>
-          <RadialGradient id="glowViolet" cx="88%" cy="2%" rx="55%" ry="40%">
-            <Stop offset="0" stopColor={c.glowSecondary} stopOpacity={0.2} />
-            <Stop offset="1" stopColor={c.glowSecondary} stopOpacity={0} />
-          </RadialGradient>
-        </Defs>
-        <Rect x={0} y={0} width={width} height={height} fill="url(#glowAmber)" />
-        <Rect x={0} y={0} width={width} height={height} fill="url(#glowViolet)" />
-      </Svg>
+      <SkyBackdrop height={height * 0.8} />
 
       <Animated.View
         style={[StyleSheet.absoluteFill, { opacity: rigOpacity, transform: [{ scale: rigScale }] }]}
@@ -190,7 +178,8 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
                   left: cx - BADGE / 2,
                   top: cy - BADGE / 2,
                   zIndex: Math.round((depth + 1) * 50),
-                  borderColor: `${color}99`,
+                  borderColor: 'transparent',
+                  boxShadow: shadow.card,
                   opacity: o.opacity,
                   transform: [{ translateX: o.translateX }, { translateY: o.translateY }, { scale: o.scale }],
                 },
@@ -318,7 +307,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: c.accent,
+    backgroundColor: c.seal,
   },
   hudText: {
     fontFamily: fontFamily.monoSemiBold,

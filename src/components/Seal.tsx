@@ -15,7 +15,7 @@ export default function Seal({ size }: { size: number }) {
   const colors = useTheme();
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120" style={{ transform: [{ rotate: '-4deg' }] }}>
-      <Rect x={2} y={2} width={116} height={116} rx={12} fill={colors.accent} />
+      <Rect x={2} y={2} width={116} height={116} rx={12} fill={colors.seal} />
       <Rect x={9} y={9} width={102} height={102} rx={7} fill="none" stroke={colors.onAccent} strokeWidth={2.5} />
       <G transform="translate(19 19) scale(0.82)">
         <Path d={GLYPH} fill={colors.onAccent} />

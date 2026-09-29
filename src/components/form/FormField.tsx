@@ -1,4 +1,5 @@
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { shadow } from '../../theme/colors';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
@@ -11,15 +12,15 @@ export default function FormField({ label, style, ...inputProps }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={[type.caption, styles.label, { color: colors.inkTertiary }]}>
-        {label.toUpperCase()}
+      <Text style={[type.caption, styles.label, { color: colors.inkSecondary }]}>
+        {label}
       </Text>
       <TextInput
         placeholderTextColor={colors.inkTertiary}
         style={[
           styles.input,
           type.body,
-          { backgroundColor: colors.card, borderColor: colors.border, color: colors.ink },
+          { backgroundColor: colors.card, borderColor: colors.border, color: colors.ink, boxShadow: shadow.card },
           style,
         ]}
         autoCapitalize="none"
@@ -39,8 +40,8 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    height: 46,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    height: 52,
   },
 });

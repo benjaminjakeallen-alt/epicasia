@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react';
 import { Ellipse, G, Line, Text as SvgText } from 'react-native-svg';
-import { darkColors as c } from '../theme/colors';
+import { colors as c } from '../theme/colors';
 import { fontFamily } from '../theme/typography';
 
 // Static perspective "turntable" the landmarks ride on: the orbit ellipse
@@ -19,8 +19,8 @@ export default function OrbitDial({ cx, cy, rx, ry }: { cx: number; cy: number; 
         y1={cy + ry * r0 * Math.cos(a)}
         x2={cx + rx * r1 * Math.sin(a)}
         y2={cy + ry * r1 * Math.cos(a)}
-        stroke={major ? c.highlight : '#ffffff'}
-        strokeOpacity={major ? 0.75 : 0.18}
+        stroke={major ? c.highlight : c.ink}
+        strokeOpacity={major ? 0.7 : 0.14}
         strokeWidth={major ? 1.6 : 1}
       />,
     );
@@ -51,8 +51,8 @@ export default function OrbitDial({ cx, cy, rx, ry }: { cx: number; cy: number; 
         rx={rx * 1.22}
         ry={ry * 1.22}
         fill="none"
-        stroke="#ffffff"
-        strokeOpacity={0.09}
+        stroke={c.ink}
+        strokeOpacity={0.08}
       />
       <Ellipse
         cx={cx}
@@ -60,7 +60,7 @@ export default function OrbitDial({ cx, cy, rx, ry }: { cx: number; cy: number; 
         rx={rx}
         ry={ry}
         fill="none"
-        stroke="#ffffff"
+        stroke={c.ink}
         strokeOpacity={0.22}
         strokeDasharray="2 7"
         strokeLinecap="round"

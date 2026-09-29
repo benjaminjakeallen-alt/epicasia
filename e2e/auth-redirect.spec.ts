@@ -9,8 +9,8 @@ test('unauthenticated visit redirects to login', async ({ page }) => {
 
   // Text unique to the login screen (unlike "Epic Asia", which also appears
   // in the launch-sequence wordmark and could still be mid-fade-out here).
-  await expect(page.getByText('Sign in to your trip')).toBeVisible();
-  await expect(page.getByText('EMAIL', { exact: true })).toBeVisible();
-  await expect(page.getByText('PASSWORD', { exact: true })).toBeVisible();
+  await expect(page.getByText('Keep me signed in for 30 days')).toBeVisible();
+  await expect(page.getByText('Email', { exact: true })).toBeVisible();
+  await expect(page.getByText('Password', { exact: true })).toBeVisible();
   await expect(page.getByText('Sign In', { exact: true })).toBeVisible();
 });

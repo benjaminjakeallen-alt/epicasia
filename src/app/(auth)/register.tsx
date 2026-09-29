@@ -3,6 +3,7 @@ import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
+import { PHOTOS } from '../../lib/places';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -64,8 +65,9 @@ export default function Register() {
 
   return (
     <FormScreen
-      title="Create Account"
-      subtitle="Join the trip"
+      hero={PHOTOS.beijingGreatWall}
+      title="Join the trip"
+      subtitle="Create your Epic Asia account"
       error={error}
       footer={
         <FormButton

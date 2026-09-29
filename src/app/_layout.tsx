@@ -3,9 +3,10 @@ import {
   IBMPlexMono_600SemiBold,
 } from '@expo-google-fonts/ibm-plex-mono';
 import {
-  InstrumentSerif_400Regular,
-  InstrumentSerif_400Regular_Italic,
-} from '@expo-google-fonts/instrument-serif';
+  Newsreader_400Regular,
+  Newsreader_400Regular_Italic,
+  Newsreader_500Medium,
+} from '@expo-google-fonts/newsreader';
 import {
   WorkSans_400Regular,
   WorkSans_500Medium,
@@ -19,14 +20,15 @@ import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LaunchSequence from '../components/LaunchSequence';
 import { AuthProvider } from '../lib/AuthProvider';
-import { darkColors } from '../theme/colors';
+import { colors } from '../theme/colors';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    InstrumentSerif_400Regular,
-    InstrumentSerif_400Regular_Italic,
+    Newsreader_400Regular,
+    Newsreader_400Regular_Italic,
+    Newsreader_500Medium,
     WorkSans_400Regular,
     WorkSans_500Medium,
     WorkSans_600SemiBold,
@@ -48,9 +50,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
         <Stack
-          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: darkColors.background } }}
+          screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
         />
         {!introDone && <LaunchSequence onFinish={() => setIntroDone(true)} />}
       </SafeAreaProvider>

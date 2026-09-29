@@ -1,7 +1,6 @@
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import HeaderGlow from '../../components/HeaderGlow';
 import {
   FlightsIcon,
   GamesIcon,
@@ -11,24 +10,27 @@ import {
   PackingIcon,
 } from '../../components/MenuIcons';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
+import PlaceCard from '../../components/PlaceCard';
+import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
+import { STOPS } from '../../lib/places';
 import { supabase } from '../../lib/supabase';
 import { TRIP } from '../../lib/trip';
-import { darkColors, legColors } from '../../theme/colors';
-import { type } from '../../theme/typography';
+import { colors as palette, legColors } from '../../theme/colors';
+import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 // Ring order = swipe order. Colors reuse the leg palette so the menu sits in
 // the same family as the intro's landmarks; items without an href are on
 // the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
-  { key: 'itinerary', label: 'Itinerary', caption: 'DAY BY DAY · JUN 6 – 19', color: darkColors.highlight, Icon: ItineraryIcon, href: '/(app)/itinerary' },
-  { key: 'flights', label: 'Flights', caption: 'COMING SOON', color: legColors.beijing, Icon: FlightsIcon },
-  { key: 'lodging', label: 'Lodging', caption: 'COMING SOON', color: legColors.hongKong, Icon: LodgingIcon },
-  { key: 'packing', label: 'Packing List', caption: 'COMING SOON', color: legColors.shanghai, Icon: PackingIcon },
-  { key: 'journal', label: 'Journal', caption: 'COMING SOON', color: legColors.tokyo, Icon: JournalIcon },
-  { key: 'games', label: 'Games', caption: 'COMING SOON', color: darkColors.accent, Icon: GamesIcon },
+  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, Icon: ItineraryIcon, href: '/(app)/itinerary' },
+  { key: 'flights', label: 'Flights', caption: 'Coming soon', color: legColors.beijing, Icon: FlightsIcon },
+  { key: 'lodging', label: 'Lodging', caption: 'Coming soon', color: legColors.hongKong, Icon: LodgingIcon },
+  { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, Icon: PackingIcon },
+  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, Icon: JournalIcon },
+  { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, Icon: GamesIcon },
 ];
 
 export default function Home() {
@@ -37,30 +39,60 @@ export default function Home() {
   const { session } = useAuth();
   const router = useRouter();
 
-  const name = (session?.user.user_metadata?.display_name as string | undefined)?.split(' ')[0];
+  const fullName = session?.user.user_metadata?.display_name as string | undefined;
+  const name = fullName?.split(' ')[0];
+  const initial = (fullName || session?.user.email || '?').trim().charAt(0).toUpperCase();
 
   return (
-    <View style={[styles.screen, { backgroundColor: colors.groupedBackground }]}>
-      <HeaderGlow />
-      <View style={[styles.header, { paddingTop: insets.top + 28 }]}>
-        <Text style={[type.caption, styles.eyebrow, { color: colors.highlight }]}>
-          {TRIP.dates.toUpperCase()}
-        </Text>
-        <Wordmark size={40} testID="home-title" />
-        <Text style={[type.subtitle, styles.subtitle, { color: colors.inkSecondary }]}>
-          {name ? `Welcome, ${name}` : `Signed in as ${session?.user.email}`}
-        </Text>
-      </View>
-
-      <OrbitMenu items={MENU} onOpen={(item) => item.href && router.push(item.href)} />
-
-      <Pressable
-        style={[styles.signOut, { marginBottom: insets.bottom + 16 }]}
-        onPress={() => supabase.auth.signOut()}
-        hitSlop={8}
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
+      <SkyBackdrop height={560} />
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 28 }}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={[type.body, { color: colors.inkTertiary }]}>Sign Out</Text>
-      </Pressable>
+        <View style={styles.topRow}>
+          <Wordmark size={24} testID="home-title" />
+          <View style={[styles.avatar, { backgroundColor: colors.card }]}>
+            <Text style={[styles.avatarText, { color: colors.accent }]}>{initial}</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.headline, { color: colors.ink }]}>
+          Where are we going{name ? ',\n' : '?'}
+          {name ? (
+            <Text style={{ fontFamily: fontFamily.displayItalic, color: colors.highlight }}>{name}?</Text>
+          ) : null}
+        </Text>
+        <Text style={[type.subtitle, styles.meta, { color: colors.inkSecondary }]}>
+          {TRIP.dates} · {TRIP.travelers} travelers · {TRIP.cities} cities
+        </Text>
+
+        <OrbitMenu
+          items={MENU}
+          height={430}
+          onOpen={(item) => item.href && router.push(item.href)}
+        />
+
+        <View style={styles.sectionHead}>
+          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Your route</Text>
+          <Pressable onPress={() => router.push('/(app)/itinerary')} hitSlop={8}>
+            <Text style={[type.bodyStrong, { color: colors.highlight }]}>See itinerary</Text>
+          </Pressable>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.cards}
+        >
+          {STOPS.map((stop) => (
+            <PlaceCard key={stop.key} stop={stop} onPress={() => router.push('/(app)/itinerary')} />
+          ))}
+        </ScrollView>
+
+        <Pressable style={styles.signOut} onPress={() => supabase.auth.signOut()} hitSlop={8}>
+          <Text style={[type.body, { color: colors.inkTertiary }]}>Sign out</Text>
+        </Pressable>
+      </ScrollView>
     </View>
   );
 }
@@ -69,17 +101,55 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
+  topRow: {
+    paddingHorizontal: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  eyebrow: {
-    marginBottom: 8,
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: '0px 4px 14px rgba(30,39,33,0.10)',
   },
-  subtitle: {
+  avatarText: {
+    fontFamily: fontFamily.displayMedium,
+    fontSize: 19,
+  },
+  headline: {
+    paddingHorizontal: 22,
+    marginTop: 26,
+    fontFamily: fontFamily.display,
+    fontSize: 38,
+    lineHeight: 44,
+    letterSpacing: -0.7,
+  },
+  meta: {
+    paddingHorizontal: 22,
     marginTop: 8,
+  },
+  sectionHead: {
+    paddingHorizontal: 22,
+    marginTop: 8,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  sectionTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 24,
+    letterSpacing: -0.3,
+  },
+  cards: {
+    paddingHorizontal: 22,
+    gap: 12,
   },
   signOut: {
     alignItems: 'center',
-    paddingTop: 8,
+    marginTop: 30,
   },
 });

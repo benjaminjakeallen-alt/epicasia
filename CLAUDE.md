@@ -183,54 +183,58 @@ container — see the GitHub access scoping note under Testing.
 
 ## Design direction
 
-**Premium, fixed-dark, with East Asian red & gold** ("B+" — chosen by the
-user from a side-by-side A/B in Sept 2026). History, so nobody re-litigates
-it: (1) a lacquer-red/jade "travel journal" palette was rejected as themed/
-cartoonish; (2) charcoal + one brass accent was replaced to match the user's
-"Asia Disney Adventure" trip-plan artifact
-(https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT) — navy + amber;
-(3) navy + amber was then judged "not very Asian", so accents moved to
-vermilion + antique gold on the same navy. Premium comes from restraint in
-*how* red/gold are used (fills vs hairlines, one seal), not from avoiding
-them.
+**Light and natural** (Sept 29 2026) — modeled on two reference mockups the
+user supplied (airy travel apps: misty sky backgrounds, white rounded cards
+with soft shadows, a sage-green primary, a friendly serif headline like
+"Where are we going, Jake?", and photo-led destination cards). History, so
+nobody re-litigates it: lacquer red/jade "travel journal" → charcoal + brass
+→ navy + amber (matching the "Asia Disney Adventure" artifact,
+https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT) → navy + vermilion/gold
+("B+") → **this**. The dark palettes are gone from the code (git history
+has them).
 
-- **The app does not adapt to system light/dark mode.** `useTheme()`
-  (`src/theme/useTheme.ts`) always returns `darkColors`; `app.json`'s
-  `userInterfaceStyle` is `"dark"` and its background is `#0a1d38`.
-  `lightColors` in `src/theme/colors.ts` is reserved and unused — don't wire
-  it up without being asked.
-- **Color** (`src/theme/colors.ts`): navy surfaces (`#0a1d38` background,
-  `#123059` cards), cool off-white ink. Two accent roles, deliberately split:
-  - `accent` **vermilion `#c8372d`** — FILLS only: primary buttons, the seal,
-    the hero rule, REC dot, the red header glow. Reads poorly as small text
-    on navy, so never use it for text.
-  - `highlight` **antique gold `#d6a85c`** — TEXT AND LINES: eyebrows, the
-    italic "Asia", row icons, text-button labels, dial ticks. `border` is
-    the same gold at 32% alpha, so cards/inputs get a gold hairline; row
-    `separator`s inside a card stay neutral white-8% (no gold grids).
-  - `onAccent` ivory `#fbf3e6` — labels on vermilion.
-  - `legColors` / `legColorForCity()`: one jewel tone per trip leg (Tokyo
-    rose, Kyoto/Nara amber, Beijing blue, Shanghai jade, Hong Kong
-    periwinkle), matching the artifact. Used for itinerary day dots/borders
-    and landmark badges — keep assignments stable.
-- **Brand lockup** — always use `<Wordmark size={…} />`
-  (`src/components/Wordmark.tsx`): "Epic *Asia*" (italic in gold) + the
-  `<Seal>` (`src/components/Seal.tsx`), a rotated vermilion hanko stamp
-  with 旅 ("journey") in ivory. The glyph is a static SVG path extracted from
-  Noto Serif JP 900 — no CJK font is loaded. Used by the intro hero (60),
-  login (40) and home (40). Wordmark is a View row, so never nest it inside
-  a `<Text>`; `FormScreen`'s `title` accepts a node for this reason.
-- **Header glow** (`src/components/HeaderGlow.tsx`): soft vermilion radial
-  wash top-left + faint gold top-right, absolute, touch-transparent. Render
-  it as the first child of a screen's root (done in `FormScreen`, home,
-  itinerary). New top-level screens should include it.
-- **Type** (`src/theme/typography.ts`), same three families as the artifact
-  via `@expo-google-fonts/*`: Instrument Serif (display, + italic for accent
-  words), Work Sans (body/UI), IBM Plex Mono (eyebrows/labels, "boarding
-  pass" data). Each weight is its own family name — never use `fontWeight`
-  with these. Fonts load in `src/app/_layout.tsx` behind
-  `expo-splash-screen`; don't render display text before `useFonts`
-  resolves.
+- **Fixed light, not adaptive.** `useTheme()` always returns `colors`
+  (`src/theme/colors.ts`); `app.json` `userInterfaceStyle` is `"light"`,
+  background `#f3f1ea`, StatusBar `dark`.
+- **Color:** warm paper background `#f3f1ea`, white cards, ink `#1e2721`
+  (green-black) with `inkSecondary`/`inkTertiary`. One action color, sage
+  green `accent` `#4f7a5c` (fills: buttons, selected states) with the same
+  value as `highlight` (text/lines) — two tokens kept so they can diverge.
+  `accentSoft` for tinted pills. The ONLY warm color is `seal` vermilion
+  `#c8452f` (the 旅 hanko and the intro's REC dot) — don't spread it.
+  `legColors` (one per trip leg, deepened to read on white) +
+  `legColorForCity()` for itinerary rails and landmark/menu icons.
+- **Elevation:** soft diffuse shadows via `boxShadow` strings in `shadow`
+  (`card`, `float`) — supported on iOS/Android/web in RN 0.86. Borders are
+  near-invisible; separation comes from shadow + white-on-paper.
+- **Shape:** generous radii — cards 20–24, inputs 16, primary buttons are
+  54px pills (radius 27), round 44px white `CircleButton`s for header
+  actions (back, add).
+- **Sky backdrop** (`src/components/SkyBackdrop.tsx`): pale blue-grey sky
+  fading into the paper background with a few soft clouds — first child of
+  every top-level screen (FormScreen without a hero, home, itinerary, the
+  intro). Gradient ids come from `useId()`: on web, stacked screens stay in
+  the DOM and a duplicate `url(#id)` pointing into a hidden screen paints
+  nothing.
+- **Photos** (`src/lib/places.ts`, `assets/images/places/`): real photos
+  of the trip's places, taken from the user's trip-plan artifact and
+  resized to ≤1100px. `STOPS` (five legs with dates/colors/photo) drives the
+  home "Your route" cards (`PlaceCard.tsx`); `photoForDay()` picks an
+  itinerary thumbnail. Login/register use `FormScreen`'s `hero` photo
+  header (Kinkaku-ji / Great Wall). **RN-web gotcha:** a cover `Image`
+  needs explicit width/height — with `absoluteFill` it renders a zoomed-in
+  corner.
+- **Brand lockup** — always `<Wordmark size={…} />`: "Epic *Asia*" (italic
+  in green) + the `<Seal>` hanko (static SVG path of 旅 from Noto Serif JP
+  900, no CJK font loaded). A View row, so never nest it inside `<Text>`;
+  `FormScreen`'s `title` accepts a node for this reason.
+- **Type** (`src/theme/typography.ts`): Newsreader (serif 400 + italic,
+  500) for display — headlines, screen titles, the selected menu label;
+  Work Sans for everything else (labels are sentence case, not tracked
+  caps); IBM Plex Mono only for boarding-pass data (airport codes, the
+  intro HUD, dial bearings). Each weight is its own family — never use
+  `fontWeight`. Fonts load in `src/app/_layout.tsx` behind
+  `expo-splash-screen`.
 - **Launch sequence** (`src/components/LaunchSequence.tsx`): shown on every
   cold open, tap to skip, reduce-motion jumps straight to the hero. A "360°
   camera" orbit: 8 line-art landmark badges (`src/components/Landmarks.tsx`
@@ -262,10 +266,11 @@ them.
   Pressable's `onPress` even after the parent PanResponder captured the
   gesture as a drag, so presses within 350ms of a drag end are ignored
   (`justDragged`) — keep that guard if the interaction is reworked.
-- Icons: `@expo/vector-icons` (Ionicons outline) in `highlight` gold,
-  sparingly.
-- iOS grouped-list layout language for list screens (rounded card,
-  hairline separators, chevron rows). No drop shadows.
+- **Itinerary** is a timeline: a rail with weekday + a leg-colored day
+  circle and a dashed connector, and one white card per item (title,
+  date · city in the leg color, description, a photo thumbnail on the
+  day's first card), under a trip summary card.
+- Icons: `@expo/vector-icons` (Ionicons outline), sparingly.
 - Respect safe-area insets (`react-native-safe-area-context`).
 
 ## Testing
