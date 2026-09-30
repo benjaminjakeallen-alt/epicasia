@@ -23,7 +23,7 @@ export type OrbitMenuItem = {
   label: string;
   caption: string;
   color: string;
-  /** Rendered 3D icon on a cloud (assets/images/menu, see tools/menu-icons). */
+  /** Generated 3D object icon, transparent PNG (assets/images/menu, see tools/menu-icons). */
   image: ImageSourcePropType;
   /** Omitted = not built yet; the item still sits on the ring but can't open. */
   href?: string;

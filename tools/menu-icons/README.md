@@ -21,47 +21,28 @@ container) and writes `out-<name>.png` next to itself — adjust `DIR` /
 `executablePath` for other machines. Then crop, pad to square and resize to
 360×360 into `assets/images/menu/` (3× of the 120pt badge).
 
-## Next: replace these with Higgsfield-generated images (planned)
+## Current icons: Higgsfield-generated (Sept 30 2026)
 
-The user rejected both code-rendered sets (first "cartoony", then the
-rustic pass "not the direction"). They want the style of their reference:
-hyper-real, finely detailed miniature objects standing on soft fluffy
-clouds in hazy pastel morning light (like the landmark-on-cloud mockup),
-but **original objects, not copies of real landmarks**.
+The code-rendered sets above were rejected; the live icons are generated.
+`generate-hf.sh` (auth: `HF_API_KEY_ID` alone, no secret) → `cutout.py
+<src> <dst>` (keys out the flat white background via border-connected
+flood region + soft alpha ramp, un-premultiplies edges, crops, pads ×1.2
+to square, 360×360 RGBA).
 
-Plan: generate them with the Higgsfield API via `generate-hf.sh <name>
-"<subject>" [try]` (Recraft V4.1 1K text-to-image, polls until done, writes
-`$OUT/<name>-<try>.png`). The credential lives in the cloud environment as
-**`HF_API_KEY_ID` only — there is no separate secret**; the header
-`Authorization: Key $HF_API_KEY_ID` authenticates on its own (verified: a
-status call returns 404 for a bogus request id rather than 401). Never print
-or log the key value.
+Chosen: **Qwen Image 3** (`MODEL=qwen`, ~$0.04/image) over Grok (more
+detailed but less on-palette), Recraft and Z-Image. User direction: **no
+clouds**, the object alone, and **sage green (#4f7a5c) in every object**.
+The shared style prompt lives in `generate-hf.sh`; the per-icon subjects
+used:
 
-**Blocked (Sept 30 2026):** submitting returns
-`{"detail":"not_enough_credits"}` — the user's Higgsfield API account needs
-credits (console.higgsfield.ai) before anything can be generated.
-
-Shared style prompt (keep identical across all six for consistency):
-
-> Hyper-realistic 3D miniature of **[SUBJECT]**, finely detailed, resting on
-> a soft fluffy white cumulus cloud, hazy morning sunlight, soft pastel
-> palette of warm stone beige and pale sky blue, gentle atmospheric haze,
-> soft shadows, three-quarter view from slightly above, centered, single
-> object, plain transparent (or flat pale #E6EDF0) background, no text, no
-> people, square 1:1.
-
-| Menu | Subject |
+| key | subject |
 |---|---|
-| itinerary | an antique rolled parchment map tied with a ribbon, with a brass compass beside it |
-| flights | a vintage silver propeller airliner in flight |
-| lodging | a traditional Japanese wooden ryokan inn with a tiled roof and paper lanterns |
-| packing | a vintage leather steamer trunk with brass corners and travel stickers |
-| journal | a leather-bound travel journal with a fountain pen and pressed cherry blossoms |
-| games | a stack of ivory mahjong tiles and a small wooden game board |
+| flights | a vintage silver propeller airliner with a muted sage green tail fin and a thin sage green stripe along the fuselage |
+| itinerary | an antique rolled parchment map tied with a muted sage green silk ribbon, with a brass compass beside it |
+| lodging | a traditional Japanese wooden ryokan inn with a tiled roof, paper lanterns, a muted sage green noren curtain over the door and a small green bonsai pine beside it |
+| packing | a vintage muted sage green leather steamer trunk with brass corners, tan leather straps and travel stickers |
+| journal | a muted sage green leather-bound travel journal with a fountain pen and pressed cherry blossoms |
+| games | a small stack of ivory mahjong tiles with green carved characters on a small wooden game board with a muted sage green felt top |
 
-Steps: generate (1–3 tries each, it costs the user's Higgsfield credits) →
-**show the user all six before touching the app** → on approval, remove
-backgrounds if not transparent, crop to content, pad to square, resize to
-360×360 PNG into `assets/images/menu/<key>.png` (same filenames, so
-`src/app/(app)/index.tsx` needs no change) → screenshot the home ring →
-commit + push (Vercel auto-deploys epicasia.vercel.app).
+Qwen occasionally returns "model temporarily unavailable" (not charged) —
+just retry.

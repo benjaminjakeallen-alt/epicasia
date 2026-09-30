@@ -272,16 +272,16 @@ has them).
   for a fast flick); the front hub is selected — tap it or "Open …" to
   navigate, tap a side hub (or ‹ ›) to turn it to the front. No dial or
   bearing readout (removed at the user's request).
-  - **Hubs** are rendered 3D icons sitting on clouds
-    (`assets/images/menu/*.png`), styled after the user's reference of
-    miniature landmarks on clouds, then pushed **rustic and realistic** at
-    the user's request (first pass read as cartoony): aged folded map +
-    brass compass, vintage aluminium prop airliner, thatched farmhouse inn
-    with stone lantern and pine, worn leather suitcase with travel labels,
-    cord-wrapped leather journal + pencil + ticket stub, wooden Go board
-    with stones and bowl. Procedural canvas textures (leather, paper,
-    wood, thatch, stone, brass) drive colour + bump. Original objects, not
-    copies of real landmarks. Source + re-render steps: `tools/menu-icons/`.
+  - **Hubs** are AI-generated (Higgsfield, Qwen Image 3) hyper-real
+    miniature objects, cut out to transparent 360×360 PNGs
+    (`assets/images/menu/*.png`): rolled map with sage ribbon + brass
+    compass, silver prop airliner with sage tail, ryokan with sage noren
+    and bonsai, sage leather steamer trunk, sage leather journal with
+    cherry blossoms, mahjong tiles on a sage felt board. **No clouds** (the
+    user rejected objects on clouds) and **sage green worked into every
+    object** (user asked for it, ties to `accent`). Two code-rendered sets
+    (cartoony, then "rustic") were rejected before this. Regenerate/re-cut
+    via `tools/menu-icons/` (README has the prompts and picks).
   - **Gold connector:** one `Animated.View` segment per neighbouring pair,
     pre-sampled like the hubs (midpoint, length via `scaleX`, unwrapped
     angle via `rotate`, depth → opacity), drawn under the hubs. It is ONLY
