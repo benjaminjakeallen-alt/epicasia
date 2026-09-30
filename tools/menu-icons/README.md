@@ -29,12 +29,17 @@ hyper-real, finely detailed miniature objects standing on soft fluffy
 clouds in hazy pastel morning light (like the landmark-on-cloud mockup),
 but **original objects, not copies of real landmarks**.
 
-Plan: generate them with the Higgsfield API. Credentials live in the cloud
-environment as `HF_API_KEY_ID` / `HF_API_KEY_SECRET` (REST base
-`https://api.higgsfield.ai`, header
-`Authorization: Key $HF_API_KEY_ID:$HF_API_KEY_SECRET`; check
-https://docs.higgsfield.ai/docs for the current image endpoint/models).
-Never print or log the key values.
+Plan: generate them with the Higgsfield API via `generate-hf.sh <name>
+"<subject>" [try]` (Recraft V4.1 1K text-to-image, polls until done, writes
+`$OUT/<name>-<try>.png`). The credential lives in the cloud environment as
+**`HF_API_KEY_ID` only — there is no separate secret**; the header
+`Authorization: Key $HF_API_KEY_ID` authenticates on its own (verified: a
+status call returns 404 for a bogus request id rather than 401). Never print
+or log the key value.
+
+**Blocked (Sept 30 2026):** submitting returns
+`{"detail":"not_enough_credits"}` — the user's Higgsfield API account needs
+credits (console.higgsfield.ai) before anything can be generated.
 
 Shared style prompt (keep identical across all six for consistency):
 
