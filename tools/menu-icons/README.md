@@ -54,9 +54,11 @@ same pipeline and style prompt, saved to `assets/images/launch/`:
 
 - **Planet:** `VIEW="seen straight on at eye level as a perfect round
   sphere" MODEL=qwen ./generate-hf.sh planet "a tiny round miniature
-  planet, a perfect sphere covered in soft velvety sage green grass and
-  moss, with a small pale blue lake, a winding cream stone path, tiny round
-  trees and a few small rocks"` → `cutout.py <src> planet.png 900 center
+  planet, a perfect smooth sphere of soft velvety light sage green grass
+  with a gentle rolling meadow texture, only a handful of small round trees
+  and a few pale stones spaced far apart, calm and minimal, soft even
+  color, no paths, no roads, no water, no lakes"` (no path/lake: those
+  looked like flat stickers once the planet rotated) → `cutout.py <src> planet.png 900 center
   1.0`, then resized to 720px.
 - **Landmarks:** `VIEW="front three-quarter view at eye level"`, subject
   = the landmark + ", standing upright on a small flat round patch of soft
@@ -64,3 +66,18 @@ same pipeline and style prompt, saved to `assets/images/launch/`:
   pearl, buddha) → `cutout.py <src> <key>.png 360 bottom 1.04` (bottom
   anchor: the base sits on the image's bottom edge, which the intro sinks
   into the planet).
+
+### Launch plane (3D sprite sheet)
+
+`plane-sheet.png` is the `flights` builder (with `{ spinning: true }`:
+rounded nose, blurred prop discs, polished metal) rendered from 36
+headings by `window.renderPlaneSheet` in `index.html`:
+
+```bash
+python3 -m http.server 8765 &
+node render-plane.mjs 200              # -> out-plane-sheet.png (6×6 × 200px)
+node render-plane.mjs 360 0,9,18,27    # a few large test frames -> out-plane-test.png
+cp out-plane-sheet.png ../../assets/images/launch/plane-sheet.png
+```
+
+Camera elevation (26°) must match `PLANE_ELEV` in `LaunchSequence.tsx`.

@@ -20,7 +20,8 @@ import Wordmark from './Wordmark';
 
 // "Little planet" intro: a miniature world turns into place and the trip's
 // landmarks spring up from its surface one by one as they come over the
-// horizon, while the silver airliner from the Flights icon circles it.
+// horizon, while a 3D silver airliner (pre-rendered from every heading)
+// circles it in perspective.
 // Then the wordmark rises in beneath and the whole scene fades out.
 //
 // Art is generated in the menu icons' style (tools/menu-icons, see the
@@ -50,7 +51,14 @@ const LANDMARKS: Landmark[] = [
   { key: 'buddha', source: require('../../assets/images/launch/buddha.png'), label: 'Big Buddha' },
 ];
 const PLANET = require('../../assets/images/launch/planet.png');
-const PLANE = require('../../assets/images/menu/flights.png');
+// 36 pre-rendered views of the 3D airliner, one per 10° of heading around
+// a level orbit seen from PLANE_ELEV above (tools/menu-icons →
+// render-plane.mjs). Row-major, SHEET_COLS per row; frame k = heading k·10°,
+// heading 0 = flying right across the near side.
+const PLANE_SHEET = require('../../assets/images/launch/plane-sheet.png');
+const SHEET_COLS = 6;
+const SHEET_FRAMES = 36;
+const PLANE_ELEV = 26; // must match render-plane's camera elevation
 const IMAGE_COUNT = LANDMARKS.length + 2;
 
 const N = LANDMARKS.length;
@@ -59,7 +67,8 @@ const SPIN_MS = 3600;
 const SPIN_EASING = Easing.bezier(0.4, 0, 0.1, 1);
 const GATE = -60; // screen angle (0 = top) where a landmark pops up
 const PLANE_MS = 5600;
-const PLANE_TURNS = 1.5; // two near-side passes: during the spin and under the wordmark
+const PLANE_TURNS = 1.25;
+const PLANE_START = -100; // degrees round the orbit: just behind the left limb
 const HERO_AT = 3300;
 const HOLD_MS = 1400;
 const LOAD_TIMEOUT_MS = 1500;
@@ -139,50 +148,76 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: [`${SPIN_FROM}deg`, '0deg'] });
 
-  // The plane flies a tilted ellipse around the planet, left to right
-  // across the near side. It is only ever seen on that near arc: it fades
-  // out into the haze as it curves away on the right and comes back out of
-  // it on the left, so the turn-around (which a flat side-view sprite can't
-  // show convincingly) always happens unseen, and it never flips. sin/cos
-  // aren't expressible with interpolate, so the path is pre-sampled.
+  // The plane orbits the planet in 3D: a level circle seen from PLANE_ELEV
+  // above, so on screen an ellipse (tilted a few degrees). At orbit angle φ
+  // (0 = nearest the viewer) it sits at (r·sinφ, r·cosφ·sin(elev)) and flies
+  // with heading φ, so the sprite frame is simply round(φ / 10°) — nose-on
+  // as it comes round the left, tail-on as it goes away on the right. It's
+  // drawn twice, behind and in front of the world, switching at the ends
+  // of the ellipse (outside the planet), where both copies show the same
+  // frame. Positions are pre-sampled (no sin/cos in interpolate); the frame
+  // and the front/back switch are exact step functions.
   const planePath = useMemo(() => {
-    const rx = R + L * 0.95;
-    const ry = rx * 0.3;
-    const tilt = (-8 * Math.PI) / 180; // the orbit's inclination on screen
+    const r = R + L * 0.95;
+    const sinE = Math.sin((PLANE_ELEV * Math.PI) / 180);
+    const tilt = (-8 * Math.PI) / 180;
     const cosT = Math.cos(tilt);
     const sinT = Math.sin(tilt);
+    const span = 360 * PLANE_TURNS;
+    const phiAt = (p: number) => PLANE_START + p * span;
+    const rad = (deg: number) => (deg * Math.PI) / 180;
+
     const input: number[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
-    const pitches: string[] = [];
     const scales: number[] = [];
-    const opacities: number[] = [];
-    for (let k = 0; k <= SAMPLES; k++) {
-      const p = k / SAMPLES;
-      // Starts just behind the left limb so the first pass begins at once.
-      const a = p * Math.PI * 2 * PLANE_TURNS - 0.3;
-      const ex = -rx * Math.cos(a);
-      const ey = ry * Math.sin(a); // sin(a) > 0 = near side
-      const dx = rx * Math.sin(a);
-      const dy = ry * Math.cos(a);
+    const SAMPLES_PLANE = 150;
+    for (let k = 0; k <= SAMPLES_PLANE; k++) {
+      const p = k / SAMPLES_PLANE;
+      const phi = rad(phiAt(p));
+      const ex = r * Math.sin(phi);
+      const ey = r * Math.cos(phi) * sinE;
       input.push(p);
       xs.push(ex * cosT - ey * sinT);
       ys.push(ex * sinT + ey * cosT);
-      // Pitch follows the path's slope (on the near arc dx > 0, flying right).
-      pitches.push(`${(Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI - 8}deg`);
-      const near = Math.sin(a);
-      scales.push(0.8 + 0.28 * Math.max(near, 0));
-      // Smoothstep in from the haze once well onto the near arc.
-      const t = Math.min(Math.max((near - 0.2) / 0.5, 0), 1);
-      opacities.push(t * t * (3 - 2 * t));
+      scales.push(1 + 0.14 * Math.cos(phi)); // nearer = a little larger
     }
+
+    // Step functions over p: a value that changes only at `edges` (degrees).
+    const steps = (edgeEvery: number, edgeOffset: number, valueAt: (phiDeg: number) => number) => {
+      const stepIn: number[] = [];
+      const stepOut: number[] = [];
+      const cuts: number[] = [];
+      const first = Math.ceil((PLANE_START - edgeOffset) / edgeEvery) * edgeEvery + edgeOffset;
+      for (let e = first; e < PLANE_START + span; e += edgeEvery) cuts.push((e - PLANE_START) / span);
+      let from = 0;
+      for (const cut of [...cuts, 1]) {
+        const mid = phiAt((from + cut) / 2);
+        const v = valueAt(mid);
+        stepIn.push(from, Math.max(from, cut - 1e-6));
+        stepOut.push(v, v);
+        from = cut;
+      }
+      return { stepIn, stepOut };
+    };
+    const frameOf = (phiDeg: number) =>
+      ((Math.round(phiDeg / (360 / SHEET_FRAMES)) % SHEET_FRAMES) + SHEET_FRAMES) % SHEET_FRAMES;
+    const col = steps(360 / SHEET_FRAMES, 5, (d) => frameOf(d) % SHEET_COLS);
+    const row = steps(360 / SHEET_FRAMES, 5, (d) => Math.floor(frameOf(d) / SHEET_COLS));
+    const near = steps(180, 90, (d) => (Math.cos(rad(d)) >= 0 ? 1 : 0));
+
     const at = (outputRange: number[]) => plane.interpolate({ inputRange: input, outputRange });
+    const nearOpacity = plane.interpolate({ inputRange: near.stepIn, outputRange: near.stepOut });
+    const frame = L * 0.95;
     return {
+      size: frame,
       translateX: at(xs),
       translateY: at(ys),
-      rotate: plane.interpolate({ inputRange: input, outputRange: pitches }),
       scale: at(scales),
-      opacity: Animated.multiply(at(opacities), planeIn),
+      sheetX: plane.interpolate({ inputRange: col.stepIn, outputRange: col.stepOut.map((c) => -c * frame) }),
+      sheetY: plane.interpolate({ inputRange: row.stepIn, outputRange: row.stepOut.map((rw) => -rw * frame) }),
+      frontOpacity: Animated.multiply(nearOpacity, planeIn),
+      backOpacity: Animated.multiply(Animated.subtract(1, nearOpacity), planeIn),
     };
   }, [plane, planeIn, R, L]);
 
@@ -278,30 +313,36 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
     };
   }, [start]);
 
-  const planeImage = (
-    <Animated.Image
-      source={PLANE}
-      onLoad={onImageLoad}
+  // A frame-sized window onto the sprite sheet, moved round the orbit.
+  const planeSprite = (opacity: Animated.AnimatedMultiplication<number>, countsLoad: boolean) => (
+    <Animated.View
       style={[
         styles.plane,
         {
-          width: L * 0.8,
-          height: L * 0.8,
-          left: cx - L * 0.4,
-          top: cy - L * 0.4,
-          opacity: planePath.opacity,
+          width: planePath.size,
+          height: planePath.size,
+          left: cx - planePath.size / 2,
+          top: cy - planePath.size / 2,
+          opacity,
           transform: [
             { translateX: planePath.translateX },
             { translateY: planePath.translateY },
+            { rotate: '-8deg' }, // the orbit's tilt on screen
             { scale: planePath.scale },
-            { rotate: planePath.rotate },
-            // The icon's nose points left; it always flies right.
-            { scaleX: -1 },
           ],
         },
       ]}
-      resizeMode="contain"
-    />
+    >
+      <Animated.Image
+        source={PLANE_SHEET}
+        onLoad={countsLoad ? onImageLoad : undefined}
+        style={{
+          width: planePath.size * SHEET_COLS,
+          height: planePath.size * SHEET_COLS,
+          transform: [{ translateX: planePath.sheetX }, { translateY: planePath.sheetY }],
+        }}
+      />
+    </Animated.View>
   );
 
   return (
@@ -316,6 +357,8 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
           { opacity: planetIn },
         ]}
       />
+
+      {planeSprite(planePath.backOpacity, false)}
 
       {/* Three stacked layers share the world's placement: the landmarks
           (turning, tucked behind the planet), the planet (turning), and fixed
@@ -372,7 +415,7 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
           <Circle cx={R} cy={R} r={R * 0.985} fill={`url(#${uid}sun)`} />
         </Svg>
       </Animated.View>
-      {planeImage}
+      {planeSprite(planePath.frontOpacity, true)}
 
       <Animated.View
         style={[
@@ -408,6 +451,7 @@ const styles = StyleSheet.create({
   },
   plane: {
     position: 'absolute',
+    overflow: 'hidden',
   },
   hero: {
     position: 'absolute',

@@ -336,7 +336,7 @@ has them).
   (`assets/images/launch/*.png` — fairytale castle for Tokyo Disney, Meiji
   torii, Kinkaku-ji, Tōdai-ji + deer, Great Wall, Temple of Heaven, Pearl
   Tower, Big Buddha) spring up from behind its horizon as each crosses the
-  upper-left; the Flights-icon airliner flies past on the near side; then
+  upper-left; a 3D-rendered silver airliner circles it in perspective; then
   the Wordmark + dates rise in beneath and it all fades (~5.4s). Art is
   generated in the menu icons' style (see `tools/menu-icons/README.md`).
   Shown on every cold open; tap anywhere ("Skip intro" label, which the e2e
@@ -352,13 +352,23 @@ has them).
     it rotates about the planet's center with no transform-origin tricks.
   - Pop times are computed by inverting the spin's bezier (bisection), so
     each spring fires exactly as its landmark crosses the gate angle.
-  - The plane is only ever seen on the **near arc, flying left to right,
-    nose forward**: it fades in from the haze on the left and out on the
-    right, so its turn-around always happens unseen. Don't show it on the
-    far arc or flip it (mirrored `scaleX` at the ellipse ends) — a flat
-    side-view sprite turning looked fake next to the rest (user feedback,
-    Sept 30 2026). `PLANE_TURNS = 1.5` gives two passes: during the spin
-    and under the wordmark.
+  - **The plane is a pre-rendered 3D sprite** (`plane-sheet.png`: 36
+    views, one per 10° of heading, of the three.js airliner in
+    `tools/menu-icons/index.html`, rendered by `render-plane.mjs` with the
+    camera `PLANE_ELEV` = 26° above a level orbit, light fixed in the
+    world, banked into the turn, props as blurred discs). It flies the whole
+    orbit; the sheet frame is round(orbit angle / 10°), stepped exactly via
+    duplicated interpolate breakpoints, so it is nose-on coming round the
+    left and tail-on going away on the right. It's drawn behind the world
+    on the far half and in front on the near half, switching at the ellipse
+    ends (outside the planet) where both copies show the same frame. Never
+    mirror/flip a flat sprite instead — that looked fake (user feedback);
+    change `PLANE_ELEV` only together with a re-render.
+  - **Planet art must have no strong-perspective features** (no paths,
+    lakes or anything "seen from above"): they looked like flat stickers
+    and wrong once rotated (user feedback). The current planet is a calm,
+    light sage meadow with a few trees/stones that follow the curve; a busy
+    evenly-bumped version read as a pollen/virus ball.
   - The timeline starts only after all 10 images fire `onLoad` (1.5s
     fallback), so nothing pops in blank. Only transforms/opacity animate,
     native driver throughout.
