@@ -341,6 +341,16 @@ has them).
   generated in the menu icons' style (see `tools/menu-icons/README.md`).
   Shown on every cold open; tap anywhere ("Skip intro" label, which the e2e
   helper relies on) skips; reduce-motion shows the finished scene still.
+  **Planned (archived, not started): abbreviated intro after the first
+  view** (user request, Sept 30 2026). The full ~5.4s sequence should play
+  only the first time; later cold opens get a short version that reaches
+  the app quickly (e.g. ~1.5s: the finished planet fades in already
+  settled, a brief settle/landmark shimmer and one plane pass, wordmark,
+  out). Persist a "seen intro" flag (AsyncStorage, like `rememberMe.ts`),
+  keep tap-to-skip and the reduce-motion path, and consider replaying the
+  full version occasionally (e.g. once per new app version or on trip
+  day). The accessibility mode (below, under Planned feature set) should
+  skip the intro entirely.
   Implementation notes, so they aren't re-learned:
   - Three layers share the world's placement: landmarks (rotating) →
     planet (rotating) → a **static** SVG sunlight/rim-shade overlay. The
