@@ -336,7 +336,7 @@ has them).
   (`assets/images/launch/*.png` — fairytale castle for Tokyo Disney, Meiji
   torii, Kinkaku-ji, Tōdai-ji + deer, Great Wall, Temple of Heaven, Pearl
   Tower, Big Buddha) spring up from behind its horizon as each crosses the
-  upper-left; the Flights-icon airliner circles on a tilted ellipse; then
+  upper-left; the Flights-icon airliner flies past on the near side; then
   the Wordmark + dates rise in beneath and it all fades (~5.4s). Art is
   generated in the menu icons' style (see `tools/menu-icons/README.md`).
   Shown on every cold open; tap anywhere ("Skip intro" label, which the e2e
@@ -352,9 +352,13 @@ has them).
     it rotates about the planet's center with no transform-origin tricks.
   - Pop times are computed by inverting the spin's bezier (bisection), so
     each spring fires exactly as its landmark crosses the gate angle.
-  - The plane is drawn twice (behind/in front of the planet) with
-    complementary opacity switching at the ellipse ends; `scaleX` passes
-    through 0 there, so it banks round instead of flying upside down.
+  - The plane is only ever seen on the **near arc, flying left to right,
+    nose forward**: it fades in from the haze on the left and out on the
+    right, so its turn-around always happens unseen. Don't show it on the
+    far arc or flip it (mirrored `scaleX` at the ellipse ends) — a flat
+    side-view sprite turning looked fake next to the rest (user feedback,
+    Sept 30 2026). `PLANE_TURNS = 1.5` gives two passes: during the spin
+    and under the wordmark.
   - The timeline starts only after all 10 images fire `onLoad` (1.5s
     fallback), so nothing pops in blank. Only transforms/opacity animate,
     native driver throughout.

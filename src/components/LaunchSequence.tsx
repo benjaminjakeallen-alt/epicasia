@@ -59,7 +59,7 @@ const SPIN_MS = 3600;
 const SPIN_EASING = Easing.bezier(0.4, 0, 0.1, 1);
 const GATE = -60; // screen angle (0 = top) where a landmark pops up
 const PLANE_MS = 5600;
-const PLANE_TURNS = 1.25;
+const PLANE_TURNS = 1.5; // two near-side passes: during the spin and under the wordmark
 const HERO_AT = 3300;
 const HOLD_MS = 1400;
 const LOAD_TIMEOUT_MS = 1500;
@@ -139,49 +139,50 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
 
   const rotate = spin.interpolate({ inputRange: [0, 1], outputRange: [`${SPIN_FROM}deg`, '0deg'] });
 
-  // The plane flies a tilted ellipse around the planet. sin/cos aren't
-  // expressible with interpolate, so the path is pre-sampled. It's drawn
-  // twice — behind the planet on the far half, in front on the near half —
-  // and swaps at the ellipse's ends, outside the planet, where it can't
-  // be seen. scaleX flips through 0 at those ends, so it banks round
-  // instead of flying upside down.
+  // The plane flies a tilted ellipse around the planet, left to right
+  // across the near side. It is only ever seen on that near arc: it fades
+  // out into the haze as it curves away on the right and comes back out of
+  // it on the left, so the turn-around (which a flat side-view sprite can't
+  // show convincingly) always happens unseen, and it never flips. sin/cos
+  // aren't expressible with interpolate, so the path is pre-sampled.
   const planePath = useMemo(() => {
     const rx = R + L * 0.95;
     const ry = rx * 0.3;
+    const tilt = (-8 * Math.PI) / 180; // the orbit's inclination on screen
+    const cosT = Math.cos(tilt);
+    const sinT = Math.sin(tilt);
     const input: number[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
-    const flips: number[] = [];
-    const tilts: string[] = [];
+    const pitches: string[] = [];
     const scales: number[] = [];
-    const front: number[] = [];
+    const opacities: number[] = [];
     for (let k = 0; k <= SAMPLES; k++) {
       const p = k / SAMPLES;
-      const a = p * Math.PI * 2 * PLANE_TURNS + Math.PI * 0.15;
-      const x = rx * Math.cos(a);
-      const y = ry * Math.sin(a);
-      const dx = -rx * Math.sin(a);
+      // Starts just behind the left limb so the first pass begins at once.
+      const a = p * Math.PI * 2 * PLANE_TURNS - 0.3;
+      const ex = -rx * Math.cos(a);
+      const ey = ry * Math.sin(a); // sin(a) > 0 = near side
+      const dx = rx * Math.sin(a);
       const dy = ry * Math.cos(a);
       input.push(p);
-      xs.push(x);
-      ys.push(y);
-      // The icon's nose points left; face the direction of travel.
-      flips.push(dx >= 0 ? -1 : 1);
-      tilts.push(`${(Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI * (dx >= 0 ? 1 : -1)}deg`);
-      const depth = (Math.sin(a) + 1) / 2; // 1 = nearest the viewer
-      scales.push(0.78 + 0.3 * depth);
-      front.push(y >= 0 ? 1 : 0);
+      xs.push(ex * cosT - ey * sinT);
+      ys.push(ex * sinT + ey * cosT);
+      // Pitch follows the path's slope (on the near arc dx > 0, flying right).
+      pitches.push(`${(Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI - 8}deg`);
+      const near = Math.sin(a);
+      scales.push(0.8 + 0.28 * Math.max(near, 0));
+      // Smoothstep in from the haze once well onto the near arc.
+      const t = Math.min(Math.max((near - 0.2) / 0.5, 0), 1);
+      opacities.push(t * t * (3 - 2 * t));
     }
     const at = (outputRange: number[]) => plane.interpolate({ inputRange: input, outputRange });
-    const frontOpacity = at(front);
     return {
       translateX: at(xs),
       translateY: at(ys),
-      scaleX: at(flips),
-      rotate: plane.interpolate({ inputRange: input, outputRange: tilts }),
+      rotate: plane.interpolate({ inputRange: input, outputRange: pitches }),
       scale: at(scales),
-      frontOpacity: Animated.multiply(frontOpacity, planeIn),
-      backOpacity: Animated.multiply(Animated.subtract(1, frontOpacity), planeIn),
+      opacity: Animated.multiply(at(opacities), planeIn),
     };
   }, [plane, planeIn, R, L]);
 
@@ -277,25 +278,25 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
     };
   }, [start]);
 
-  const planeImage = (opacity: Animated.AnimatedMultiplication<number>, countsLoad: boolean) => (
+  const planeImage = (
     <Animated.Image
       source={PLANE}
-      onLoad={countsLoad ? onImageLoad : undefined}
+      onLoad={onImageLoad}
       style={[
         styles.plane,
         {
-          width: L * 0.86,
-          height: L * 0.86,
-          left: cx - L * 0.43,
-          top: cy - L * 0.43,
-          opacity,
+          width: L * 0.8,
+          height: L * 0.8,
+          left: cx - L * 0.4,
+          top: cy - L * 0.4,
+          opacity: planePath.opacity,
           transform: [
             { translateX: planePath.translateX },
             { translateY: planePath.translateY },
-            { rotate: '-10deg' },
             { scale: planePath.scale },
             { rotate: planePath.rotate },
-            { scaleX: planePath.scaleX },
+            // The icon's nose points left; it always flies right.
+            { scaleX: -1 },
           ],
         },
       ]}
@@ -315,8 +316,6 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
           { opacity: planetIn },
         ]}
       />
-
-      {planeImage(planePath.backOpacity, false)}
 
       {/* Three stacked layers share the world's placement: the landmarks
           (turning, tucked behind the planet), the planet (turning), and fixed
@@ -373,7 +372,7 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
           <Circle cx={R} cy={R} r={R * 0.985} fill={`url(#${uid}sun)`} />
         </Svg>
       </Animated.View>
-      {planeImage(planePath.frontOpacity, true)}
+      {planeImage}
 
       <Animated.View
         style={[
