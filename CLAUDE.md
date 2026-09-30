@@ -181,6 +181,23 @@ taste skills (anti-slop layout/typography/motion guidance), not Epic-Asia-
 specific. `impeccable` (a similar tool) could not be installed in this
 container — see the GitHub access scoping note under Testing.
 
+Also vendored (Sept 30 2026, all MIT, copied from the repos' default
+branches): `.agents/skills/ui-ux-pro-max` (nextlevelbuilder/ui-ux-pro-max-skill
+@09170ee — only the core skill, not its brand/slides/banner siblings; its
+`scripts/tests` were dropped; query it with
+`python3 .agents/skills/ui-ux-pro-max/scripts/search.py "<query>" --domain
+<style|color|typography|ux|...>`, the `react-native` stack file applies here),
+`.agents/skills/design-motion-principles` (kylezantos/design-motion-principles
+@4a9ca87 — motion create/audit; its examples are web/Framer Motion, so
+translate to RN `Animated`/native driver), both symlinked into
+`.claude/skills/`. `.agents/references/awesome-claude-design/`
+(rohitg00/awesome-claude-design @7f60ee5) is a reference library of
+DESIGN.md examples by aesthetic family plus recipes — **not a skill** and
+not this app's direction; `DESIGN.md` at the root stays authoritative. The
+"design.md Chrome" extension the user asked about is a browser extension
+(e.g. TypeUI's DESIGN.md Style Extractor) that must be installed in their
+own Chrome — nothing to install in the repo.
+
 ## Design direction
 
 **Light and natural** (Sept 29 2026) — modeled on two reference mockups the

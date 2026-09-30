@@ -44,3 +44,4 @@ yarn-error.*
 /test-results/
 /playwright-report/
 /playwright/.cache/
+.review/
