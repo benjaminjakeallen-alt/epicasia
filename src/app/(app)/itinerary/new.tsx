@@ -4,30 +4,8 @@ import FormButton from '../../../components/form/FormButton';
 import FormField from '../../../components/form/FormField';
 import FormScreen from '../../../components/form/FormScreen';
 import { useAuth } from '../../../lib/AuthProvider';
+import { isValidDay, parseTimeInput } from '../../../lib/dates';
 import { createItineraryItem } from '../../../lib/itinerary';
-
-// "9:00 AM" / "9am" / "21:00" -> 24hr "HH:MM", or null if unparseable.
-function parseTimeInput(raw: string): { hour: number; minute: number } | null {
-  const trimmed = raw.trim();
-  if (!trimmed) return null;
-
-  const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
-  if (!match) return null;
-
-  let hour = Number(match[1]);
-  const minute = match[2] ? Number(match[2]) : 0;
-  const meridiem = match[3]?.toLowerCase();
-
-  if (hour > 23 || minute > 59) return null;
-  if (meridiem === 'pm' && hour < 12) hour += 12;
-  if (meridiem === 'am' && hour === 12) hour = 0;
-
-  return { hour, minute };
-}
-
-function isValidDay(day: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) && !Number.isNaN(new Date(day).getTime());
-}
 
 export default function NewItineraryItem() {
   const router = useRouter();

@@ -14,28 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
+import { formatMonthDay, formatWeekday, parseDay } from '../../../lib/dates';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
 import { photoForDay, STOPS } from '../../../lib/places';
 import { legColorForCity, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
-
-// "2027-06-06" -> a local Date at midnight. Deliberately not `new
-// Date(dayString)` — that parses as UTC midnight, which shifts to the
-// previous day once formatted in a negative-UTC-offset timezone (all of
-// the Americas).
-function parseDay(day: string): Date {
-  const [y, m, d] = day.split('-').map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function formatWeekday(day: string): string {
-  return parseDay(day).toLocaleDateString('en-US', { weekday: 'short' });
-}
-
-function formatMonthDay(day: string): string {
-  return parseDay(day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });

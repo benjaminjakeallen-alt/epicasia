@@ -20,18 +20,66 @@ export type Stop = {
   city: string;
   country: string;
   dates: string;
+  /** First and last night of the leg ("YYYY-MM-DD") — pre-fills a new stay. */
+  checkIn: string;
+  checkOut: string;
   color: string;
   photo: ImageSourcePropType;
 };
 
 // The five legs, in order — drives the home screen's route cards.
 export const STOPS: Stop[] = [
-  { key: 'tokyo', city: 'Tokyo', country: 'Japan', dates: 'Jun 6 – 9', color: legColors.tokyo, photo: PHOTOS.tokyoFuji },
-  { key: 'kyoto', city: 'Kyoto & Nara', country: 'Japan', dates: 'Jun 9 – 11', color: legColors.kyoto, photo: PHOTOS.kyotoKinkakuji },
-  { key: 'beijing', city: 'Beijing', country: 'China', dates: 'Jun 11 – 14', color: legColors.beijing, photo: PHOTOS.beijingGreatWall },
-  { key: 'shanghai', city: 'Shanghai', country: 'China', dates: 'Jun 14 – 17', color: legColors.shanghai, photo: PHOTOS.shanghaiDisney },
-  { key: 'hongKong', city: 'Hong Kong', country: 'China', dates: 'Jun 17 – 19', color: legColors.hongKong, photo: PHOTOS.hongKongPeak },
+  { key: 'tokyo', city: 'Tokyo', country: 'Japan', dates: 'Jun 6 – 9', checkIn: '2027-06-06', checkOut: '2027-06-09', color: legColors.tokyo, photo: PHOTOS.tokyoFuji },
+  { key: 'kyoto', city: 'Kyoto & Nara', country: 'Japan', dates: 'Jun 9 – 11', checkIn: '2027-06-09', checkOut: '2027-06-11', color: legColors.kyoto, photo: PHOTOS.kyotoKinkakuji },
+  { key: 'beijing', city: 'Beijing', country: 'China', dates: 'Jun 11 – 14', checkIn: '2027-06-11', checkOut: '2027-06-14', color: legColors.beijing, photo: PHOTOS.beijingGreatWall },
+  { key: 'shanghai', city: 'Shanghai', country: 'China', dates: 'Jun 14 – 17', checkIn: '2027-06-14', checkOut: '2027-06-17', color: legColors.shanghai, photo: PHOTOS.shanghaiDisney },
+  { key: 'hongKong', city: 'Hong Kong', country: 'China', dates: 'Jun 17 – 19', checkIn: '2027-06-17', checkOut: '2027-06-19', color: legColors.hongKong, photo: PHOTOS.hongKongPeak },
 ];
+
+// Free-text city -> its leg. For "Kyoto → Beijing" the last-mentioned city
+// wins, matching legColorForCity().
+const CITY_STOPS: [string, string][] = [
+  ['tokyo', 'tokyo'],
+  ['kyoto', 'kyoto'],
+  ['nara', 'kyoto'],
+  ['osaka', 'kyoto'],
+  ['beijing', 'beijing'],
+  ['shanghai', 'shanghai'],
+  ['hong kong', 'hongKong'],
+];
+
+export function stopForCity(city: string | null | undefined): Stop | null {
+  if (!city) return null;
+  const lower = city.toLowerCase();
+  let best: { at: number; key: string } | null = null;
+  for (const [name, key] of CITY_STOPS) {
+    const at = lower.lastIndexOf(name);
+    if (at !== -1 && (!best || at > best.at)) best = { at, key };
+  }
+  return STOPS.find((s) => s.key === best?.key) ?? null;
+}
+
+// Airports on (or near) the route -> short name + leg, for flight cards.
+const AIRPORTS: Record<string, { name: string; stop: string }> = {
+  NRT: { name: 'Tokyo Narita', stop: 'tokyo' },
+  HND: { name: 'Tokyo Haneda', stop: 'tokyo' },
+  KIX: { name: 'Osaka Kansai', stop: 'kyoto' },
+  ITM: { name: 'Osaka Itami', stop: 'kyoto' },
+  PEK: { name: 'Beijing Capital', stop: 'beijing' },
+  PKX: { name: 'Beijing Daxing', stop: 'beijing' },
+  PVG: { name: 'Shanghai Pudong', stop: 'shanghai' },
+  SHA: { name: 'Shanghai Hongqiao', stop: 'shanghai' },
+  HKG: { name: 'Hong Kong', stop: 'hongKong' },
+};
+
+export function airportName(code: string | null | undefined): string | null {
+  return code ? (AIRPORTS[code.toUpperCase()]?.name ?? null) : null;
+}
+
+export function stopForAirport(code: string | null | undefined): Stop | null {
+  const key = code ? AIRPORTS[code.toUpperCase()]?.stop : undefined;
+  return STOPS.find((s) => s.key === key) ?? null;
+}
 
 // Thumbnail for an itinerary day, picked from its title first (so "Tokyo
 // DisneySea" or "Great Wall" get the specific photo), then its city.

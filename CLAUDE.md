@@ -9,7 +9,8 @@ trip logistics instead of a family reunion.
 ## Planned feature set
 
 Shared (all trip members, editable by all or an organizer role):
-- **Itinerary — built** (day-by-day, grouped by day/city, see below), Flights, Lodging
+- **Itinerary — built** (day-by-day, grouped by day/city, see below),
+  **Flights — built**, **Lodging — built** (see below)
 - Group chat (reuse reunion-app's polling-based pattern)
 - Expense splitting — who paid, who owes, settle-up view
 - Shared photo gallery
@@ -58,6 +59,37 @@ shows no trash icon on them. If the artifact changes, update the JSON +
 SQL and re-run rather than retyping entries through the form (existing
 rows with a changed title won't be touched — delete/update those
 explicitly).
+
+### Flights & Lodging (built, Sept 30 2026)
+
+Same shape as Itinerary: `src/lib/flights.ts` / `src/lib/lodging.ts`
+(fetch/create/delete), list + add screens under `src/app/(app)/flights/`
+and `src/app/(app)/lodging/`, delete only on your own rows, no schema
+change (the 0001 tables already had every field). Both are on the home
+orbit menu.
+
+- **Flights are boarding passes**: IATA codes in Plex Mono, dashed path
+  with a plane, a perforation with half-circle notches, confirmation code;
+  colored by the arrival airport's leg (`stopForAirport()` /
+  `airportName()` in `places.ts`, which knows the route's airports).
+  **Times are airport-local wall-clock times**, stored in the
+  `timestamptz` columns *as if UTC* (`wallClockISO()`) and always read
+  back in UTC (`formatWallClockTime()` / `wallClockDay()` in
+  `src/lib/dates.ts`) — so "departs 10:30 in Tokyo" shows 10:30 whatever
+  the phone's zone is. Don't format flight times with `toLocale*` or
+  local `Date` getters, and don't convert them as real instants. The form
+  infers a next-day arrival when the arrival clock time is earlier than
+  departure (overridable with an explicit arrival date); the pass shows
+  "+1".
+- **Lodging is grouped by leg** (`STOPS`, which now carry
+  `checkIn`/`checkOut`): a stay goes under the leg its city names
+  (`stopForCity()`), else the leg its check-in falls in, else
+  "Elsewhere". A leg with no stay shows a dashed "Add a stay in …" card
+  that opens the form pre-filled with that city and dates (route params).
+  Addresses open Apple Maps on iOS (works in mainland China, Google Maps
+  doesn't) and Google Maps on web/Android.
+- `src/lib/dates.ts` holds the shared day/time parsing (`isValidDay`,
+  `parseTimeInput` — moved out of itinerary's `new.tsx`) and formatting.
 
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
@@ -322,6 +354,27 @@ Run:
 ```bash
 npm run test:e2e     # starts the web server itself, runs e2e/*.spec.ts
 ```
+
+**Signed-in screens are tested against a fake backend**
+(`e2e/support/fakeBackend.ts`): it plants an unexpired fake session in
+localStorage (supabase-js restores it with no network call) and answers
+every `*.supabase.co` request in-test — table GETs from fixture rows,
+POSTs recorded so a spec can assert the exact insert body. Nothing reaches
+the live project and no test account is created, so prefer this over live
+sign-ups (see the bounce warning below). Every page load plays the launch
+sequence over the screen: skip it by clicking the "Skip intro" label and
+wait for it to unmount (`open()` in `flights-lodging.spec.ts`) —
+otherwise `toBeVisible()` still passes on content hidden under the intro
+and screenshots show the intro. Flight specs run with
+`timezoneId: 'America/Los_Angeles'` to prove times don't shift.
+
+**Lint is not set up yet**: `npx expo lint` installs eslint +
+`eslint-config-expo` and edits `package.json` on first run, then reports
+~40 pre-existing errors (LaunchSequence, reset-password). Don't let that
+side effect ride along in an unrelated commit; setting lint up properly is
+its own task. No Prettier config either — match the existing style
+(single quotes, ~120 cols) by hand or with
+`npx prettier --single-quote --print-width 120`.
 
 **Container note:** in this cloud dev environment, `npx expo install` fails
 outright (not just skips its optional compatibility check) because the
