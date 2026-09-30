@@ -20,3 +20,43 @@ node render.mjs                    # or: node render.mjs flights games
 container) and writes `out-<name>.png` next to itself — adjust `DIR` /
 `executablePath` for other machines. Then crop, pad to square and resize to
 360×360 into `assets/images/menu/` (3× of the 120pt badge).
+
+## Next: replace these with Higgsfield-generated images (planned)
+
+The user rejected both code-rendered sets (first "cartoony", then the
+rustic pass "not the direction"). They want the style of their reference:
+hyper-real, finely detailed miniature objects standing on soft fluffy
+clouds in hazy pastel morning light (like the landmark-on-cloud mockup),
+but **original objects, not copies of real landmarks**.
+
+Plan: generate them with the Higgsfield API. Credentials live in the cloud
+environment as `HF_API_KEY_ID` / `HF_API_KEY_SECRET` (REST base
+`https://api.higgsfield.ai`, header
+`Authorization: Key $HF_API_KEY_ID:$HF_API_KEY_SECRET`; check
+https://docs.higgsfield.ai/docs for the current image endpoint/models).
+Never print or log the key values.
+
+Shared style prompt (keep identical across all six for consistency):
+
+> Hyper-realistic 3D miniature of **[SUBJECT]**, finely detailed, resting on
+> a soft fluffy white cumulus cloud, hazy morning sunlight, soft pastel
+> palette of warm stone beige and pale sky blue, gentle atmospheric haze,
+> soft shadows, three-quarter view from slightly above, centered, single
+> object, plain transparent (or flat pale #E6EDF0) background, no text, no
+> people, square 1:1.
+
+| Menu | Subject |
+|---|---|
+| itinerary | an antique rolled parchment map tied with a ribbon, with a brass compass beside it |
+| flights | a vintage silver propeller airliner in flight |
+| lodging | a traditional Japanese wooden ryokan inn with a tiled roof and paper lanterns |
+| packing | a vintage leather steamer trunk with brass corners and travel stickers |
+| journal | a leather-bound travel journal with a fountain pen and pressed cherry blossoms |
+| games | a stack of ivory mahjong tiles and a small wooden game board |
+
+Steps: generate (1–3 tries each, it costs the user's Higgsfield credits) →
+**show the user all six before touching the app** → on approval, remove
+backgrounds if not transparent, crop to content, pad to square, resize to
+360×360 PNG into `assets/images/menu/<key>.png` (same filenames, so
+`src/app/(app)/index.tsx` needs no change) → screenshot the home ring →
+commit + push (Vercel auto-deploys epicasia.vercel.app).
