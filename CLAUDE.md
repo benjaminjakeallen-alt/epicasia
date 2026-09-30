@@ -22,6 +22,50 @@ Personal (per-user, not shared):
 Utilities (client-side/API only, no backend needed):
 - Currency converter, offline phrasebook, weather, saved map pins
 
+**Planned (archived, not started): Accessibility mode for low vision,
+tailored to the unfolded iPhone Fold.** Requested Sept 30 2026 for a
+friend on the trip with Stargardt disease (central vision loss, peripheral
+vision largely preserved, reduced contrast sensitivity, glare/light
+sensitivity, slow dark adaptation). Requirements from the user: everything
+displays large, and the menus speak what each item is as you scroll
+through them. Build it with standard accessibility practice:
+- **Foldable layout:** treat the unfolded inner screen as a tablet-class
+  canvas — size everything from `useWindowDimensions()` (never cache the
+  first size), keep state across fold/unfold size changes, and use the
+  extra width for bigger content rather than more content (one column of
+  large cards, not two columns of small ones).
+- **Large everything:** honor iOS Dynamic Type up to the accessibility
+  sizes (no `maxFontSizeMultiplier` caps, `allowFontScaling` on, layouts
+  that wrap rather than truncate), plus an in-app "Large" setting that
+  scales type ~1.5–2× and touch targets to ≥ 60pt (WCAG 2.2 minimum is
+  24px, Apple's is 44pt — go well past both here). Bigger orbit-menu hubs,
+  labels always visible, no information carried by small captions alone.
+- **Contrast and glare:** a high-contrast theme meeting WCAG AAA (7:1 for
+  text), with a dark option — people with Stargardt are often
+  glare-sensitive, which conflicts with the fixed light theme, so this
+  mode is the one sanctioned exception. Respect iOS Increase Contrast,
+  Bold Text, Reduce Transparency (drop the sky gradient/halos) and Reduce
+  Motion.
+- **Speech:** VoiceOver first — every control gets
+  `accessibilityLabel`/`Role`/`Hint`; the orbit menu becomes an
+  `adjustable` element with increment/decrement `accessibilityActions`,
+  so a VoiceOver swipe up/down turns the ring and the new item is read
+  ("Flights, 2 of 6. Boarding passes"). For users *not* running
+  VoiceOver, the mode adds its own spoken announcements (`expo-speech`)
+  as the ring turns, with adjustable rate — but when VoiceOver is on, use
+  `AccessibilityInfo.announceForAccessibility` instead so nothing is read
+  twice. Keep the existing per-step haptic tick as a non-visual cue.
+- **Content:** don't put key info only in color (the leg colors need text
+  labels too); flight/lodging confirmation codes readable large and
+  copyable; avoid centered-only content the user must fixate on — lean on
+  left-aligned, predictable layouts that suit peripheral viewing.
+- **Setting:** a per-user toggle (persisted), offered automatically when
+  large Dynamic Type or VoiceOver is detected; intro auto-skips in this
+  mode.
+- **Verify on real hardware:** VoiceOver on device, Xcode Accessibility
+  Inspector, every Dynamic Type size, and both folded/unfolded postures —
+  none of this can be verified in the web/Playwright build.
+
 Explicitly deferred: gamification/points/trivia (was reunion-specific,
 revisit later if wanted).
 
@@ -284,18 +328,42 @@ has them).
   intro HUD, dial bearings). Each weight is its own family — never use
   `fontWeight`. Fonts load in `src/app/_layout.tsx` behind
   `expo-splash-screen`.
-- **Launch sequence** (`src/components/LaunchSequence.tsx`): shown on every
-  cold open, tap to skip, reduce-motion jumps straight to the hero. A "360°
-  camera" orbit: 8 line-art landmark badges (`src/components/Landmarks.tsx`
-  — only places actually on the plan: Tokyo Disney castle, Meiji torii,
-  Kinkaku-ji, Tōdai-ji, Great Wall, Temple of Heaven, Pearl Tower, Big
-  Buddha) ride an ellipse around a dial with HUD readouts, sweep one full
-  turn, then the rig scales up/dissolves into the Wordmark hero. Only View
-  transforms/opacity are animated (native driver); orbit paths are
-  pre-sampled into `interpolate` ranges and `zIndex` is recomputed from
-  depth. **Don't animate SVG props** (`Animated.createAnimatedComponent`
-  on `react-native-svg` shapes) — it logs a web-only `collapsable` DOM
-  error and isn't needed.
+- **Launch sequence** (`src/components/LaunchSequence.tsx`) — **"little
+  planet"** (Sept 30 2026, replaced the line-art 360° dial intro at the
+  user's request, modeled on a tiny-planet travel graphic they supplied):
+  a miniature sage-grass world (`assets/images/launch/planet.png`) turns
+  ~300° clockwise into place while 8 trip landmarks
+  (`assets/images/launch/*.png` — fairytale castle for Tokyo Disney, Meiji
+  torii, Kinkaku-ji, Tōdai-ji + deer, Great Wall, Temple of Heaven, Pearl
+  Tower, Big Buddha) spring up from behind its horizon as each crosses the
+  upper-left; the Flights-icon airliner circles on a tilted ellipse; then
+  the Wordmark + dates rise in beneath and it all fades (~5.4s). Art is
+  generated in the menu icons' style (see `tools/menu-icons/README.md`).
+  Shown on every cold open; tap anywhere ("Skip intro" label, which the e2e
+  helper relies on) skips; reduce-motion shows the finished scene still.
+  Implementation notes, so they aren't re-learned:
+  - Three layers share the world's placement: landmarks (rotating) →
+    planet (rotating) → a **static** SVG sunlight/rim-shade overlay. The
+    landmarks sit *behind* the planet and sink `0.24·L` into it so the
+    planet hides the front of each grass base — drawn on top they read as
+    stuck-on discs. The static shading keeps the light from spinning with
+    the ground (the planet image has baked lighting).
+  - Each landmark hangs on a full-size "arm" View rotated to its angle, so
+    it rotates about the planet's center with no transform-origin tricks.
+  - Pop times are computed by inverting the spin's bezier (bisection), so
+    each spring fires exactly as its landmark crosses the gate angle.
+  - The plane is drawn twice (behind/in front of the planet) with
+    complementary opacity switching at the ellipse ends; `scaleX` passes
+    through 0 there, so it banks round instead of flying upside down.
+  - The timeline starts only after all 10 images fire `onLoad` (1.5s
+    fallback), so nothing pops in blank. Only transforms/opacity animate,
+    native driver throughout.
+  - **Web dev-server gotcha:** in this container Metro sometimes keeps
+    serving a stale bundle after edits — if a screenshot doesn't change,
+    restart `expo start --web --clear` (kill it by PID; `pkill -f "expo
+    start"` also matches the calling shell and kills it). The image viewer
+    can also show a cached copy of a re-written PNG path — write each
+    capture to a new filename.
 - **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
   in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
   navigation. Swipe left/right to turn it (PanResponder → `rotation`

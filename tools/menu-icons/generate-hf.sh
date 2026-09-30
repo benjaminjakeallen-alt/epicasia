@@ -5,7 +5,9 @@
 set -euo pipefail
 name=$1; subject=$2; try=${3:-1}
 OUT=${OUT:-.}; MODEL=${MODEL:-grok}
-STYLE="Hyper-realistic 3D miniature of ${subject}, finely detailed with real materials and fine surface wear, isolated studio product shot, the object alone floating with nothing under it, soft hazy golden morning light, gentle pastel palette of warm stone beige, cream, pale sky blue and muted sage green (#4f7a5c) accents, three-quarter view from slightly above, centered with generous empty margin, single object, pure white background, no ground, no cast shadow, no clouds, no text, no people, square."
+# VIEW overrides the camera angle (the launch planet is shot straight on).
+VIEW=${VIEW:-three-quarter view from slightly above}
+STYLE="Hyper-realistic 3D miniature of ${subject}, finely detailed with real materials and fine surface wear, isolated studio product shot, the object alone floating with nothing under it, soft hazy golden morning light, gentle pastel palette of warm stone beige, cream, pale sky blue and muted sage green (#4f7a5c) accents, ${VIEW}, centered with generous empty margin, single object, pure white background, no ground, no cast shadow, no clouds, no text, no people, square."
 case $MODEL in
   recraft) ep=recraft/v4.1/text-to-image
     body=$(jq -n --arg p "$STYLE" '{prompt:$p,resolution:"1k",aspect_ratio:"1:1",output_format:"png",background_color:{rgb:[255,255,255]}}');;

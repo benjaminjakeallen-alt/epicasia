@@ -46,3 +46,21 @@ used:
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —
 just retry.
+
+## Launch intro art (Sept 30 2026)
+
+The "little planet" intro (`src/components/LaunchSequence.tsx`) uses the
+same pipeline and style prompt, saved to `assets/images/launch/`:
+
+- **Planet:** `VIEW="seen straight on at eye level as a perfect round
+  sphere" MODEL=qwen ./generate-hf.sh planet "a tiny round miniature
+  planet, a perfect sphere covered in soft velvety sage green grass and
+  moss, with a small pale blue lake, a winding cream stone path, tiny round
+  trees and a few small rocks"` → `cutout.py <src> planet.png 900 center
+  1.0`, then resized to 720px.
+- **Landmarks:** `VIEW="front three-quarter view at eye level"`, subject
+  = the landmark + ", standing upright on a small flat round patch of soft
+  sage green grass" (castle, torii, kinkakuji, todaiji, greatwall, heaven,
+  pearl, buddha) → `cutout.py <src> <key>.png 360 bottom 1.04` (bottom
+  anchor: the base sits on the image's bottom edge, which the intro sinks
+  into the planet).
