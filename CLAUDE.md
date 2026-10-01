@@ -243,7 +243,10 @@ backend code.
   instead of `(select auth.uid())` (re-evaluated per row instead of once
   per query), and two tables with multiple permissive policies for the same
   role+action (consolidated into one policy each). As of the last check,
-  both advisor reports are clean except 10 INFO-level "unused index"
+  the security advisor's one standing WARN — "Leaked Password Protection
+  Disabled" — is a **Pro-plan-only** Supabase feature and this project is on
+  the free plan (user confirmed Oct 1 2026), so ignore it rather than
+  suggesting it again. Otherwise both advisor reports are clean except INFO-level "unused index"
   findings on the indexes 0003 just added — expected and not a real issue,
   since the tables are still empty; don't remove those indexes over it.
   Also caught two real bugs while first writing 0001 (before it was ever
