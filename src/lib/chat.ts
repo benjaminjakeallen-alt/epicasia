@@ -1,5 +1,5 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { Linking, Platform } from 'react-native';
+import { removePhotoFiles, savePhoto as savePhotoIn, sharePhoto as sharePhotoIn, signedUrls as signedIn, uploadPhoto, type PickedPhoto } from './photos';
 import { supabase } from './supabase';
 
 // Group chat data layer: one room for the whole trip ("everyone").
@@ -13,6 +13,7 @@ export type Message = {
   user_id: string;
   body: string | null;
   image_path: string | null;
+  image_thumb_path: string | null;
   image_width: number | null;
   image_height: number | null;
   reply_to: string | null;
@@ -80,41 +81,30 @@ export type Outgoing = {
   userId: string;
   body: string | null;
   replyTo: string | null;
-  photo?: { uri: string; width: number; height: number; mimeType?: string | null } | null;
+  photo?: PickedPhoto | null;
 };
 
-async function readBytes(uri: string): Promise<ArrayBuffer> {
-  if (Platform.OS === 'web') return (await fetch(uri)).arrayBuffer();
-  const { File } = await import('expo-file-system');
-  return new File(uri).arrayBuffer();
-}
-
-/** Uploads the photo (if any) first, then inserts the row with the client-made id. */
+/**
+ * Uploads the photo (original + thumbnail) first, then inserts the row with
+ * the client-made id. The database copies photo messages into the gallery
+ * (0006_shared_gallery.sql), so nothing else to do here for that.
+ */
 export async function sendMessage(m: Outgoing): Promise<Message> {
-  let imagePath: string | null = null;
-  if (m.photo) {
-    const type = m.photo.mimeType && m.photo.mimeType.startsWith('image/') ? m.photo.mimeType : 'image/jpeg';
-    const ext = type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : type === 'image/gif' ? 'gif' : 'jpg';
-    imagePath = `${m.userId}/${m.id}.${ext}`;
-    const bytes = await readBytes(m.photo.uri);
-    const { error: upErr } = await supabase.storage.from('chat').upload(imagePath, bytes, {
-      contentType: type,
-      upsert: false,
-    });
-    if (upErr) throw upErr;
-  }
+  let up: { path: string; thumbPath: string | null } | null = null;
+  if (m.photo) up = await uploadPhoto('chat', `${m.userId}/${m.id}`, m.photo);
   const row = {
     id: m.id,
     user_id: m.userId,
     body: m.body?.trim() ? m.body.trim() : null,
-    image_path: imagePath,
+    image_path: up?.path ?? null,
+    image_thumb_path: up?.thumbPath ?? null,
     image_width: m.photo ? Math.round(m.photo.width) : null,
     image_height: m.photo ? Math.round(m.photo.height) : null,
     reply_to: m.replyTo,
   };
   const { data, error } = await supabase.from('messages').insert(row).select().single();
   if (error) {
-    if (imagePath) await supabase.storage.from('chat').remove([imagePath]);
+    if (up) await removePhotoFiles('chat', [up.path, up.thumbPath]);
     throw error;
   }
   return data;
@@ -124,10 +114,10 @@ export async function sendMessage(m: Outgoing): Promise<Message> {
 export async function deleteMessage(message: Message): Promise<void> {
   const { error } = await supabase
     .from('messages')
-    .update({ deleted_at: new Date().toISOString(), body: null, image_path: null })
+    .update({ deleted_at: new Date().toISOString(), body: null, image_path: null, image_thumb_path: null })
     .eq('id', message.id);
   if (error) throw error;
-  if (message.image_path) await supabase.storage.from('chat').remove([message.image_path]);
+  await removePhotoFiles('chat', [message.image_path, message.image_thumb_path]);
 }
 
 export async function addReaction(messageId: string, userId: string, emoji: string): Promise<void> {
@@ -143,63 +133,11 @@ export async function removeReaction(messageId: string, userId: string, emoji: s
   if (error) throw error;
 }
 
-// ---- Photos -------------------------------------------------------------
+// ---- Photos (chat bucket) ------------------------------------------------
 
-const SIGNED_TTL = 60 * 60; // seconds
-const signed = new Map<string, { url: string; expires: number }>();
-
-/** Signed URLs for private chat photos, cached until shortly before expiry. */
-export async function signedUrls(paths: string[]): Promise<Record<string, string>> {
-  const now = Date.now();
-  const out: Record<string, string> = {};
-  const missing: string[] = [];
-  for (const p of new Set(paths)) {
-    const hit = signed.get(p);
-    if (hit && hit.expires > now + 60_000) out[p] = hit.url;
-    else missing.push(p);
-  }
-  if (missing.length) {
-    const { data, error } = await supabase.storage.from('chat').createSignedUrls(missing, SIGNED_TTL);
-    if (error) throw error;
-    for (const item of data ?? []) {
-      if (item.path && item.signedUrl) {
-        signed.set(item.path, { url: item.signedUrl, expires: now + SIGNED_TTL * 1000 });
-        out[item.path] = item.signedUrl;
-      }
-    }
-  }
-  return out;
-}
-
-/**
- * Saves a chat photo to the phone's photo library (native), or downloads it
- * (web). Returns false if the user declined the photo permission.
- */
-export async function savePhoto(path: string): Promise<boolean> {
-  const name = path.split('/').pop() ?? 'photo.jpg';
-  if (Platform.OS === 'web') {
-    const { data, error } = await supabase.storage.from('chat').createSignedUrl(path, 300, { download: name });
-    if (error) throw error;
-    await Linking.openURL(data.signedUrl);
-    return true;
-  }
-  const [{ File, Paths }, MediaLibrary] = await Promise.all([import('expo-file-system'), import('expo-media-library')]);
-  const { status } = await MediaLibrary.requestPermissionsAsync(true);
-  if (status !== 'granted') return false;
-  const url = (await signedUrls([path]))[path];
-  const dest = new File(Paths.cache, `epicasia-${name}`);
-  if (dest.exists) dest.delete();
-  const file = await File.downloadFileAsync(url, dest);
-  await MediaLibrary.Asset.create(file.uri);
-  return true;
-}
-
-/** Opens the share sheet for a chat photo (native) — AirDrop, Messages, etc. */
-export async function sharePhoto(path: string): Promise<void> {
-  const url = (await signedUrls([path]))[path];
-  const { Share } = await import('react-native');
-  await Share.share(Platform.OS === 'ios' ? { url } : { message: url });
-}
+export const signedUrls = (paths: string[]) => signedIn('chat', paths);
+export const savePhoto = (path: string) => savePhotoIn('chat', path);
+export const sharePhoto = (path: string) => sharePhotoIn('chat', path);
 
 // ---- Realtime -----------------------------------------------------------
 

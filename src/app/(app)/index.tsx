@@ -1,25 +1,24 @@
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
-import PlaceCard from '../../components/PlaceCard';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
-import { STOPS } from '../../lib/places';
 import { supabase } from '../../lib/supabase';
 import { TRIP } from '../../lib/trip';
-import { colors as palette, legColors } from '../../theme/colors';
+import { colors as palette, legColors, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
-// Ring order = swipe order. Icons are the rendered 3D-on-a-cloud images
+// Ring order = swipe order. Icons are the generated 3D miniatures
 // (tools/menu-icons); `color` tints the selected label. Items without an
 // href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
   { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
   { key: 'flights', label: 'Flights', caption: 'Boarding passes · NRT → HKG', color: legColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/flights' },
-  { key: 'lodging', label: 'Lodging', caption: 'Where we\'re staying · 5 cities', color: legColors.hongKong, image: require('../../../assets/images/menu/lodging.png'), href: '/(app)/lodging' },
+  { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
   { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
   { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, image: require('../../../assets/images/menu/packing.png') },
   { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
@@ -36,18 +35,24 @@ export default function Home() {
   const name = fullName?.split(' ')[0];
   const initial = (fullName || session?.user.email || '?').trim().charAt(0).toUpperCase();
 
+  // The home is one screen, no scrolling: greeting at the top, the orbit
+  // menu filling the rest. Sign out lives behind the avatar.
+  const [accountOpen, setAccountOpen] = useState(false);
+
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <SkyBackdrop height={560} />
-      <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 28 }}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={[styles.page, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.topRow}>
           <Wordmark size={24} testID="home-title" />
-          <View style={[styles.avatar, { backgroundColor: colors.card }]}>
+          <Pressable
+            onPress={() => setAccountOpen((o) => !o)}
+            accessibilityRole="button"
+            accessibilityLabel="Account"
+            style={[styles.avatar, { backgroundColor: colors.card }]}
+          >
             <Text style={[styles.avatarText, { color: colors.accent }]}>{initial}</Text>
-          </View>
+          </Pressable>
         </View>
 
         <Text style={[styles.headline, { color: colors.ink }]}>
@@ -60,32 +65,31 @@ export default function Home() {
           {TRIP.dates} · {TRIP.travelers} travelers · {TRIP.cities} cities
         </Text>
 
-        <OrbitMenu
-          items={MENU}
-          height={430}
-          onOpen={(item) => item.href && router.push(item.href)}
-        />
+        <OrbitMenu items={MENU} onOpen={(item) => item.href && router.push(item.href)} />
+      </View>
 
-        <View style={styles.sectionHead}>
-          <Text style={[styles.sectionTitle, { color: colors.ink }]}>Your route</Text>
-          <Pressable onPress={() => router.push('/(app)/itinerary')} hitSlop={8}>
-            <Text style={[type.bodyStrong, { color: colors.highlight }]}>See itinerary</Text>
-          </Pressable>
-        </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.cards}
-        >
-          {STOPS.map((stop) => (
-            <PlaceCard key={stop.key} stop={stop} onPress={() => router.push('/(app)/itinerary')} />
-          ))}
-        </ScrollView>
-
-        <Pressable style={styles.signOut} onPress={() => supabase.auth.signOut()} hitSlop={8}>
-          <Text style={[type.body, { color: colors.inkTertiary }]}>Sign out</Text>
-        </Pressable>
-      </ScrollView>
+      {accountOpen ? (
+        <>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAccountOpen(false)} accessibilityLabel="Close account menu" />
+          <View style={[styles.accountCard, { top: insets.top + 66, backgroundColor: colors.card }]}>
+            <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={1}>
+              {fullName || 'Signed in'}
+            </Text>
+            {session?.user.email ? (
+              <Text style={[type.caption, { color: colors.inkSecondary }]} numberOfLines={1}>
+                {session.user.email}
+              </Text>
+            ) : null}
+            <Pressable
+              onPress={() => supabase.auth.signOut()}
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.signOut, { borderColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Text style={[type.bodyStrong, { color: colors.error }]}>Sign out</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -124,25 +128,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     marginTop: 8,
   },
-  sectionHead: {
-    paddingHorizontal: 22,
-    marginTop: 8,
-    marginBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+  page: {
+    flex: 1,
   },
-  sectionTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: 24,
-    letterSpacing: -0.3,
-  },
-  cards: {
-    paddingHorizontal: 22,
-    gap: 12,
+  accountCard: {
+    position: 'absolute',
+    right: 18,
+    width: 230,
+    borderRadius: 20,
+    padding: 16,
+    gap: 2,
+    boxShadow: shadow.float,
   },
   signOut: {
-    alignItems: 'center',
-    marginTop: 30,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

@@ -34,21 +34,6 @@ const FLIGHTS = [
   },
 ];
 
-const STAYS = [
-  {
-    id: 's1',
-    city: 'Tokyo',
-    name: 'Hotel Gracery Shinjuku',
-    address: '1-19-1 Kabukicho, Shinjuku, Tokyo',
-    check_in: '2027-06-06',
-    check_out: '2027-06-09',
-    confirmation_code: 'HX4821',
-    notes: 'Two rooms, breakfast included.',
-    created_by: USER_ID,
-    created_at: '2026-09-30T00:00:00Z',
-  },
-];
-
 // Every cold load plays the launch sequence over the screen. Skip it and
 // wait until it has unmounted, so assertions and screenshots see the
 // screen itself rather than content hidden underneath the intro.
@@ -112,44 +97,6 @@ test('add-flight form validates and saves wall-clock times', async ({ page }) =>
       departure_time: '2027-06-11T22:30:00Z',
       arrival_time: '2027-06-12T01:45:00Z',
       confirmation_code: 'ABC123',
-      created_by: USER_ID,
-    },
-  });
-});
-
-test('lodging groups stays by leg and prefills a stay for an empty leg', async ({ page }) => {
-  const backend = await signInWithFakeBackend(page, { lodging: STAYS });
-  await open(page, '/lodging');
-
-  await expect(page.getByText('1 of 5 cities booked')).toBeVisible();
-  const card = page.getByTestId('stay-card');
-  await expect(card).toHaveCount(1);
-  await expect(card.getByText('Jun 6 → Jun 9 · 3 nights')).toBeVisible();
-  await expect(card.getByText('HX4821')).toBeVisible();
-  await expect(page.getByLabel('Open 1-19-1 Kabukicho, Shinjuku, Tokyo in Maps')).toBeVisible();
-  await expect(page.getByLabel('Add a stay in Tokyo')).toHaveCount(0);
-
-  await page.screenshot({ path: 'test-results/lodging-list.png', fullPage: true });
-
-  await page.getByLabel('Add a stay in Beijing').click();
-  await expect(page.getByPlaceholder('2027-06-06')).toHaveValue('2027-06-11');
-  await expect(page.getByPlaceholder('2027-06-09')).toHaveValue('2027-06-14');
-  await expect(page.getByPlaceholder('Tokyo', { exact: true })).toHaveValue('Beijing');
-
-  await page.getByPlaceholder('Hotel Gracery Shinjuku').fill('Peninsula Beijing');
-  await page.getByText('Save', { exact: true }).click();
-
-  await expect.poll(() => backend.inserts.length).toBe(1);
-  expect(backend.inserts[0]).toEqual({
-    table: 'lodging',
-    body: {
-      name: 'Peninsula Beijing',
-      city: 'Beijing',
-      address: null,
-      check_in: '2027-06-11',
-      check_out: '2027-06-14',
-      confirmation_code: null,
-      notes: null,
       created_by: USER_ID,
     },
   });

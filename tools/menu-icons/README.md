@@ -39,10 +39,11 @@ used:
 |---|---|
 | flights | a vintage silver propeller airliner with a muted sage green tail fin and a thin sage green stripe along the fuselage |
 | itinerary | an antique rolled parchment map tied with a muted sage green silk ribbon, with a brass compass beside it |
-| lodging | a traditional Japanese wooden ryokan inn with a tiled roof, paper lanterns, a muted sage green noren curtain over the door and a small green bonsai pine beside it |
+| lodging (removed Oct 1 2026) | a traditional Japanese wooden ryokan inn with a tiled roof, paper lanterns, a muted sage green noren curtain over the door and a small green bonsai pine beside it |
 | packing | a vintage muted sage green leather steamer trunk with brass corners, tan leather straps and travel stickers |
 | journal | a muted sage green leather-bound travel journal with a fountain pen and pressed cherry blossoms |
 | games | a small stack of ivory mahjong tiles with green carved characters on a small wooden game board with a muted sage green felt top |
+| photos | a small loose fanned stack of instant film photo prints with cream borders showing soft pastel travel snapshots of mountains and temples, one print held by a tiny muted sage green clip (Oct 1 2026; a sage rangefinder camera was the alternative) |
 | chat | a vintage muted sage green enamel rotary telephone with a coiled cord, cream dial and small brass details (Oct 1 2026, pick: try 2; the airmail-postcards alternative read too close to Journal) |
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —

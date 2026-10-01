@@ -4,7 +4,9 @@ import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'r
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
-export type PickedPhoto = { uri: string; width: number; height: number; mimeType?: string | null };
+import type { PickedPhoto } from '../../lib/photos';
+
+export type { PickedPhoto };
 
 type Props = {
   value: string;

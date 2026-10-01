@@ -17,6 +17,8 @@ export type FakeBackend = {
 export async function signInWithFakeBackend(
   page: Page,
   tables: Record<string, Record<string, unknown>[]>,
+  // Every storage object is served as this file (so photo grids render).
+  photoFile = 'assets/images/places/kyoto-kinkakuji.jpg',
 ): Promise<FakeBackend> {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   if (!url) throw new Error('EXPO_PUBLIC_SUPABASE_URL must be set for the web build');
@@ -55,6 +57,18 @@ export async function signInWithFakeBackend(
   await page.route(/supabase\.co/, async (route) => {
     const req: Request = route.request();
     const url = new URL(req.url());
+    // Storage: hand out fake signed URLs and serve them from a local file.
+    const sign = url.pathname.match(/^\/storage\/v1\/object\/sign\/([^/]+)\/?(.*)$/);
+    if (sign && req.method() === 'POST') {
+      const body = req.postDataJSON() ?? {};
+      const bucket = sign[1];
+      const one = (path: string) => ({ path, signedURL: `/object/sign/${bucket}/${path}?token=fake`, error: null });
+      const json = Array.isArray(body.paths) ? body.paths.map(one) : { signedURL: one(sign[2]).signedURL };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(json) });
+    }
+    if (sign && req.method() === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'image/jpeg', path: photoFile });
+    }
     const match = url.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (!match) return route.abort();
     const table = match[1];

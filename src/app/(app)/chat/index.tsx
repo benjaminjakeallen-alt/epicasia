@@ -98,7 +98,7 @@ export default function GroupChat() {
   );
 
   const ensureUrls = useCallback(async (msgs: Message[]) => {
-    const paths = msgs.map((m) => m.image_path).filter((p): p is string => !!p);
+    const paths = msgs.flatMap((m) => [m.image_path, m.image_thumb_path]).filter((p): p is string => !!p);
     if (!paths.length) return;
     try {
       const got = await signedUrls(paths);
@@ -236,6 +236,7 @@ export default function GroupChat() {
       user_id: myId,
       body: out.body,
       image_path: null,
+      image_thumb_path: null,
       image_width: photo?.width ?? null,
       image_height: photo?.height ?? null,
       reply_to: out.replyTo,
@@ -364,7 +365,7 @@ export default function GroupChat() {
         destructive: true,
         onPress: () => {
           setMessages((prev) =>
-            prev.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), body: null, image_path: null } : x)),
+            prev.map((x) => (x.id === m.id ? { ...x, deleted_at: new Date().toISOString(), body: null, image_path: null, image_thumb_path: null } : x)),
           );
           deleteMessage(m).catch(() => setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x))));
         },
@@ -405,7 +406,10 @@ export default function GroupChat() {
         }
         reactions={reactions[item.id] ?? []}
         myId={myId}
-        photoUrl={item.image_path ? (urls[item.image_path] ?? null) : null}
+        // Bubbles show the small thumbnail; the viewer loads the original.
+        photoUrl={
+          (item.image_thumb_path && urls[item.image_thumb_path]) || (item.image_path && urls[item.image_path]) || null
+        }
         maxWidth={bubbleMax}
         onLongPress={setActionFor}
         onPressPhoto={(m) => {

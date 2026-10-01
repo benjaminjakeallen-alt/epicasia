@@ -31,7 +31,7 @@ export type OrbitMenuItem = {
 
 const TAU = Math.PI * 2;
 const SAMPLES_PER_ITEM = 16;
-const HUB = 108;
+const HUB = 96;
 const READOUT = 150;
 
 // The soft gold glow connecting neighbouring hubs.
@@ -72,8 +72,12 @@ export default function OrbitMenu({
   const [front, setFront] = useState(0);
   const screenReader = useRef(false);
 
-  const rx = Math.min(width * 0.36, 165);
-  const ry = rx * 0.5;
+  // A wide, deep ellipse so seven hubs breathe: as wide as the screen
+  // allows, and as tall as the space above the readout allows (up to 0.66
+  // of the width, for a clearly 3D tilt).
+  const rx = Math.min(width * 0.4, 190);
+  const roomY = height > 0 ? (height - READOUT - HUB * 1.25) / 2 : rx * 0.5;
+  const ry = Math.max(rx * 0.42, Math.min(rx * 0.66, roomY));
   const cx = width / 2;
   const cy = Math.max(ry + HUB * 0.62, (height - READOUT) / 2);
   const glow = useRef(new Animated.Value(0)).current;
@@ -126,8 +130,9 @@ export default function OrbitMenu({
         const depth = (Math.cos(theta) + 1) / 2;
         xs.push(rx * Math.sin(theta));
         ys.push(ry * Math.cos(theta));
-        scales.push(0.5 + 0.74 * depth);
-        opacities.push(0.22 + 0.78 * depth);
+        // Far hubs shrink and fade more, so the front ones get the room.
+        scales.push(0.44 + 0.78 * depth);
+        opacities.push(0.16 + 0.84 * depth);
       }
       return {
         translateX: wrapped.interpolate({ inputRange: input, outputRange: xs }),

@@ -10,9 +10,13 @@ trip logistics instead of a family reunion.
 
 Shared (all trip members, editable by all or an organizer role):
 - **Itinerary — built** (day-by-day, grouped by day/city, see below),
-  **Flights — built**, **Lodging — built** (see below)
+  **Flights — built** (see below)
 - **Group chat — built** (see below)
-- Shared photo gallery
+- **Shared photo gallery — built** ("Photos", see below; chat photos flow
+  into it automatically)
+- **Removed: Lodging** (user decision, Oct 1 2026 — "we won't need a
+  lodging-specific section"; its screens/lib were deleted and its menu
+  slot went to Photos). The `lodging` table from 0001 is unused; leave it.
 
 Personal (per-user, not shared):
 - Packing list, Documents wallet (passport/visa/insurance — private,
@@ -116,13 +120,12 @@ SQL and re-run rather than retyping entries through the form (existing
 rows with a changed title won't be touched — delete/update those
 explicitly).
 
-### Flights & Lodging (built, Sept 30 2026)
+### Flights (built, Sept 30 2026)
 
-Same shape as Itinerary: `src/lib/flights.ts` / `src/lib/lodging.ts`
-(fetch/create/delete), list + add screens under `src/app/(app)/flights/`
-and `src/app/(app)/lodging/`, delete only on your own rows, no schema
-change (the 0001 tables already had every field). Both are on the home
-orbit menu.
+Same shape as Itinerary: `src/lib/flights.ts` (fetch/create/delete),
+list + add screens under `src/app/(app)/flights/`, delete only on your own
+rows, no schema change. (A Lodging screen was built alongside it and later
+removed at the user's request — see git history if it's ever wanted.)
 
 - **Flights are boarding passes**: IATA codes in Plex Mono, dashed path
   with a plane, a perforation with half-circle notches, confirmation code;
@@ -137,13 +140,6 @@ orbit menu.
   infers a next-day arrival when the arrival clock time is earlier than
   departure (overridable with an explicit arrival date); the pass shows
   "+1".
-- **Lodging is grouped by leg** (`STOPS`, which now carry
-  `checkIn`/`checkOut`): a stay goes under the leg its city names
-  (`stopForCity()`), else the leg its check-in falls in, else
-  "Elsewhere". A leg with no stay shows a dashed "Add a stay in …" card
-  that opens the form pre-filled with that city and dates (route params).
-  Addresses open Apple Maps on iOS (works in mainland China, Google Maps
-  doesn't) and Google Maps on web/Android.
 - `src/lib/dates.ts` holds the shared day/time parsing (`isValidDay`,
   `parseTimeInput` — moved out of itinerary's `new.tsx`) and formatting.
 
@@ -194,6 +190,48 @@ pure helpers in `src/lib/chatFormat.ts`, screen
   which now returns inserted rows for `.select()`, records PATCH/DELETE,
   and closes the realtime websocket so nothing touches the live project.
 
+### Photos — shared gallery (built, Oct 1 2026)
+
+`src/lib/gallery.ts` (photos, favorites, upload/delete/caption, realtime),
+shared photo plumbing in `src/lib/photos.ts` (read bytes, **device-made
+thumbnails** via `expo-image-manipulator` — Supabase image transforms are
+a paid feature —, upload original + `.thumb.jpg`, per-bucket cached signed
+URLs, save-to-Photos / share; the chat uses it too), screen
+`src/app/(app)/photos/index.tsx`, viewer
+`src/components/gallery/GalleryViewer.tsx`. Menu item "Photos" (instant
+prints icon, `assets/images/menu/photos.png`).
+
+- **Schema:** `0006_shared_gallery.sql` — `gallery_photos` gained
+  `bucket` ('gallery' | 'chat'), `thumb_path`, `width`/`height`,
+  `message_id` (unique, `on delete cascade`), caption ≤ 1000 + an
+  owner/admin update policy; `messages.image_thumb_path`;
+  `photo_favorites` (PK photo+user, own insert/delete); both in realtime;
+  **the `gallery` bucket was made private** (it was public-read), uploads
+  only under `<own uid>/…`.
+- **Chat → gallery is a database trigger** (`private.chat_photo_to_gallery`,
+  security invoker so RLS still applies): a photo message inserts a
+  gallery row pointing at the *same* object in the `chat` bucket (no copy);
+  soft-deleting the message removes it. Verified live in a rolled-back
+  transaction as an authenticated user. Deleting a chat-sourced photo
+  from the gallery only removes the gallery row; gallery uploads also
+  delete their files.
+- **UX:** 3-column grid grouped by local day with sticky headers + counts;
+  filter chips (All, Favorites, Mine, From chat, one per uploader);
+  multi-select upload from the library (up to 30, 2 concurrent, progress
+  card) or the camera; long-press to enter select mode → Save all /
+  Delete (own gallery uploads only); viewer with swipe paging (arrows on
+  web), iOS pinch-zoom (`ScrollView maximumZoomScale`), thumbnail shown
+  instantly with the original fading in (`expo-image` `placeholder`),
+  byline + "From chat" tag, ♥ with count, Save, Share, Delete, editable
+  caption for your own photos. `expo-image` with `cacheKey` =
+  `bucket:path`, so photos stay cached across the hourly signed-URL
+  rotation.
+- **Gotcha fixed:** the viewer asks for originals in an effect; that
+  callback must be stable and `setUrls` must return `prev` when nothing
+  changed, or it's an infinite render loop (it hung the page on web).
+- **Not built yet:** "taken at" from EXIF (photos sort by upload time),
+  albums, video, bulk share.
+
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
 form primitives needed well beyond login/register (itinerary's `new.tsx`
@@ -228,7 +266,8 @@ backend code.
 - Schema + RLS: `supabase/migrations/0001_init.sql` (initial schema),
   `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`,
   `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`),
-  `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat).
+  `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat),
+  `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -299,8 +338,9 @@ backend code.
   can update/delete) or **personal** (owner-only via `user_id = auth.uid()`
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
-- Storage: three buckets — `chat` (private, any member reads, uploads under
-  own uid folder; see Group chat), `gallery` (public read, any member can upload) and
+- Storage: three buckets — `chat` and `gallery` (both private, any member
+  reads via signed URLs, uploads only under own uid folder; see Group chat
+  / Photos) and
   `documents` (private, RLS-gated so a user can only touch objects under a
   `<their-uid>/...` path prefix via `storage.foldername(name)`).
 
@@ -452,9 +492,16 @@ has them).
     start"` also matches the calling shell and kills it). The image viewer
     can also show a cached copy of a re-written PNG path — write each
     capture to a new filename.
+- **Home = one page, no scrolling** (user, Oct 1 2026): wordmark +
+  avatar, the greeting, the trip line, and the orbit menu filling the rest.
+  The "Your route" place cards were removed (and `PlaceCard` deleted);
+  **Sign out lives behind the avatar** (tap → account card).
 - **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
   in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
-  navigation. Swipe left/right to turn it (PanResponder → `rotation`
+  navigation. Spaced out at the user's request: hubs 96pt, ellipse
+  `rx = min(0.4·width, 190)` and `ry` up to `0.66·rx` (as deep as the
+  space above the readout allows), far hubs shrink to 0.44 and fade to
+  0.16. Swipe left/right to turn it (PanResponder → `rotation`
   Animated.Value measured in items, unbounded, wrapped with
   `Animated.modulo`; spring-snaps to the nearest item, one extra item max
   for a fast flick); the front hub is selected — tap it or "Open …" to
@@ -466,7 +513,8 @@ has them).
     compass, silver prop airliner with sage tail, ryokan with sage noren
     and bonsai, sage leather steamer trunk, sage leather journal with
     cherry blossoms, mahjong tiles on a sage felt board, sage enamel
-    rotary telephone (Group Chat). **No clouds** (the
+    rotary telephone (Group Chat), instant photo prints with a sage clip
+    (Photos). (The ryokan icon went with Lodging.) **No clouds** (the
     user rejected objects on clouds) and **sage green worked into every
     object** (user asked for it, ties to `accent`). Two code-rendered sets
     (cartoony, then "rustic") were rejected before this. Regenerate/re-cut
@@ -516,11 +564,13 @@ npm run test:e2e     # starts the web server itself, runs e2e/*.spec.ts
 (`e2e/support/fakeBackend.ts`): it plants an unexpired fake session in
 localStorage (supabase-js restores it with no network call) and answers
 every `*.supabase.co` request in-test — table GETs from fixture rows,
-POSTs recorded so a spec can assert the exact insert body. Nothing reaches
+POSTs recorded so a spec can assert the exact insert body; storage
+signed-URL requests are answered too and every photo is served from a
+bundled trip photo, so grids/viewers render real images. Nothing reaches
 the live project and no test account is created, so prefer this over live
 sign-ups (see the bounce warning below). Every page load plays the launch
 sequence over the screen: skip it by clicking the "Skip intro" label and
-wait for it to unmount (`open()` in `flights-lodging.spec.ts`) —
+wait for it to unmount (`open()` in each spec) —
 otherwise `toBeVisible()` still passes on content hidden under the intro
 and screenshots show the intro. Flight specs run with
 `timezoneId: 'America/Los_Angeles'` to prove times don't shift.
