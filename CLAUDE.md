@@ -374,7 +374,11 @@ branches): `.agents/skills/ui-ux-pro-max` (nextlevelbuilder/ui-ux-pro-max-skill
 `.agents/skills/design-motion-principles` (kylezantos/design-motion-principles
 @4a9ca87 — motion create/audit; its examples are web/Framer Motion, so
 translate to RN `Animated`/native driver), both symlinked into
-`.claude/skills/`. `.agents/references/awesome-claude-design/`
+`.claude/skills/`. Also `.agents/skills/find-skills` (vercel-labs/skills
+@3694740, MIT, Oct 1 2026 — searching/installing skills via `npx skills
+find`/`add`; installing project skills with that CLI should follow the same
+vendor-into-`.agents/skills/` + symlink pattern, not `-g`, which lands in
+the ephemeral container's home folder). `.agents/references/awesome-claude-design/`
 (rohitg00/awesome-claude-design @7f60ee5) is a reference library of
 DESIGN.md examples by aesthetic family plus recipes — **not a skill** and
 not this app's direction; `DESIGN.md` at the root stays authoritative. The
