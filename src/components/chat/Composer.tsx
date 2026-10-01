@@ -38,7 +38,7 @@ export default function Composer({
   // the textarea's scrollHeight (padding included), native reports the text
   // alone, so only native adds the vertical padding back.
   const pad = Platform.OS === 'web' ? 0 : 20;
-  const height = value ? Math.min(120, Math.max(40, contentHeight + pad)) : 40;
+  const height = value ? Math.min(120, Math.max(44, contentHeight + pad)) : 44;
   const canSend = value.trim().length > 0 || !!photo;
 
   return (
@@ -53,7 +53,7 @@ export default function Composer({
               {replyTo.text}
             </Text>
           </View>
-          <Pressable onPress={onCancelReply} hitSlop={10} accessibilityLabel="Cancel reply" style={styles.dismiss}>
+          <Pressable accessibilityRole="button" onPress={onCancelReply} hitSlop={10} accessibilityLabel="Cancel reply" style={styles.dismiss}>
             <Ionicons name="close" size={18} color={c.inkSecondary} />
           </Pressable>
         </View>
@@ -63,8 +63,8 @@ export default function Composer({
         <View style={styles.attachRow}>
           <View>
             <Image source={{ uri: photo.uri }} style={styles.preview} />
-            <Pressable onPress={onClearPhoto} hitSlop={8} accessibilityLabel="Remove photo" style={styles.previewClose}>
-              <Ionicons name="close" size={13} color="#fff" />
+            <Pressable accessibilityRole="button" onPress={onClearPhoto} hitSlop={8} accessibilityLabel="Remove photo" style={styles.previewClose}>
+              <Ionicons name="close" size={13} color={c.onMedia} />
             </Pressable>
           </View>
           <Text style={styles.previewHint}>Photo ready — add a caption or send</Text>
@@ -72,11 +72,11 @@ export default function Composer({
       ) : null}
 
       <View style={styles.bar}>
-        <Pressable onPress={onPickPhoto} hitSlop={6} accessibilityLabel="Attach a photo" style={styles.tool}>
+        <Pressable accessibilityRole="button" onPress={onPickPhoto} hitSlop={6} accessibilityLabel="Attach a photo" style={styles.tool}>
           <Ionicons name="images-outline" size={22} color={c.highlight} />
         </Pressable>
         {Platform.OS !== 'web' ? (
-          <Pressable onPress={onTakePhoto} hitSlop={6} accessibilityLabel="Take a photo" style={styles.tool}>
+          <Pressable accessibilityRole="button" onPress={onTakePhoto} hitSlop={6} accessibilityLabel="Take a photo" style={styles.tool}>
             <Ionicons name="camera-outline" size={23} color={c.highlight} />
           </Pressable>
         ) : null}
@@ -105,10 +105,10 @@ export default function Composer({
           testID="chat-send"
           style={({ pressed }) => [
             styles.send,
-            { backgroundColor: canSend ? c.accent : 'rgba(79,122,92,0.25)', transform: [{ scale: pressed ? 0.94 : 1 }] },
+            { backgroundColor: canSend ? c.accent : c.accentDisabled, transform: [{ scale: pressed ? 0.94 : 1 }] },
           ]}
         >
-          <Ionicons name="arrow-up" size={20} color="#fff" />
+          <Ionicons name="arrow-up" size={20} color={c.onAccent} />
         </Pressable>
       </View>
     </View>
@@ -117,7 +117,7 @@ export default function Composer({
 
 const styles = StyleSheet.create({
   wrap: {
-    backgroundColor: 'rgba(243,241,234,0.97)',
+    backgroundColor: c.barBackground,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: c.border,
     paddingTop: 8,
@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(30,39,33,0.8)',
+    backgroundColor: c.mediaBadge,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -183,15 +183,15 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tool: {
-    width: 38,
-    height: 42,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
   inputWrap: {
     flex: 1,
     backgroundColor: c.card,
-    borderRadius: 21,
+    borderRadius: 22,
     boxShadow: shadow.card,
     marginHorizontal: 2,
   },
@@ -199,14 +199,14 @@ const styles = StyleSheet.create({
     ...type.body,
     color: c.ink,
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
+    paddingTop: 11,
+    paddingBottom: 11,
     textAlignVertical: 'top',
   },
   send: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 2,

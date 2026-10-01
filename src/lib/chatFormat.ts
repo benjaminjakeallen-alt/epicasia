@@ -1,4 +1,4 @@
-import { colors, legColors } from '../theme/colors';
+import { personColors } from '../theme/colors';
 import type { Message } from './chat';
 
 // Pure display helpers for the group chat (no React, no network).
@@ -43,18 +43,9 @@ export function sameRun(a: Message | undefined, b: Message | undefined): boolean
   return Math.abs(new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) < GROUP_GAP_MS;
 }
 
-// A stable color per traveler (by their position in the member list), drawn
-// from the trip's leg colors so the chat feels part of the same app.
-const PERSON_COLORS = [
-  legColors.tokyo,
-  legColors.beijing,
-  legColors.kyoto,
-  legColors.shanghai,
-  legColors.hongKong,
-  colors.accent,
-  '#8a6a52',
-  '#5d7f8e',
-];
+// A stable color per traveler (by their position in the member list),
+// from the theme's text-safe person palette (white initials pass AA).
+const PERSON_COLORS = personColors;
 
 export function personColor(index: number): string {
   return PERSON_COLORS[((index % PERSON_COLORS.length) + PERSON_COLORS.length) % PERSON_COLORS.length];

@@ -14,7 +14,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { openFeedback, preloadSounds, stepFeedback } from '../lib/feedback';
-import { colors as palette } from '../theme/colors';
+import { colors as palette, shadow } from '../theme/colors';
 import { fontFamily, type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
 
@@ -131,7 +131,7 @@ export default function OrbitMenu({
         xs.push(rx * Math.sin(theta));
         ys.push(ry * Math.cos(theta));
         // Far hubs shrink and fade more, so the front ones get the room.
-        scales.push(0.44 + 0.78 * depth);
+        scales.push(0.46 + 0.76 * depth); // back hub stays ≥ 44pt to tap
         opacities.push(0.16 + 0.84 * depth);
       }
       return {
@@ -322,6 +322,9 @@ export default function OrbitMenu({
                   testID={`orbit-item-${item.key}`}
                   accessibilityRole="button"
                   accessibilityLabel={item.href ? item.label : `${item.label}, coming soon`}
+                  // The caption isn't shown on screen (decluttered) but is
+                  // still useful context for VoiceOver users.
+                  accessibilityHint={item.href ? item.caption : undefined}
                   onPress={() => {
                     if (justDragged()) return;
                     if (isFront || screenReader.current) {
@@ -343,6 +346,7 @@ export default function OrbitMenu({
           <View style={[styles.readout, { top: cy + ry + HUB * 0.62 }]}>
             <View style={styles.selectRow}>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => {
                   if (justDragged()) return;
                   stepFeedback();
@@ -358,6 +362,7 @@ export default function OrbitMenu({
                 {selected.label}
               </Text>
               <Pressable
+                accessibilityRole="button"
                 onPress={() => {
                   if (justDragged()) return;
                   stepFeedback();
@@ -370,15 +375,15 @@ export default function OrbitMenu({
                 <Text style={[styles.arrowText, { color: c.inkTertiary }]}>›</Text>
               </Pressable>
             </View>
-            <Text style={[styles.caption, { color: c.inkSecondary }]}>{selected.caption}</Text>
             <Pressable
+              accessibilityRole="button"
               testID="orbit-open"
               disabled={!selected.href}
               onPress={() => !justDragged() && open(selected)}
               style={({ pressed }) => [
                 styles.open,
                 selected.href
-                  ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: '0px 6px 20px rgba(30,39,33,0.07)' }
+                  ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: shadow.card }
                   : { backgroundColor: c.accentSoft },
               ]}
             >
@@ -444,7 +449,11 @@ const styles = StyleSheet.create({
     gap: 18,
   },
   arrow: {
-    paddingHorizontal: 6,
+    width: 44,
+    height: 44,
+    marginHorizontal: -10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   arrowText: {
     fontSize: 26,
@@ -457,9 +466,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     minWidth: 170,
     textAlign: 'center',
-  },
-  caption: {
-    ...type.caption,
   },
   open: {
     marginTop: 14,

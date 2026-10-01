@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { Bone, ChatSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import Composer, { type PickedPhoto } from '../../../components/chat/Composer';
 import MessageActions, { type SheetAction } from '../../../components/chat/MessageActions';
@@ -53,6 +53,16 @@ function previewText(m: Message | undefined): string {
   if (m.deleted_at) return 'Message deleted';
   if (m.body) return m.body;
   return m.image_path ? '📷 Photo' : '';
+}
+
+// A couple of placeholder bubbles while older messages load at the top.
+function OlderSkeleton() {
+  return (
+    <View style={styles.older} accessibilityLabel="Loading older messages">
+      <Bone width="55%" height={38} radius={19} />
+      <Bone width="35%" height={38} radius={19} />
+    </View>
+  );
 }
 
 export default function GroupChat() {
@@ -430,9 +440,8 @@ export default function GroupChat() {
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <CircleButton icon="chevron-back" label="Back" onPress={() => router.back()} />
         <View style={styles.headerText}>
-          <Text style={styles.title}>Group chat</Text>
-          <Text style={[type.caption, { color: c.inkSecondary }]}>
-            {members.length ? `${members.length} traveler${members.length === 1 ? '' : 's'}` : 'Everyone on the trip'}
+          <Text style={styles.title} accessibilityRole="header">
+            Group chat
           </Text>
         </View>
         <View style={styles.faces} accessibilityLabel={`${members.length} travelers`}>
@@ -449,7 +458,7 @@ export default function GroupChat() {
 
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         {loading ? (
-          <ActivityIndicator style={styles.loading} color={c.accent} />
+          <ChatSkeleton />
         ) : messages.length === 0 ? (
           <View style={styles.empty}>
             <View style={styles.emptyCard}>
@@ -478,7 +487,7 @@ export default function GroupChat() {
             keyboardDismissMode="interactive"
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.list}
-            ListFooterComponent={loadingOlder ? <ActivityIndicator style={styles.older} color={c.accent} /> : null}
+            ListFooterComponent={loadingOlder ? <OlderSkeleton /> : null}
             testID="chat-list"
           />
         )}
@@ -568,16 +577,15 @@ const styles = StyleSheet.create({
   faceText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 10.5,
-    color: '#fff',
-  },
-  loading: {
-    marginTop: 40,
+    color: c.onAccent,
   },
   list: {
     paddingTop: 10,
     paddingBottom: 8,
   },
   older: {
+    gap: 8,
+    paddingHorizontal: 56,
     marginVertical: 14,
   },
   empty: {

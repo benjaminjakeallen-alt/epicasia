@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -12,12 +11,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { TimelineSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
 import { formatMonthDay, formatWeekday, parseDay } from '../../../lib/dates';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
 import { photoForDay, STOPS } from '../../../lib/places';
-import { legColorForCity, shadow } from '../../../theme/colors';
+import { legColorForCity, legTextForCity, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
@@ -77,20 +77,16 @@ export default function ItineraryList() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.loading} color={colors.accent} />
+        <TimelineSkeleton />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.summary, { backgroundColor: colors.card }]}>
             <View style={styles.summaryText}>
               <Text style={[styles.summaryTitle, { color: colors.ink }]}>Asia Disney Adventure</Text>
-              <Text style={[type.caption, { color: colors.inkSecondary }]}>
-                15 days · 14 nights · Jun 5 – 19
-              </Text>
               <View style={styles.legRow}>
                 {STOPS.map((stop) => (
                   <View key={stop.key} style={[styles.legPip, { backgroundColor: stop.color }]} />
                 ))}
-                <Text style={[type.caption, { color: colors.inkTertiary }]}>5 cities</Text>
               </View>
             </View>
             <Image source={STOPS[1].photo} style={styles.summaryPhoto} resizeMode="cover" />
@@ -106,13 +102,16 @@ export default function ItineraryList() {
 
           {days.map((day, dayIdx) => {
             const dayItems = items.filter((i) => i.day === day);
-            const legColor = legColorForCity(dayItems.find((i) => i.city)?.city) ?? colors.accent;
+            const dayCity = dayItems.find((i) => i.city)?.city;
+            const legColor = legColorForCity(dayCity) ?? colors.accent;
+            // Text (and the white day number's circle) use the deeper, AA-safe shade.
+            const legText = legTextForCity(dayCity) ?? colors.accent;
             const isLast = dayIdx === days.length - 1;
             return (
               <View key={day} style={styles.dayRow}>
                 <View style={styles.rail}>
                   <Text style={[styles.weekday, { color: colors.inkTertiary }]}>{formatWeekday(day)}</Text>
-                  <View style={[styles.dayCircle, { backgroundColor: legColor }]}>
+                  <View style={[styles.dayCircle, { backgroundColor: legText }]}>
                     <Text style={[styles.dayNum, { color: colors.onAccent }]}>{parseDay(day).getDate()}</Text>
                   </View>
                   {isLast ? null : <View style={[styles.railLine, { borderColor: `${legColor}66` }]} />}
@@ -130,15 +129,16 @@ export default function ItineraryList() {
                             </Text>
                             {item.created_by === session?.user.id ? (
                               <Pressable
+                                accessibilityRole="button"
                                 onPress={() => handleDelete(item.id)}
-                                hitSlop={8}
+                                style={styles.iconHit}
                                 accessibilityLabel={`Delete ${item.title}`}
                               >
                                 <Ionicons name="trash-outline" size={17} color={colors.inkTertiary} />
                               </Pressable>
                             ) : null}
                           </View>
-                          <Text style={[type.caption, { color: legColor }]}>
+                          <Text style={[type.caption, { color: legText }]}>
                             {formatMonthDay(day)}
                             {item.city ? ` · ${item.city}` : ''}
                             {item.start_time ? ` · ${formatTime(item.start_time)}` : ''}
@@ -164,6 +164,8 @@ export default function ItineraryList() {
 }
 
 const styles = StyleSheet.create({
+  // 44×44 hit area around a 17pt icon, without moving the layout.
+  iconHit: { width: 44, height: 44, margin: -13.5, alignItems: 'center', justifyContent: 'center' },
   screen: {
     flex: 1,
   },
@@ -178,9 +180,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.display,
     fontSize: 22,
     letterSpacing: -0.2,
-  },
-  loading: {
-    marginTop: 40,
   },
   content: {
     paddingHorizontal: 20,

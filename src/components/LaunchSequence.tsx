@@ -403,12 +403,12 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
         <Svg width={D} height={D}>
           <Defs>
             <RadialGradient id={`${uid}shade`} cx="38%" cy="32%" r="72%">
-              <Stop offset="0.55" stopColor="#1e2721" stopOpacity="0" />
-              <Stop offset="1" stopColor="#1e2721" stopOpacity="0.32" />
+              <Stop offset="0.55" stopColor={c.ink} stopOpacity="0" />
+              <Stop offset="1" stopColor={c.ink} stopOpacity="0.32" />
             </RadialGradient>
             <RadialGradient id={`${uid}sun`} cx="32%" cy="26%" r="42%">
-              <Stop offset="0" stopColor="#fff6dc" stopOpacity="0.38" />
-              <Stop offset="1" stopColor="#fff6dc" stopOpacity="0" />
+              <Stop offset="0" stopColor={c.sunlight} stopOpacity="0.38" />
+              <Stop offset="1" stopColor={c.sunlight} stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Circle cx={R} cy={R} r={R * 0.985} fill={`url(#${uid}shade)`} />
@@ -433,7 +433,7 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
         </Text>
       </Animated.View>
 
-      <Pressable style={StyleSheet.absoluteFill} onPress={finish} accessibilityLabel="Skip intro" />
+      <Pressable accessibilityRole="button" style={StyleSheet.absoluteFill} onPress={finish} accessibilityLabel="Skip intro" />
     </Animated.View>
   );
 }
@@ -446,8 +446,8 @@ const styles = StyleSheet.create({
   },
   halo: {
     position: 'absolute',
-    backgroundColor: 'rgba(255,255,255,0.55)',
-    boxShadow: '0px 0px 80px 40px rgba(255,255,255,0.55)',
+    backgroundColor: c.halo,
+    boxShadow: `0px 0px 80px 40px ${c.halo}`,
   },
   plane: {
     position: 'absolute',

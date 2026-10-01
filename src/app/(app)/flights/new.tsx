@@ -104,7 +104,6 @@ export default function NewFlight() {
   return (
     <FormScreen
       title="Add a Flight"
-      subtitle="Times are local to each airport, as printed on the ticket."
       error={error}
     >
       <FormField label="Airline (optional)" value={airline} onChangeText={setAirline} placeholder="ANA" autoCapitalize="words" />

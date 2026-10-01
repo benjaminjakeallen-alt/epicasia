@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { GridSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import GalleryViewer from '../../../components/gallery/GalleryViewer';
 import { useAuth } from '../../../lib/AuthProvider';
@@ -356,6 +356,7 @@ export default function Photos() {
         const favCount = (favs[p.id] ?? []).length;
         return (
           <Pressable
+            accessibilityRole="button"
             key={p.id}
             onPress={() => openPhoto(p)}
             onLongPress={() => setSelected(new Set([...(selected ?? []), p.id]))}
@@ -372,6 +373,7 @@ export default function Photos() {
                 recyclingKey={p.id}
                 contentFit="cover"
                 transition={160}
+                accessibilityLabel=""
                 style={{ width: cell, height: cell }}
               />
             ) : (
@@ -379,18 +381,18 @@ export default function Photos() {
             )}
             {favCount > 0 ? (
               <View style={styles.badgeFav}>
-                <Ionicons name="heart" size={11} color="#fff" />
+                <Ionicons name="heart" size={11} color={c.onMedia} />
                 {favCount > 1 ? <Text style={styles.badgeText}>{favCount}</Text> : null}
               </View>
             ) : null}
             {p.bucket === 'chat' ? (
               <View style={styles.badgeChat}>
-                <Ionicons name="chatbubble" size={10} color="#fff" />
+                <Ionicons name="chatbubble" size={10} color={c.onMedia} />
               </View>
             ) : null}
             {selected ? (
               <View style={[styles.check, isSel && styles.checkOn]}>
-                {isSel ? <Ionicons name="checkmark" size={15} color="#fff" /> : null}
+                {isSel ? <Ionicons name="checkmark" size={15} color={c.onAccent} /> : null}
               </View>
             ) : null}
             {isSel ? <View style={styles.selShade} /> : null}
@@ -416,10 +418,8 @@ export default function Photos() {
           <>
             <CircleButton icon="chevron-back" label="Back" onPress={() => router.back()} />
             <View style={styles.headerText}>
-              <Text style={styles.title}>Photos</Text>
-              <Text style={[type.caption, { color: c.inkSecondary }]}>
-                {photos.length} photo{photos.length === 1 ? '' : 's'}
-                {fromChat ? ` · ${fromChat} from chat` : ''}
+              <Text style={styles.title} accessibilityRole="header">
+                Photos
               </Text>
             </View>
             {Platform.OS !== 'web' ? <CircleButton icon="camera-outline" label="Take a photo" onPress={takePhoto} /> : null}
@@ -441,8 +441,8 @@ export default function Photos() {
                 style={[styles.chip, on ? { backgroundColor: c.accent } : { backgroundColor: c.card }]}
               >
                 {ch.color ? <View style={[styles.chipDot, { backgroundColor: ch.color }]} /> : null}
-                {ch.icon ? <Ionicons name={ch.icon} size={13} color={on ? '#fff' : ch.key === 'favorites' ? '#d9534f' : c.inkSecondary} /> : null}
-                <Text style={[styles.chipText, { color: on ? '#fff' : c.ink }]}>{ch.label}</Text>
+                {ch.icon ? <Ionicons name={ch.icon} size={13} color={on ? c.onAccent : ch.key === 'favorites' ? c.favorite : c.inkSecondary} /> : null}
+                <Text style={[styles.chipText, { color: on ? c.onAccent : c.ink }]}>{ch.label}</Text>
               </Pressable>
             );
           })}
@@ -468,7 +468,7 @@ export default function Photos() {
       ) : null}
 
       {loading ? (
-        <ActivityIndicator style={styles.loading} color={c.accent} />
+        <GridSkeleton cell={cell} gap={GAP} pad={PAD} />
       ) : error ? (
         <Text style={[type.body, styles.message, { color: c.error }]}>{error}</Text>
       ) : photos.length === 0 ? (
@@ -480,7 +480,7 @@ export default function Photos() {
               Add your favourite shots — and any photo shared in the group chat lands here automatically.
             </Text>
             <Pressable onPress={pickFromLibrary} style={styles.emptyBtn} accessibilityRole="button">
-              <Ionicons name="images-outline" size={18} color="#fff" />
+              <Ionicons name="images-outline" size={18} color={c.onAccent} />
               <Text style={styles.emptyBtnText}>Add photos</Text>
             </Pressable>
           </View>
@@ -496,9 +496,8 @@ export default function Photos() {
           renderItem={renderRow}
           renderSectionHeader={({ section }) => (
             <View style={[styles.sectionHead, { backgroundColor: c.background }]}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-              <Text style={[type.caption, { color: c.inkTertiary }]}>
-                {section.count} photo{section.count === 1 ? '' : 's'}
+              <Text style={styles.sectionTitle} accessibilityRole="header">
+                {section.title}
               </Text>
             </View>
           )}
@@ -586,9 +585,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    height: 34,
-    paddingHorizontal: 14,
-    borderRadius: 17,
+    height: 44,
+    paddingHorizontal: 16,
+    borderRadius: 22,
     boxShadow: shadow.card,
   },
   chipDot: {
@@ -632,9 +631,6 @@ const styles = StyleSheet.create({
     backgroundColor: c.card,
     boxShadow: shadow.card,
   },
-  loading: {
-    marginTop: 40,
-  },
   message: {
     textAlign: 'center',
     marginTop: 40,
@@ -660,10 +656,10 @@ const styles = StyleSheet.create({
   cell: {
     borderRadius: 6,
     overflow: 'hidden',
-    backgroundColor: 'rgba(30,39,33,0.06)',
+    backgroundColor: c.skeleton,
   },
   placeholder: {
-    backgroundColor: 'rgba(30,39,33,0.08)',
+    backgroundColor: c.skeleton,
   },
   badgeFav: {
     position: 'absolute',
@@ -675,12 +671,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     paddingVertical: 2,
     borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.38)',
+    backgroundColor: c.mediaBadge,
   },
   badgeText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 10.5,
-    color: '#fff',
+    color: c.onMedia,
   },
   badgeChat: {
     position: 'absolute',
@@ -691,7 +687,7 @@ const styles = StyleSheet.create({
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.38)',
+    backgroundColor: c.mediaBadge,
   },
   check: {
     position: 'absolute',
@@ -701,8 +697,8 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#fff',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderColor: c.onMedia,
+    backgroundColor: c.mediaBadge,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -755,7 +751,7 @@ const styles = StyleSheet.create({
   emptyBtnText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 16,
-    color: '#fff',
+    color: c.onAccent,
   },
   selectBar: {
     position: 'absolute',

@@ -7,8 +7,7 @@ import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
 import { supabase } from '../../lib/supabase';
-import { TRIP } from '../../lib/trip';
-import { colors as palette, legColors, shadow } from '../../theme/colors';
+import { colors as palette, legTextColors, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
@@ -17,11 +16,10 @@ import { useTheme } from '../../theme/useTheme';
 // href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
   { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
-  { key: 'flights', label: 'Flights', caption: 'Boarding passes · NRT → HKG', color: legColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/flights' },
-  { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
-  { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
-  { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, image: require('../../../assets/images/menu/packing.png') },
-  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
+  { key: 'flights', label: 'Flights', caption: 'Boarding passes · NRT → HKG', color: legTextColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/flights' },
+  { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legTextColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
+  { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legTextColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
+  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
   { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, image: require('../../../assets/images/menu/games.png') },
 ];
 
@@ -61,16 +59,13 @@ export default function Home() {
             <Text style={{ fontFamily: fontFamily.displayItalic, color: colors.highlight }}>{name}?</Text>
           ) : null}
         </Text>
-        <Text style={[type.subtitle, styles.meta, { color: colors.inkSecondary }]}>
-          {TRIP.dates} · {TRIP.travelers} travelers · {TRIP.cities} cities
-        </Text>
 
         <OrbitMenu items={MENU} onOpen={(item) => item.href && router.push(item.href)} />
       </View>
 
       {accountOpen ? (
         <>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setAccountOpen(false)} accessibilityLabel="Close account menu" />
+          <Pressable accessibilityRole="button" style={StyleSheet.absoluteFill} onPress={() => setAccountOpen(false)} accessibilityLabel="Close account menu" />
           <View style={[styles.accountCard, { top: insets.top + 66, backgroundColor: colors.card }]}>
             <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={1}>
               {fullName || 'Signed in'}
@@ -105,12 +100,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0px 4px 14px rgba(30,39,33,0.10)',
+    boxShadow: shadow.card,
   },
   avatarText: {
     fontFamily: fontFamily.displayMedium,
@@ -123,10 +118,6 @@ const styles = StyleSheet.create({
     fontSize: 38,
     lineHeight: 44,
     letterSpacing: -0.7,
-  },
-  meta: {
-    paddingHorizontal: 22,
-    marginTop: 8,
   },
   page: {
     flex: 1,

@@ -3,7 +3,7 @@
 Source for `assets/images/menu/*.png` — the orbit menu's icons, styled after
 the user's reference (soft, rendered miniatures sitting on puffy clouds).
 Each icon is a small three.js scene built from primitives in `index.html`
-(`builders.itinerary`, `flights`, `lodging`, `packing`, `journal`, `games`),
+(`builders.itinerary`, `flights`, `lodging`, `packing`, `journal`, `games`; lodging and packing are no longer on the menu),
 lit with a warm key light + room environment and rendered to a transparent
 600px PNG.
 

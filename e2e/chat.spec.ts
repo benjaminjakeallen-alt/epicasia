@@ -85,7 +85,6 @@ test('conversation shows names, replies and reactions; sending posts the message
   await open(page, '/chat');
 
   await expect(page.getByText('Group chat')).toBeVisible();
-  await expect(page.getByText('2 travelers')).toBeVisible();
   await expect(page.getByText('Today')).toBeVisible();
   // Sarah's two messages are one run: her name label shows once (the
   // second "Sarah" is the quote inside my reply).

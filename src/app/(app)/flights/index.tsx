@@ -1,16 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { PassSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
 import { formatMonthDay, formatWallClockTime, formatWeekday, nightsBetween, wallClockDay } from '../../../lib/dates';
 import { deleteFlight, fetchFlights, type Flight } from '../../../lib/flights';
 import { airportName, STOPS, stopForAirport } from '../../../lib/places';
 import { TRIP } from '../../../lib/trip';
-import { shadow } from '../../../theme/colors';
+import { shadow, textShadeOf } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
@@ -63,7 +64,7 @@ export default function FlightsList() {
       </View>
 
       {loading ? (
-        <ActivityIndicator style={styles.loading} color={colors.accent} />
+        <PassSkeleton />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.summary, { backgroundColor: colors.card }]}>
@@ -77,11 +78,6 @@ export default function FlightsList() {
                 </View>
               ))}
             </View>
-            <Text style={[type.caption, { color: colors.inkSecondary }]}>
-              {flights.length === 0
-                ? 'No flights added yet'
-                : `${flights.length} flight${flights.length === 1 ? '' : 's'} · times are local to each airport`}
-            </Text>
           </View>
 
           {error ? <Text style={[type.body, styles.error, { color: colors.error }]}>{error}</Text> : null}
@@ -110,6 +106,7 @@ function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDele
   const colors = useTheme();
   const legColor =
     stopForAirport(flight.arrival_airport)?.color ?? stopForAirport(flight.departure_airport)?.color ?? colors.accent;
+  const legText = textShadeOf(legColor);
 
   const depDay = flight.departure_time ? wallClockDay(flight.departure_time) : null;
   const arrDay = flight.arrival_time ? wallClockDay(flight.arrival_time) : null;
@@ -132,12 +129,12 @@ function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDele
               {carrier || 'Flight'}
             </Text>
             {depDay ? (
-              <Text style={[type.caption, { color: legColor }]}>
+              <Text style={[type.caption, { color: legText }]}>
                 {formatWeekday(depDay)}, {formatMonthDay(depDay)}
               </Text>
             ) : null}
             {canDelete ? (
-              <Pressable onPress={onDelete} hitSlop={8} accessibilityLabel={`Delete flight ${route}`}>
+              <Pressable accessibilityRole="button" onPress={onDelete} style={styles.iconHit} accessibilityLabel={`Delete flight ${route}`}>
                 <Ionicons name="trash-outline" size={17} color={colors.inkTertiary} />
               </Pressable>
             ) : null}
@@ -164,7 +161,7 @@ function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDele
               <Text style={[styles.code, { color: colors.ink }]}>{flight.arrival_airport ?? '—'}</Text>
               <Text style={[type.caption, { color: colors.inkSecondary }]}>
                 {flight.arrival_time ? formatWallClockTime(flight.arrival_time) : ' '}
-                {dayShift > 0 ? <Text style={{ color: legColor }}>{` +${dayShift}`}</Text> : null}
+                {dayShift > 0 ? <Text style={{ color: legText }}>{` +${dayShift}`}</Text> : null}
               </Text>
               <Text style={[styles.place, { color: colors.inkTertiary }]} numberOfLines={1}>
                 {airportName(flight.arrival_airport) ?? ' '}
@@ -194,6 +191,8 @@ function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDele
 }
 
 const styles = StyleSheet.create({
+  // 44×44 hit area around a 17pt icon, without moving the layout.
+  iconHit: { width: 44, height: 44, margin: -13.5, alignItems: 'center', justifyContent: 'center' },
   screen: {
     flex: 1,
   },
@@ -208,9 +207,6 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.display,
     fontSize: 22,
     letterSpacing: -0.2,
-  },
-  loading: {
-    marginTop: 40,
   },
   content: {
     paddingHorizontal: 20,

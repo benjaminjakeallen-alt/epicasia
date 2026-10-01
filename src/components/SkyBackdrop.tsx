@@ -23,8 +23,8 @@ export default function SkyBackdrop({ height = 440 }: { height?: number }) {
           <Stop offset="1" stopColor={colors.background} stopOpacity={1} />
         </LinearGradient>
         <RadialGradient id={cloud} cx="50%" cy="50%" rx="50%" ry="50%">
-          <Stop offset="0" stopColor="#ffffff" stopOpacity={0.85} />
-          <Stop offset="1" stopColor="#ffffff" stopOpacity={0} />
+          <Stop offset="0" stopColor={colors.cloud} stopOpacity={0.85} />
+          <Stop offset="1" stopColor={colors.cloud} stopOpacity={0} />
         </RadialGradient>
       </Defs>
       <Rect x={0} y={0} width={width} height={height} fill={`url(#${fade})`} />

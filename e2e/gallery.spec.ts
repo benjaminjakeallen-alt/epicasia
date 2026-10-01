@@ -56,17 +56,15 @@ test('grid groups by day, filters, opens the viewer and favourites', async ({ pa
   });
   await open(page, '/photos');
 
-  await expect(page.getByText('6 photos · 1 from chat')).toBeVisible();
   await expect(page.getByText('Today')).toBeVisible();
-  await expect(page.getByText('4 photos', { exact: true })).toBeVisible();
   await expect(page.getByTestId('gallery-cell')).toHaveCount(6);
   await page.waitForTimeout(600); // let thumbnails fade in for the screenshot
   await page.screenshot({ path: 'test-results/gallery-grid.png' });
 
   // Per-person filter.
-  await page.getByRole('button', { name: 'Sarah' }).click();
+  await page.getByRole('button', { name: 'Sarah', exact: true }).click();
   await expect(page.getByTestId('gallery-cell')).toHaveCount(3);
-  await page.getByRole('button', { name: 'All' }).click();
+  await page.getByRole('button', { name: 'All', exact: true }).click();
 
   // Viewer: Sarah's chat photo.
   await page.getByLabel('Photo by Sarah Lee').first().click();

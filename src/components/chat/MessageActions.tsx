@@ -32,7 +32,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
     // No fade on web: RN-web's Modal only unmounts after its CSS fade's
     // animationend, and when that never fires the sheet can't reopen.
     <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close}>
-      <Pressable style={styles.scrim} onPress={close} accessibilityLabel="Close" />
+      <Pressable accessibilityRole="button" style={styles.scrim} onPress={close} accessibilityLabel="Close" />
       <View style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 14) + 6 }]}>
         <View style={styles.handle} />
         {preview ? (
@@ -46,6 +46,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
             const on = myReactions.includes(e);
             return (
               <Pressable
+                accessibilityRole="button"
                 key={e}
                 onPress={() => {
                   onReact(e);
@@ -63,6 +64,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
             );
           })}
           <Pressable
+            accessibilityRole="button"
             onPress={() => setMore((m) => !m)}
             accessibilityLabel={more ? 'Fewer emoji' : 'More emoji'}
             style={[styles.quickBtn, more && { backgroundColor: c.accentSoft, borderColor: c.accent }]}
@@ -75,6 +77,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
           <ScrollView style={styles.moreScroll} contentContainerStyle={styles.more}>
             {MORE_REACTIONS.map((e) => (
               <Pressable
+                accessibilityRole="button"
                 key={e}
                 onPress={() => {
                   onReact(e);
@@ -101,7 +104,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
               style={({ pressed }) => [
                 styles.action,
                 i > 0 && styles.actionDivider,
-                pressed && { backgroundColor: 'rgba(30,39,33,0.04)' },
+                pressed && { backgroundColor: c.surfacePressed },
               ]}
             >
               <Ionicons name={a.icon} size={20} color={a.destructive ? c.error : c.ink} />
@@ -117,7 +120,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
 const styles = StyleSheet.create({
   scrim: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(30,39,33,0.28)',
+    backgroundColor: c.scrim,
   },
   sheet: {
     position: 'absolute',
@@ -137,7 +140,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 5,
     borderRadius: 3,
-    backgroundColor: 'rgba(30,39,33,0.15)',
+    backgroundColor: c.handle,
   },
   preview: {
     fontFamily: fontFamily.body,

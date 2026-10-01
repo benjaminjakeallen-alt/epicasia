@@ -17,9 +17,13 @@ Shared (all trip members, editable by all or an organizer role):
 - **Removed: Lodging** (user decision, Oct 1 2026 — "we won't need a
   lodging-specific section"; its screens/lib were deleted and its menu
   slot went to Photos). The `lodging` table from 0001 is unused; leave it.
+- **Removed: Packing list** (user decision, Oct 1 2026 — "we can get rid
+  of the packing list section"; it was only a "Coming soon" hub on the
+  ring, now gone along with `assets/images/menu/packing.png`). The
+  `packing_items` table from 0001 is unused; leave it. Don't re-propose it.
 
 Personal (per-user, not shared):
-- Packing list, Documents wallet (passport/visa/insurance — private,
+- Documents wallet (passport/visa/insurance — private,
   offline-available), Journal (optionally postable to the group)
 - **Journal requirements (user, Oct 1 2026, not started):** record **audio
   memories** during the trip (voice notes per entry — `expo-audio`'s
@@ -393,14 +397,37 @@ has them).
 - **Fixed light, not adaptive.** `useTheme()` always returns `colors`
   (`src/theme/colors.ts`); `app.json` `userInterfaceStyle` is `"light"`,
   background `#f3f1ea`, StatusBar `dark`.
-- **Color:** warm paper background `#f3f1ea`, white cards, ink `#1e2721`
-  (green-black) with `inkSecondary`/`inkTertiary`. One action color, sage
-  green `accent` `#4f7a5c` (fills: buttons, selected states) with the same
-  value as `highlight` (text/lines) — two tokens kept so they can diverge.
-  `accentSoft` for tinted pills. The ONLY warm color is `seal` vermilion
-  `#c8452f` (the 旅 hanko and the intro's REC dot) — don't spread it.
-  `legColors` (one per trip leg, deepened to read on white) +
-  `legColorForCity()` for itinerary rails and landmark/menu icons.
+- **Color = semantic tokens only** (Oct 1 2026, user asked for semantic
+  colors). `src/theme/colors.ts` is the ONLY place a raw color value may
+  appear — components ask for a role (`inkTertiary`, `danger`,
+  `onMediaSecondary`, `bubbleMine`, `skeleton`, `scrim`…), never a hex or
+  rgba literal (grep `src/` outside `src/theme/` should find none). Add a
+  token rather than inline a color; its header comment records every
+  contrast ratio, keep it current. Groups: surfaces, lines, text
+  (`ink`/`inkSecondary`/`inkTertiary` — tertiary `#646f67` is the faintest
+  text that passes AA), action (`accent` `#4a7256` for fills = `highlight`
+  for text/lines, `accentPressed`, `accentSoft`, `accentDisabled`), status
+  (`success`/`warning`/`danger`/`info` + `…Soft`), brand/illustration,
+  chat bubbles, media (dark photo viewers). Paper `#f3f1ea`, white cards,
+  ink `#1e2721`. The ONLY warm chrome color is `seal` vermilion `#c8452f`
+  (the 旅 hanko) — don't spread it.
+  **Leg colors come in two shades:** `legColors` are FILLS (rails, day
+  circles, dots — ≥ 3:1); any TEXT in a leg's color uses `legTextColors`
+  (`legTextForCity()`, or `textShadeOf(fill)`) — ≥ 4.6:1. `personColors`
+  (avatars, chat names) all carry white initials at ≥ 5.2:1.
+- **No subheaders / meta lines** (user decision, Oct 1 2026: "I don't need
+  subheader text"). Screen headers are the title alone — no counts
+  ("6 photos · 1 from chat", "2 travelers"), no trip summaries ("15 days ·
+  14 nights"), no form subtitles, no menu captions under the orbit label
+  (the caption is now only the VoiceOver hint). Don't add them back.
+- **Loading = skeletons, never spinners** (`src/components/Skeleton.tsx`):
+  `TimelineSkeleton` (itinerary), `PassSkeleton` (flights),
+  `ChatSkeleton` (+ two `Bone`s as the "loading older" footer), and
+  `GridSkeleton` (photos), built from `Bone`s in the shape of the real
+  content. One shared soft pulse per skeleton (native driver), still under
+  Reduce Motion; announced as one `progressbar` "Loading …" element,
+  `testID="skeleton"`. New list screens get a matching skeleton. The only
+  remaining `ActivityIndicator` is inside `FormButton` while saving.
 - **Elevation:** soft diffuse shadows via `boxShadow` strings in `shadow`
   (`card`, `float`) — supported on iOS/Android/web in RN 0.86. Borders are
   near-invisible; separation comes from shadow + white-on-paper.
@@ -511,7 +538,7 @@ has them).
     miniature objects, cut out to transparent 360×360 PNGs
     (`assets/images/menu/*.png`): rolled map with sage ribbon + brass
     compass, silver prop airliner with sage tail, ryokan with sage noren
-    and bonsai, sage leather steamer trunk, sage leather journal with
+    and bonsai, sage leather journal with
     cherry blossoms, mahjong tiles on a sage felt board, sage enamel
     rotary telephone (Group Chat), instant photo prints with a sage clip
     (Photos). (The ryokan icon went with Lodging.) **No clouds** (the
@@ -546,6 +573,32 @@ has them).
   day's first card), under a trip summary card.
 - Icons: `@expo/vector-icons` (Ionicons outline), sparingly.
 - Respect safe-area insets (`react-native-safe-area-context`).
+
+## Accessibility baseline (WCAG 2.2 AA — audited Oct 1 2026)
+
+`e2e/a11y.spec.ts` runs axe-core (`@axe-core/playwright`, tags
+wcag2a/aa, 21a/aa, 22aa) on every signed-in screen (home, itinerary + add,
+flights + add, chat, photos) plus the open photo viewer and the chat
+long-press sheet, and fails on any control smaller than **44×44 pt**. All
+pass. What the audit fixed, so the rules stick:
+- **Every `Pressable` gets `accessibilityRole="button"`** (plus a label if
+  it has no text) — without it VoiceOver doesn't say "button" and the web
+  build doesn't expose it as one. A message bubble is the exception (its
+  label + "long press for…" hint describe it).
+- **Real 44pt hit areas, not `hitSlop`.** RN-web drops `hitSlop`, so the
+  spec can't see it; small icons sit in a 44×44 box with negative margins
+  (`iconHit` on the trash icons, `reactionHit` on reaction pills, orbit
+  arrows, text buttons `minHeight: 44`). Filter chips, composer buttons,
+  viewer buttons and the home avatar are 44. The orbit's back hub is kept
+  ≥ 44 by its depth scale (`0.46 + 0.76·depth`).
+- Decorative images inside a labeled control get `accessibilityLabel=""`
+  (expo-image → `alt=""`).
+- Reply quotes inside my green bubble darken (`bubbleMineQuote` is black
+  14%) — the old white tint dropped white text to 4.06:1.
+- Headers carry `accessibilityRole="header"`.
+Not checkable here (needs a device): VoiceOver order/announcements,
+Dynamic Type at accessibility sizes, the fold — see the planned
+accessibility mode.
 
 ## Testing
 

@@ -19,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dayLabel, timeLabel } from '../../lib/chatFormat';
 import type { GalleryPhoto } from '../../lib/gallery';
+import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
 type Person = { name: string; color: string };
@@ -156,8 +157,8 @@ export default function GalleryViewer({
         />
 
         <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-          <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close" style={styles.round}>
-            <Ionicons name="close" size={22} color="#fff" />
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel="Close" style={styles.round}>
+            <Ionicons name="close" size={22} color={c.onMedia} />
           </Pressable>
           <Text style={styles.counter}>
             {index + 1} / {photos.length}
@@ -168,13 +169,13 @@ export default function GalleryViewer({
         {Platform.OS === 'web' && photos.length > 1 ? (
           <>
             {index > 0 ? (
-              <Pressable onPress={() => goTo(index - 1)} accessibilityLabel="Previous photo" style={[styles.arrow, { left: 12 }]}>
-                <Ionicons name="chevron-back" size={24} color="#fff" />
+              <Pressable accessibilityRole="button" onPress={() => goTo(index - 1)} accessibilityLabel="Previous photo" style={[styles.arrow, { left: 12 }]}>
+                <Ionicons name="chevron-back" size={24} color={c.onMedia} />
               </Pressable>
             ) : null}
             {index < photos.length - 1 ? (
-              <Pressable onPress={() => goTo(index + 1)} accessibilityLabel="Next photo" style={[styles.arrow, { right: 12 }]}>
-                <Ionicons name="chevron-forward" size={24} color="#fff" />
+              <Pressable accessibilityRole="button" onPress={() => goTo(index + 1)} accessibilityLabel="Next photo" style={[styles.arrow, { right: 12 }]}>
+                <Ionicons name="chevron-forward" size={24} color={c.onMedia} />
               </Pressable>
             ) : null}
           </>
@@ -192,7 +193,7 @@ export default function GalleryViewer({
               </Text>
               {current.bucket === 'chat' ? (
                 <View style={styles.tag}>
-                  <Ionicons name="chatbubble-outline" size={11} color="#cfe3d4" />
+                  <Ionicons name="chatbubble-outline" size={11} color={c.onMediaAccent} />
                   <Text style={styles.tagText}>From chat</Text>
                 </View>
               ) : null}
@@ -204,13 +205,14 @@ export default function GalleryViewer({
                   value={draft}
                   onChangeText={setDraft}
                   placeholder="Add a caption…"
-                  placeholderTextColor="rgba(255,255,255,0.5)"
+                  placeholderTextColor={c.onMediaTertiary}
                   style={styles.captionInput}
                   autoFocus
                   maxLength={1000}
                   multiline
                 />
                 <Pressable
+                  accessibilityRole="button"
                   onPress={() => {
                     onCaption(current, draft);
                     setEditing(false);
@@ -224,6 +226,8 @@ export default function GalleryViewer({
             ) : current.caption ? (
               <Pressable
                 disabled={!mine}
+                accessibilityRole={mine ? 'button' : undefined}
+                accessibilityHint={mine ? 'Edit caption' : undefined}
                 onPress={() => {
                   setDraft(current.caption ?? '');
                   setEditing(true);
@@ -254,7 +258,7 @@ export default function GalleryViewer({
                 accessibilityLabel={fav ? 'Remove from favorites' : 'Add to favorites'}
                 style={({ pressed }) => [styles.pill, fav && styles.pillOn, pressed && styles.pillPressed]}
               >
-                <Ionicons name={fav ? 'heart' : 'heart-outline'} size={19} color={fav ? '#ff8a8a' : '#fff'} />
+                <Ionicons name={fav ? 'heart' : 'heart-outline'} size={19} color={fav ? c.mediaFavorite : c.onMedia} />
                 {count > 0 ? <Text style={styles.pillText}>{count}</Text> : null}
               </Pressable>
               <Pressable
@@ -268,7 +272,7 @@ export default function GalleryViewer({
                 accessibilityLabel={Platform.OS === 'web' ? 'Download photo' : 'Save to Photos'}
                 style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
               >
-                <Ionicons name="download-outline" size={19} color="#fff" />
+                <Ionicons name="download-outline" size={19} color={c.onMedia} />
                 <Text style={styles.pillText}>{busy ? 'Saving…' : Platform.OS === 'web' ? 'Download' : 'Save'}</Text>
               </Pressable>
               {Platform.OS !== 'web' ? (
@@ -278,7 +282,7 @@ export default function GalleryViewer({
                   accessibilityLabel="Share photo"
                   style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
                 >
-                  <Ionicons name="share-outline" size={19} color="#fff" />
+                  <Ionicons name="share-outline" size={19} color={c.onMedia} />
                 </Pressable>
               ) : null}
               {mine && current.bucket === 'gallery' ? (
@@ -288,7 +292,7 @@ export default function GalleryViewer({
                   accessibilityLabel="Delete photo"
                   style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
                 >
-                  <Ionicons name="trash-outline" size={19} color="#ffb4a6" />
+                  <Ionicons name="trash-outline" size={19} color={c.mediaDanger} />
                 </Pressable>
               ) : null}
             </View>
@@ -302,7 +306,7 @@ export default function GalleryViewer({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0d110e',
+    backgroundColor: c.mediaBackground,
   },
   page: {
     flexGrow: 1,
@@ -320,20 +324,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   round: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: c.mediaControl,
     alignItems: 'center',
     justifyContent: 'center',
   },
   roundSpacer: {
-    width: 42,
+    width: 44,
   },
   counter: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
+    color: c.onMediaSecondary,
   },
   arrow: {
     position: 'absolute',
@@ -341,7 +345,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: c.mediaControl,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -353,7 +357,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 10,
-    backgroundColor: 'rgba(13,17,14,0.6)',
+    backgroundColor: c.mediaBar,
   },
   byline: {
     flexDirection: 'row',
@@ -369,12 +373,12 @@ const styles = StyleSheet.create({
   who: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 15,
-    color: '#fff',
+    color: c.onMedia,
   },
   when: {
     fontFamily: fontFamily.body,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.7)',
+    color: c.onMediaSecondary,
   },
   tag: {
     flexDirection: 'row',
@@ -383,23 +387,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,
-    backgroundColor: 'rgba(79,122,92,0.45)',
+    backgroundColor: c.mediaTag,
   },
   tagText: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 11.5,
-    color: '#cfe3d4',
+    color: c.onMediaAccent,
   },
   caption: {
     fontFamily: fontFamily.body,
     fontSize: 15,
     lineHeight: 21,
-    color: '#fff',
+    color: c.onMedia,
   },
   addCaption: {
     fontFamily: fontFamily.body,
     fontSize: 14.5,
-    color: 'rgba(255,255,255,0.55)',
+    color: c.onMediaTertiary,
   },
   captionEdit: {
     flexDirection: 'row',
@@ -410,8 +414,8 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: fontFamily.body,
     fontSize: 15,
-    color: '#fff',
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    color: c.onMedia,
+    backgroundColor: c.mediaField,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -421,19 +425,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#4f7a5c',
+    backgroundColor: c.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   captionSaveText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 14,
-    color: '#fff',
+    color: c.onMedia,
   },
   note: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 13,
-    color: '#cfe3d4',
+    color: c.onMediaAccent,
   },
   actions: {
     flexDirection: 'row',
@@ -448,17 +452,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
     borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: c.mediaControl,
   },
   pillOn: {
-    backgroundColor: 'rgba(255,138,138,0.18)',
+    backgroundColor: c.mediaFavoriteSoft,
   },
   pillPressed: {
-    backgroundColor: 'rgba(255,255,255,0.26)',
+    backgroundColor: c.mediaControlPressed,
   },
   pillText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 15,
-    color: '#fff',
+    color: c.onMedia,
   },
 });

@@ -119,7 +119,7 @@ function MessageRow({
               deleted
                 ? styles.bubbleDeleted
                 : mine
-                  ? { backgroundColor: c.accent }
+                  ? { backgroundColor: c.bubbleMine }
                   : { backgroundColor: c.card, boxShadow: shadow.card },
               hasPhoto && !hasText && !reply ? styles.bubblePhotoOnly : null,
               { opacity: item.status === 'sending' ? 0.7 : pressed ? 0.85 : 1 },
@@ -129,21 +129,21 @@ function MessageRow({
               <View
                 style={[
                   styles.quote,
-                  { borderLeftColor: mine ? 'rgba(255,255,255,0.75)' : reply.color },
-                  { backgroundColor: mine ? 'rgba(255,255,255,0.14)' : 'rgba(30,39,33,0.05)' },
+                  { borderLeftColor: mine ? c.bubbleMineQuoteBar : reply.color },
+                  { backgroundColor: mine ? c.bubbleMineQuote : c.bubbleTheirsQuote },
                 ]}
               >
-                <Text style={[styles.quoteName, { color: mine ? '#fff' : reply.color }]} numberOfLines={1}>
+                <Text style={[styles.quoteName, { color: mine ? c.onBubbleMine : reply.color }]} numberOfLines={1}>
                   {reply.name}
                 </Text>
-                <Text style={[styles.quoteText, { color: mine ? 'rgba(255,255,255,0.85)' : c.inkSecondary }]} numberOfLines={2}>
+                <Text style={[styles.quoteText, { color: mine ? c.onBubbleMineSecondary : c.inkSecondary }]} numberOfLines={2}>
                   {reply.text}
                 </Text>
               </View>
             ) : null}
 
             {hasPhoto && photo ? (
-              <Pressable onPress={() => onPressPhoto(item)} onLongPress={() => onLongPress(item)} accessibilityLabel="Open photo">
+              <Pressable accessibilityRole="button" onPress={() => onPressPhoto(item)} onLongPress={() => onLongPress(item)} accessibilityLabel="Open photo">
                 {photoUrl || item.localUri ? (
                   <Image
                     source={{ uri: photoUrl ?? item.localUri }}
@@ -162,7 +162,7 @@ function MessageRow({
               </Text>
             ) : hasText ? (
               <Text
-                style={[styles.text, { color: mine ? c.onAccent : c.ink }, hasPhoto ? styles.textUnderPhoto : null]}
+                style={[styles.text, { color: mine ? c.onBubbleMine : c.ink }, hasPhoto ? styles.textUnderPhoto : null]}
                 selectable
               >
                 {item.body}
@@ -174,18 +174,23 @@ function MessageRow({
             <View style={[styles.reactions, mine ? styles.reactionsMine : null]}>
               {grouped.map((g) => (
                 <Pressable
+                  accessibilityRole="button"
                   key={g.emoji}
                   onPress={() => onToggleReaction(item, g.emoji)}
                   accessibilityLabel={`${g.emoji} ${g.count}${g.mine ? ', including you. Tap to remove' : '. Tap to add yours'}`}
-                  style={[
-                    styles.reaction,
-                    { backgroundColor: g.mine ? c.accentSoft : c.card, borderColor: g.mine ? c.accent : c.border },
-                  ]}
+                  style={styles.reactionHit}
                 >
-                  <Text style={styles.reactionEmoji}>{g.emoji}</Text>
-                  {g.count > 1 ? (
-                    <Text style={[styles.reactionCount, { color: g.mine ? c.accent : c.inkSecondary }]}>{g.count}</Text>
-                  ) : null}
+                  <View
+                    style={[
+                      styles.reaction,
+                      { backgroundColor: g.mine ? c.accentSoft : c.card, borderColor: g.mine ? c.accent : c.border },
+                    ]}
+                  >
+                    <Text style={styles.reactionEmoji}>{g.emoji}</Text>
+                    {g.count > 1 ? (
+                      <Text style={[styles.reactionCount, { color: g.mine ? c.accent : c.inkSecondary }]}>{g.count}</Text>
+                    ) : null}
+                  </View>
                 </Pressable>
               ))}
             </View>
@@ -252,7 +257,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 11.5,
-    color: '#fff',
+    color: c.onAccent,
   },
   column: {
     flexShrink: 1,
@@ -304,7 +309,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   photoLoading: {
-    backgroundColor: 'rgba(30,39,33,0.08)',
+    backgroundColor: c.skeleton,
   },
   text: {
     ...type.body,
@@ -323,14 +328,22 @@ const styles = StyleSheet.create({
   reactions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 4,
     marginTop: -6,
-    marginLeft: 8,
+    marginLeft: 4,
   },
   reactionsMine: {
     marginLeft: 0,
-    marginRight: 8,
+    marginRight: 4,
     justifyContent: 'flex-end',
+  },
+  // 44pt-tall hit area around the small pill; negative margins keep the
+  // pill tucked under the bubble as before.
+  reactionHit: {
+    minWidth: 44,
+    height: 44,
+    marginVertical: -11,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   reaction: {
     flexDirection: 'row',

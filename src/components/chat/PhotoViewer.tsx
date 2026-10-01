@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
 type Props = {
@@ -33,8 +34,8 @@ export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, sa
         ) : null}
 
         <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-          <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close photo" style={styles.round}>
-            <Ionicons name="close" size={22} color="#fff" />
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel="Close photo" style={styles.round}>
+            <Ionicons name="close" size={22} color={c.onMedia} />
           </Pressable>
         </View>
 
@@ -53,7 +54,7 @@ export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, sa
               accessibilityLabel={Platform.OS === 'web' ? 'Download photo' : 'Save photo to your library'}
               style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
             >
-              <Ionicons name="download-outline" size={19} color="#fff" />
+              <Ionicons name="download-outline" size={19} color={c.onMedia} />
               <Text style={styles.pillText}>{saving ? 'Saving…' : Platform.OS === 'web' ? 'Download' : 'Save'}</Text>
             </Pressable>
             {Platform.OS !== 'web' ? (
@@ -63,7 +64,7 @@ export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, sa
                 accessibilityLabel="Share photo"
                 style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
               >
-                <Ionicons name="share-outline" size={19} color="#fff" />
+                <Ionicons name="share-outline" size={19} color={c.onMedia} />
                 <Text style={styles.pillText}>Share</Text>
               </Pressable>
             ) : null}
@@ -77,7 +78,7 @@ export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, sa
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0d110e',
+    backgroundColor: c.mediaBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -90,10 +91,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   round: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: c.mediaControl,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -105,18 +106,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     gap: 12,
-    backgroundColor: 'rgba(13,17,14,0.55)',
+    backgroundColor: c.mediaBar,
   },
   caption: {
     fontFamily: fontFamily.body,
     fontSize: 15,
     lineHeight: 21,
-    color: '#fff',
+    color: c.onMedia,
   },
   note: {
     fontFamily: fontFamily.bodyMedium,
     fontSize: 13,
-    color: '#cfe3d4',
+    color: c.onMediaAccent,
   },
   buttons: {
     flexDirection: 'row',
@@ -129,14 +130,14 @@ const styles = StyleSheet.create({
     height: 46,
     paddingHorizontal: 20,
     borderRadius: 23,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: c.mediaControl,
   },
   pillPressed: {
-    backgroundColor: 'rgba(255,255,255,0.26)',
+    backgroundColor: c.mediaControlPressed,
   },
   pillText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 15,
-    color: '#fff',
+    color: c.onMedia,
   },
 });

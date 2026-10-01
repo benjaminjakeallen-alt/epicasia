@@ -17,7 +17,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
 
   if (variant === 'text') {
     return (
-      <Pressable onPress={onPress} disabled={isDisabled} style={styles.textButton} hitSlop={8}>
+      <Pressable accessibilityRole="button" onPress={onPress} disabled={isDisabled} style={styles.textButton}>
         <Text style={[type.bodyStrong, { color: colors.highlight, opacity: isDisabled ? 0.5 : 1 }]}>
           {label}
         </Text>
@@ -27,6 +27,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
 
   return (
     <Pressable
+      accessibilityRole="button"
       onPress={onPress}
       disabled={isDisabled}
       style={({ pressed }) => [
@@ -56,6 +57,7 @@ const styles = StyleSheet.create({
   },
   textButton: {
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    minHeight: 44,
   },
 });
