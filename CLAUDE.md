@@ -12,7 +12,6 @@ Shared (all trip members, editable by all or an organizer role):
 - **Itinerary — built** (day-by-day, grouped by day/city, see below),
   **Flights — built**, **Lodging — built** (see below)
 - Group chat (reuse reunion-app's polling-based pattern)
-- Expense splitting — who paid, who owes, settle-up view
 - Shared photo gallery
 
 Personal (per-user, not shared):
@@ -68,6 +67,10 @@ through them. Build it with standard accessibility practice:
 
 Explicitly deferred: gamification/points/trivia (was reunion-specific,
 revisit later if wanted).
+
+**Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
+it again). The `expenses` / `expense_shares` tables from 0001 still exist
+but are unused; leave them unless the user asks to remove them.
 
 ### Itinerary (built)
 
