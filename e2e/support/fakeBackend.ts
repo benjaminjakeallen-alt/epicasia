@@ -10,6 +10,8 @@ export const USER_ID = '00000000-0000-4000-8000-000000000001';
 
 export type FakeBackend = {
   inserts: { table: string; body: Record<string, unknown> }[];
+  deletes: { table: string; query: string }[];
+  updates: { table: string; query: string; body: Record<string, unknown> }[];
 };
 
 export async function signInWithFakeBackend(
@@ -47,19 +49,33 @@ export async function signInWithFakeBackend(
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );
 
-  const backend: FakeBackend = { inserts: [] };
+  const backend: FakeBackend = { inserts: [], deletes: [], updates: [] };
+  // Realtime (websocket) is never let through: close it so tests stay offline.
+  await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
     const req: Request = route.request();
-    const match = new URL(req.url()).pathname.match(/^\/rest\/v1\/(\w+)/);
+    const url = new URL(req.url());
+    const match = url.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (!match) return route.abort();
     const table = match[1];
-    if (req.method() === 'GET') {
+    const method = req.method();
+    if (method === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tables[table] ?? []) });
     }
-    if (req.method() === 'POST') {
-      backend.inserts.push({ table, body: req.postDataJSON() });
+    if (method === 'POST') {
+      const body = req.postDataJSON();
+      backend.inserts.push({ table, body });
+      // `.insert(...).select()` asks for the row back (Prefer:
+      // return=representation); `.single()` wants an object, not an array.
+      if ((req.headers()['prefer'] ?? '').includes('return=representation')) {
+        const row = { created_at: new Date().toISOString(), deleted_at: null, ...body };
+        const single = (req.headers()['accept'] ?? '').includes('vnd.pgrst.object');
+        return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(single ? row : [row]) });
+      }
       return route.fulfill({ status: 201, body: '' });
     }
+    if (method === 'DELETE') backend.deletes.push({ table, query: url.search });
+    if (method === 'PATCH') backend.updates.push({ table, query: url.search, body: req.postDataJSON() });
     return route.fulfill({ status: 204, body: '' });
   });
 

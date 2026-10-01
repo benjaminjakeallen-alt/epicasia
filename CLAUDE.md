@@ -11,12 +11,21 @@ trip logistics instead of a family reunion.
 Shared (all trip members, editable by all or an organizer role):
 - **Itinerary — built** (day-by-day, grouped by day/city, see below),
   **Flights — built**, **Lodging — built** (see below)
-- Group chat (reuse reunion-app's polling-based pattern)
+- **Group chat — built** (see below)
 - Shared photo gallery
 
 Personal (per-user, not shared):
 - Packing list, Documents wallet (passport/visa/insurance — private,
   offline-available), Journal (optionally postable to the group)
+- **Journal requirements (user, Oct 1 2026, not started):** record **audio
+  memories** during the trip (voice notes per entry — `expo-audio`'s
+  recorder, already a dependency), **attach photos** to entries, and
+  **export everything at the end as a photo book** (e.g. a laid-out PDF
+  per day/leg with photos, text and transcribed or linked audio — decide
+  the export format with the user before building). Entries stay
+  personal unless shared to the group (the existing `journal_entries`
+  shape); audio/photos belong in a private per-user bucket like
+  `documents`.
 
 Utilities (client-side/API only, no backend needed):
 - Currency converter, offline phrasebook, weather, saved map pins
@@ -138,6 +147,53 @@ orbit menu.
 - `src/lib/dates.ts` holds the shared day/time parsing (`isValidDay`,
   `parseTimeInput` — moved out of itinerary's `new.tsx`) and formatting.
 
+### Group chat (built, Oct 1 2026)
+
+One room for the whole trip. Data: `src/lib/chat.ts` (fetch/send/react/
+delete, signed photo URLs, save/share photo, realtime subscription),
+pure helpers in `src/lib/chatFormat.ts`, screen
+`src/app/(app)/chat/index.tsx`, components in `src/components/chat/`
+(`MessageRow`, `Composer`, `MessageActions` long-press sheet,
+`PhotoViewer`, `TypingIndicator`). On the orbit menu as "Group Chat"
+(sage rotary-telephone icon, `assets/images/menu/chat.png`).
+
+- **Schema:** migration `0005_group_chat.sql` — `messages` gained
+  `image_path`/`image_width`/`image_height`, `reply_to` (self FK, `on
+  delete set null`), `deleted_at` (soft delete keeps replies' place),
+  `body` nullable with a has-content check and a 4000-char cap;
+  `message_reactions` (PK message+user+emoji, own insert/delete,
+  `replica identity full` so realtime DELETEs carry the row); both tables
+  in the `supabase_realtime` publication; private `chat` storage bucket
+  (15 MB, images only; any member reads, uploads only under
+  `<own uid>/…`); `realtime.messages` policies so only signed-in members
+  can use the private `chat:everyone` broadcast channel (typing).
+- **Sending is optimistic:** the client makes the message id (`newId()`),
+  shows it at once ("Sending…", then the time; "Not sent · tap to retry"
+  on failure) and the realtime echo is matched by id — never re-key
+  messages. Photos upload first (`<uid>/<message id>.<ext>`), then the
+  row is inserted; a failed insert removes the upload.
+- **Photos** are shown via cached signed URLs (1 h); "Save" uses
+  `expo-file-system` `File.downloadFileAsync` + `expo-media-library`
+  `Asset.create()` — **`saveToLibraryAsync` and the other legacy
+  media-library functions throw at runtime in SDK 57**, use the new API.
+  Web downloads via a signed URL with `download`. Share uses RN `Share`.
+- **List:** inverted `FlatList`, newest first; runs of one sender within
+  5 min share one name label/avatar (`sameRun`); day dividers; older
+  pages load at the top (`PAGE_SIZE` 40). The empty state lives outside
+  the list (an inverted list flips `ListEmptyComponent`).
+- **Web gotcha:** RN-web `Modal` with `animationType="fade"` only unmounts
+  after its CSS `animationend`; when that doesn't fire, the sheet can never
+  reopen — `MessageActions`/`PhotoViewer` use `animationType="none"` on
+  web. The composer's height ignores `onContentSizeChange` while empty
+  (RN-web reports the textarea's tall scrollHeight).
+- **Not built yet:** push notifications (need an EAS dev build + an Edge
+  Function/webhook on insert), unread badge on the menu, editing sent
+  messages, multiple rooms, video.
+- **Tests:** `e2e/chat.spec.ts` (empty state, runs/replies/reactions,
+  exact insert bodies, long-press react + reply) on the fake backend,
+  which now returns inserted rows for `.select()`, records PATCH/DELETE,
+  and closes the realtime websocket so nothing touches the live project.
+
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
 form primitives needed well beyond login/register (itinerary's `new.tsx`
@@ -171,7 +227,8 @@ backend code.
   anywhere in this app; it bypasses every RLS policy below.
 - Schema + RLS: `supabase/migrations/0001_init.sql` (initial schema),
   `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`,
-  `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`).
+  `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`),
+  `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -239,7 +296,8 @@ backend code.
   can update/delete) or **personal** (owner-only via `user_id = auth.uid()`
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
-- Storage: two buckets, `gallery` (public read, any member can upload) and
+- Storage: three buckets — `chat` (private, any member reads, uploads under
+  own uid folder; see Group chat), `gallery` (public read, any member can upload) and
   `documents` (private, RLS-gated so a user can only touch objects under a
   `<their-uid>/...` path prefix via `storage.foldername(name)`).
 
@@ -404,7 +462,8 @@ has them).
     (`assets/images/menu/*.png`): rolled map with sage ribbon + brass
     compass, silver prop airliner with sage tail, ryokan with sage noren
     and bonsai, sage leather steamer trunk, sage leather journal with
-    cherry blossoms, mahjong tiles on a sage felt board. **No clouds** (the
+    cherry blossoms, mahjong tiles on a sage felt board, sage enamel
+    rotary telephone (Group Chat). **No clouds** (the
     user rejected objects on clouds) and **sage green worked into every
     object** (user asked for it, ties to `accent`). Two code-rendered sets
     (cartoony, then "rustic") were rejected before this. Regenerate/re-cut

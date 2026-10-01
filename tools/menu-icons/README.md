@@ -43,6 +43,7 @@ used:
 | packing | a vintage muted sage green leather steamer trunk with brass corners, tan leather straps and travel stickers |
 | journal | a muted sage green leather-bound travel journal with a fountain pen and pressed cherry blossoms |
 | games | a small stack of ivory mahjong tiles with green carved characters on a small wooden game board with a muted sage green felt top |
+| chat | a vintage muted sage green enamel rotary telephone with a coiled cord, cream dial and small brass details (Oct 1 2026, pick: try 2; the airmail-postcards alternative read too close to Journal) |
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —
 just retry.

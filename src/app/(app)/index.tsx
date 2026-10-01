@@ -20,6 +20,7 @@ const MENU: OrbitMenuItem[] = [
   { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
   { key: 'flights', label: 'Flights', caption: 'Boarding passes · NRT → HKG', color: legColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/flights' },
   { key: 'lodging', label: 'Lodging', caption: 'Where we\'re staying · 5 cities', color: legColors.hongKong, image: require('../../../assets/images/menu/lodging.png'), href: '/(app)/lodging' },
+  { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
   { key: 'packing', label: 'Packing List', caption: 'Coming soon', color: legColors.shanghai, image: require('../../../assets/images/menu/packing.png') },
   { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
   { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, image: require('../../../assets/images/menu/games.png') },

@@ -33,6 +33,21 @@
         {
           "root": "./src/app"
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Epic Asia uses your photos so you can share pictures in the group chat.",
+          "cameraPermission": "Epic Asia uses the camera so you can take photos to share in the group chat.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Epic Asia uses your photos so you can share pictures in the group chat.",
+          "savePhotosPermission": "Epic Asia saves photos from the group chat to your library when you ask it to."
+        }
       ]
     ]
   }
