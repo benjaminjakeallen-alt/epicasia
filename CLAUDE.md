@@ -918,8 +918,30 @@ playwright test` here with an "Executable doesn't exist" error.
 - No native `ios/`/`android/` dirs are committed (Continuous Native
   Generation) — configure native behavior via `app.json` and config plugins
   only.
-- `EAS` (not local Xcode/Android Studio) is the intended build path —
-  `eas build`, `eas submit`, `eas update`. Not yet configured.
+- `EAS` (not local Xcode/Android Studio) is the build path. **Configured
+  Oct 2 2026, not yet run** (the user has no Expo or Apple Developer
+  account yet): `eas.json` (profiles `development` with `expo-dev-client`,
+  `preview` internal, `production` with `autoIncrement`; `cli.
+  appVersionSource: remote`; each profile names its EAS `environment`, which
+  must hold `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY`), `app.json`
+  `ios.infoPlist.ITSAppUsesNonExemptEncryption: false`, the
+  `expo-splash-screen` plugin (paper background + the planet art),
+  `expo-notifications`, and `expo-audio` with background playback/recording
+  **off** (it defaulted to an `audio` UIBackgroundModes entry the app
+  doesn't need). Verified by `expo prebuild --platform ios` in a scratch
+  copy: Info.plist has every permission string, the export flag, no
+  background modes; entitlements have `aps-environment`. **App icon** is
+  now real (`assets/icon.png`, composed from the intro art: planet +
+  castle + torii + Kinkaku-ji + the plane, sky-to-paper background; the
+  Expo placeholder is gone), plus matching splash, Android adaptive
+  foreground/monochrome and favicon. **The user's step-by-step guide is
+  `docs/iphone-build.md`** (Apple Developer $99/yr, Expo account, `eas
+  init` → commit projectId, `eas env:create`, `eas build`, `eas submit`,
+  TestFlight external group + public link, Supabase redirect
+  `epicasia://**`, on-device checklist). **TestFlight builds expire after
+  90 days — rebuild in Apr–May 2027 before the June trip.** If an
+  `EXPO_TOKEN` secret is ever added to the environment, `eas` can run from
+  here.
 
 ## Web deploy (Vercel)
 
