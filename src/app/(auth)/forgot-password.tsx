@@ -1,9 +1,9 @@
-import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
+import { authReturnUrl } from '../../lib/site';
 import { supabase } from '../../lib/supabase';
 
 export default function ForgotPassword() {
@@ -17,7 +17,7 @@ export default function ForgotPassword() {
     setError(null);
     setLoading(true);
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: Linking.createURL('reset-password'),
+      redirectTo: authReturnUrl('/reset-password'),
     });
     setLoading(false);
 

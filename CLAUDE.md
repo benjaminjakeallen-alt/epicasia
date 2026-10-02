@@ -549,10 +549,23 @@ backend code.
   + body), **Copy**, **Turn off**; inactive codes listed below. Register
   (`(auth)/register.tsx`) has an "Invite code" field, pre-filled from
   `/register?invite=CODE` and normalized (`k7qm2xpa` → `K7QM-2XPA`).
-  **The invite link** is `EXPO_PUBLIC_SITE_URL/register?invite=…` when that
-  env var is set (the deployed web app — works for anyone, app or not),
-  otherwise the app's own `epicasia://` link (works only with the app
-  installed). **Set `EXPO_PUBLIC_SITE_URL` once the web app is deployed.**
+  **The invite link is always the public site** (`src/lib/site.ts`:
+  `PUBLIC_SITE` = `EXPO_PUBLIC_SITE_URL` or `https://epicasia.vercel.app`)
+  `/register?invite=…`. **Fixed Oct 2 2026 after travelers' links failed:**
+  it used to fall back to `Linking.createURL`, i.e. on web whatever address
+  the organizer was browsing — and Vercel's per-deployment/team URLs
+  (`epicasia-…-allen-trailmarks.vercel.app`) redirect anyone not logged in
+  to Vercel to a Vercel SSO page; only `epicasia.vercel.app` is public.
+  Auth emails were the second failure: every confirmation/reset link in the
+  logs had `redirect_to=http://localhost:3000` (Supabase's default Site
+  URL). Sign-up now sends `emailRedirectTo: <site>/login?confirmed=1`
+  (login shows "Your email is confirmed"), forgot-password
+  `authReturnUrl('/reset-password')` (site on web, `epicasia://` natively).
+  **Supabase must allow-list them** (Authentication → URL Configuration:
+  Site URL `https://epicasia.vercel.app`, Redirect URLs
+  `https://epicasia.vercel.app/**` and `epicasia://**`) — otherwise it
+  silently falls back to the Site URL. Tests in `invites.spec.ts` pin the
+  shared link and the sign-up `redirect_to`.
   Tests: `e2e/invites.spec.ts` + axe audits of the invite and register
   screens.
   **Register → email confirmation → login → sign out is verified live**
@@ -1016,9 +1029,12 @@ into `dist/` and rewrites every path to `index.html` (single-page app).
 `.npmrc` sets `legacy-peer-deps=true` so a plain `npm install` (what Vercel
 runs) resolves the same way as local installs. The two `EXPO_PUBLIC_SUPABASE_*`
 vars must be set in Vercel's project settings — Expo bakes them into the
-bundle at build time, so changing them needs a redeploy. After the site
-URL exists, set it as Supabase Auth's Site URL + a redirect URL so
-confirmation and password-reset emails land on the app.
+bundle at build time, so changing them needs a redeploy. **The public
+address is `https://epicasia.vercel.app`** (production alias); every other
+Vercel URL for the project is behind Vercel Deployment Protection (SSO), so
+never hand those to travelers. It must also be Supabase Auth's Site URL +
+redirect URL (see the Auth bullet) so confirmation and password-reset
+emails land on the app.
 
 ### Web app icon ("Add to Home Screen") — Oct 2 2026
 

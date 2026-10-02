@@ -5,6 +5,7 @@ import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
 import { INVITE_PATTERN, isInviteRejection, normalizeInvite } from '../../lib/invites';
 import { PHOTOS } from '../../lib/places';
+import { siteUrl } from '../../lib/site';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -41,7 +42,12 @@ export default function Register() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName.trim(), invite_code: code } },
+      options: {
+        data: { display_name: displayName.trim(), invite_code: code },
+        // The confirmation email's link lands here (public site, works on any
+        // device the email is opened on); login then says the email is confirmed.
+        emailRedirectTo: siteUrl('/login', { confirmed: '1' }),
+      },
     });
     setLoading(false);
 

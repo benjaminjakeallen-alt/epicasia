@@ -1,4 +1,4 @@
-import * as Linking from 'expo-linking';
+import { siteUrl } from './site';
 import { supabase } from './supabase';
 
 // Trip invite codes (0010_trip_invites.sql). Admins create and share them;
@@ -63,14 +63,13 @@ export async function revokeInvite(code: string): Promise<void> {
 }
 
 /**
- * Link that opens registration with the code filled in. With a web address
- * configured (EXPO_PUBLIC_SITE_URL, e.g. the Vercel site) it works for anyone,
- * app or not; otherwise it's the app's own link.
+ * Link that opens registration with the code filled in — always the public
+ * web address, so it opens for anyone, app or not. (It used to fall back to
+ * the address the organizer was browsing, which on a Vercel deployment URL
+ * sent travelers to a Vercel login page.)
  */
 export function inviteLink(code: string): string {
-  const site = process.env.EXPO_PUBLIC_SITE_URL?.replace(/\/+$/, '');
-  if (site) return `${site}/register?invite=${encodeURIComponent(code)}`;
-  return Linking.createURL('/register', { queryParams: { invite: code } });
+  return siteUrl('/register', { invite: code });
 }
 
 export function inviteMessage(code: string): string {

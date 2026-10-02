@@ -13,12 +13,14 @@ async function skipIntro(page: Page) {
 
 /** Signed out: answer Supabase auth calls in-test and record sign-up bodies. */
 async function fakeAuth(page: Page, signup: (route: Route) => Promise<void>) {
-  const bodies: Record<string, unknown>[] = [];
+  const bodies: Record<string, unknown>[] & { redirects?: (string | null)[] } = [];
+  bodies.redirects = [];
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === '/auth/v1/signup') {
       bodies.push(route.request().postDataJSON());
+      bodies.redirects!.push(url.searchParams.get('redirect_to'));
       return signup(route);
     }
     return route.abort();
@@ -53,6 +55,16 @@ test('an invite link fills the code; a valid code signs up with it', async ({ pa
     email: 'sarah@example.com',
     data: { display_name: 'Sarah Lee', invite_code: 'K7QM-2XPA' },
   });
+  // The confirmation email must bring them back to the public site (Supabase
+  // used its default, localhost:3000, which can't open on anyone's phone).
+  expect(bodies.redirects![0]).toBe('https://epicasia.vercel.app/login?confirmed=1');
+});
+
+test('arriving from the confirmation email says the email is confirmed', async ({ page }) => {
+  await fakeAuth(page, (route) => route.abort());
+  await page.goto('/login?confirmed=1');
+  await skipIntro(page);
+  await expect(page.getByTestId('email-confirmed')).toContainText('Your email is confirmed');
 });
 
 test('no code: refused before anything is sent', async ({ page }) => {
@@ -135,6 +147,18 @@ test('an admin creates a code and gets a QR, share, email and copy', async ({ pa
   for (const name of ['Share K7QM-2XPA', 'Email K7QM-2XPA', 'Copy K7QM-2XPA', 'Turn off K7QM-2XPA']) {
     await expect(card.getByRole('button', { name })).toBeVisible();
   }
+  // Shared links point at the public site, never the address the organizer
+  // happens to be browsing (Vercel's deployment URLs ask visitors to log in).
+  await page.evaluate(() => {
+    (window as unknown as { opened: string[] }).opened = [];
+    window.open = ((url: string) => {
+      (window as unknown as { opened: string[] }).opened.push(String(url));
+      return null;
+    }) as typeof window.open;
+  });
+  await card.getByRole('button', { name: 'Email K7QM-2XPA' }).click();
+  const opened = await page.evaluate(() => (window as unknown as { opened: string[] }).opened);
+  expect(decodeURIComponent(opened[0])).toContain('https://epicasia.vercel.app/register?invite=K7QM-2XPA');
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/invites.png', fullPage: true });
 });

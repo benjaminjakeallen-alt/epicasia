@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import FormButton from '../../components/form/FormButton';
@@ -15,6 +15,8 @@ import { useTheme } from '../../theme/useTheme';
 export default function Login() {
   const router = useRouter();
   const colors = useTheme();
+  // Arriving from the sign-up confirmation email (see register.tsx).
+  const { confirmed } = useLocalSearchParams<{ confirmed?: string }>();
   const [email, setEmail] = useState('');
   const [remember, setRemember] = useState(true);
   const [password, setPassword] = useState('');
@@ -63,6 +65,14 @@ export default function Login() {
         </>
       }
     >
+      {confirmed ? (
+        <View style={[styles.notice, { backgroundColor: colors.successSoft }]} accessibilityRole="alert" testID="email-confirmed">
+          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
+          <Text style={[type.body, styles.noticeText, { color: colors.ink }]}>
+            Your email is confirmed. Sign in to start.
+          </Text>
+        </View>
+      ) : null}
       <FormField
         label="Email"
         value={email}
@@ -106,6 +116,8 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
+  notice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14, marginBottom: 14 },
+  noticeText: { flex: 1 },
   remember: {
     flexDirection: 'row',
     alignItems: 'center',
