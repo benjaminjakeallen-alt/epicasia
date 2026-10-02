@@ -46,6 +46,7 @@ used:
 | games | a small stack of ivory mahjong tiles with green carved characters on a small wooden game board with a muted sage green felt top |
 | photos | a small loose fanned stack of instant film photo prints with cream borders showing soft pastel travel snapshots of mountains and temples, one print held by a tiny muted sage green clip (Oct 1 2026; a sage rangefinder camera was the alternative) |
 | chat | a vintage muted sage green enamel rotary telephone with a coiled cord, cream dial and small brass details (Oct 1 2026, pick: try 2; the airmail-postcards alternative read too close to Journal) |
+| satchel (utilities: converter, phrasebook, weather, pins — Oct 3 2026, user's idea and pick of 3) | an open muted sage green leather messenger bag overflowing with travel essentials springing out of the top: a small cream pocket phrasebook, folded colorful foreign banknotes, gold and silver coins, and a tiny red map pin |
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —
 just retry.
