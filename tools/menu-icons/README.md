@@ -37,7 +37,8 @@ used:
 
 | key | subject |
 |---|---|
-| flights | a vintage silver propeller airliner with a muted sage green tail fin and a thin sage green stripe along the fuselage |
+| flights (replaced by arrivals Oct 2 2026) | a vintage silver propeller airliner with a muted sage green tail fin and a thin sage green stripe along the fuselage |
+| arrivals | a vintage brass and wood immigration rubber stamp beside a muted sage green leather passport opened to a page with colorful round entry stamps (Oct 2 2026, pick of 3; the alternatives were a passport with a boarding pass tucked in, and a passport on a luggage tag) |
 | itinerary | an antique rolled parchment map tied with a muted sage green silk ribbon, with a brass compass beside it |
 | lodging (removed Oct 1 2026) | a traditional Japanese wooden ryokan inn with a tiled roof, paper lanterns, a muted sage green noren curtain over the door and a small green bonsai pine beside it |
 | packing | a vintage muted sage green leather steamer trunk with brass corners, tan leather straps and travel stickers |

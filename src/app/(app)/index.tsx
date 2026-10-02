@@ -20,7 +20,7 @@ import { useTheme } from '../../theme/useTheme';
 // href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
   { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
-  { key: 'arrivals', label: 'Arrivals', caption: 'Visas, airports and your documents', color: legTextColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/arrivals' },
+  { key: 'arrivals', label: 'Arrivals', caption: 'Visas, airports and your documents', color: legTextColors.beijing, image: require('../../../assets/images/menu/arrivals.png'), href: '/(app)/arrivals' },
   { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legTextColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
   { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legTextColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
   { key: 'journal', label: 'Journal', caption: 'Your memories, photos and voice notes', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png'), href: '/(app)/journal' },

@@ -146,8 +146,10 @@ explicitly).
 The user: "I don't think the flights section is needed, but we could
 replace with info on visas, relevant airport maps and how to navigate to
 customs" — named **Arrivals**, with "a place to load visa docs" as a
-subtask. On the ring as "Arrivals" (same airliner icon, `href
-/(app)/arrivals`).
+subtask. On the ring as "Arrivals" (`href /(app)/arrivals`), icon
+`assets/images/menu/arrivals.png`: a brass immigration stamp beside an
+open sage passport full of entry stamps (the airliner `flights.png` was
+retired with it).
 - **Content** is bundled (`src/lib/arrivals.ts`, works offline): per
   country (Japan / Mainland China / Hong Kong) the entry line, visa notes,
   arrival forms (Visit Japan Web, China arrival card, HK landing slip),
@@ -789,7 +791,8 @@ has them).
   - **Hubs** are AI-generated (Higgsfield, Qwen Image 3) hyper-real
     miniature objects, cut out to transparent 360×360 PNGs
     (`assets/images/menu/*.png`): rolled map with sage ribbon + brass
-    compass, silver prop airliner with sage tail, ryokan with sage noren
+    compass, brass immigration stamp + open sage passport (Arrivals; it
+    replaced the silver prop airliner), ryokan with sage noren
     and bonsai, sage leather journal with
     cherry blossoms, mahjong tiles on a sage felt board, sage enamel
     rotary telephone (Group Chat), instant photo prints with a sage clip
