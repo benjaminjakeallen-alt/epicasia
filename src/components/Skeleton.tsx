@@ -169,6 +169,31 @@ export function GridSkeleton({ cell, gap, pad }: { cell: number; gap: number; pa
   );
 }
 
+/** Journal: day labels + entry cards with a photo strip. */
+export function JournalSkeleton() {
+  return (
+    <SkeletonRoot label="Loading journal" style={styles.pad}>
+      {[0, 1].map((d) => (
+        <View key={d} style={styles.mb14}>
+          <Bone width={120} height={14} style={styles.sectionHead} />
+          <View style={styles.card}>
+            {d === 0 ? (
+              <View style={[styles.row, styles.mb14]}>
+                {[0, 1, 2].map((k) => (
+                  <Bone key={k} width={84} height={84} radius={14} />
+                ))}
+              </View>
+            ) : null}
+            <Bone width="60%" height={20} />
+            <Bone width="95%" height={12} style={styles.mt10} />
+            <Bone width="80%" height={12} style={styles.mt8} />
+          </View>
+        </View>
+      ))}
+    </SkeletonRoot>
+  );
+}
+
 const styles = StyleSheet.create({
   pad: { paddingHorizontal: 20 },
   flex: { flex: 1 },

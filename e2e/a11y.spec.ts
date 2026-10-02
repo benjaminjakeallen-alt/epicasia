@@ -96,6 +96,35 @@ const DATA = {
     },
   ],
   photo_favorites: [],
+  journal_entries: [
+    {
+      id: 'j1',
+      user_id: USER_ID,
+      title: 'Golden hour at Kinkaku-ji',
+      body: 'The pavilion glowed over the pond.',
+      day: '2027-06-10',
+      city: 'Kyoto',
+      shared_to_group: true,
+      created_at: ago(30),
+      updated_at: ago(30),
+      journal_media: [
+        { id: 'jm1', entry_id: 'j1', user_id: USER_ID, kind: 'photo', storage_path: `${USER_ID}/j1/jm1.jpg`, thumb_path: null, width: 4032, height: 3024, duration_ms: null, caption: null, position: 0, created_at: ago(30) },
+        { id: 'jm2', entry_id: 'j1', user_id: USER_ID, kind: 'audio', storage_path: `${USER_ID}/j1/jm2.m4a`, thumb_path: null, width: null, height: null, duration_ms: 64000, caption: 'Temple bells', position: 1, created_at: ago(30) },
+      ],
+    },
+    {
+      id: 'j2',
+      user_id: SARAH,
+      title: 'Deer in Nara',
+      body: 'They bow if you bow first.',
+      day: '2027-06-10',
+      city: 'Nara',
+      shared_to_group: true,
+      created_at: ago(20),
+      updated_at: ago(20),
+      journal_media: [],
+    },
+  ],
 };
 
 async function open(page: Page, path: string) {
@@ -146,6 +175,11 @@ const SCREENS: [string, string][] = [
   ['add flight', '/flights/new'],
   ['chat', '/chat'],
   ['photos', '/photos'],
+  ['journal', '/journal'],
+  ['journal entry (mine, editing)', '/journal/j1'],
+  ['journal entry (shared by someone else)', '/journal/j2'],
+  ['new journal entry', '/journal/new'],
+  ['photo book', '/journal/book'],
 ];
 
 for (const [name, path] of SCREENS) {

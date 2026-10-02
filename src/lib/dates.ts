@@ -91,3 +91,8 @@ export function formatWallClockTime(iso: string): string {
   const m = String(date.getUTCMinutes()).padStart(2, '0');
   return `${h % 12 === 0 ? 12 : h % 12}:${m} ${h < 12 ? 'AM' : 'PM'}`;
 }
+
+/** Today on the phone's own calendar, as "YYYY-MM-DD". */
+export function todayDay(now: Date = new Date()): string {
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}

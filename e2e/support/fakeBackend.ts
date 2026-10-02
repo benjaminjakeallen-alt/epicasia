@@ -74,7 +74,18 @@ export async function signInWithFakeBackend(
     const table = match[1];
     const method = req.method();
     if (method === 'GET') {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(tables[table] ?? []) });
+      const rows = filterRows(tables[table] ?? [], url.searchParams);
+      if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
+        // .single() / .maybeSingle(): one object, or PostgREST's "no rows" error.
+        return rows.length
+          ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows[0]) })
+          : route.fulfill({
+              status: 406,
+              contentType: 'application/json',
+              body: JSON.stringify({ code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: 'The result contains 0 rows', hint: null }),
+            });
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows) });
     }
     if (method === 'POST') {
       const body = req.postDataJSON();
@@ -94,4 +105,24 @@ export async function signInWithFakeBackend(
   });
 
   return backend;
+}
+
+// The simple PostgREST filters the app uses (`col=eq.x`, `neq.x`, `in.(a,b)`)
+// so a fixture table can serve differently filtered queries; other params
+// (select, order, limit, unknown operators) are ignored.
+function filterRows(rows: Record<string, unknown>[], params: URLSearchParams) {
+  let out = rows;
+  for (const [col, raw] of params) {
+    const m = raw.match(/^(eq|neq|in)\.(.*)$/);
+    if (!m || ['select', 'order', 'limit', 'offset'].includes(col)) continue;
+    const [, op, val] = m;
+    const str = (v: unknown) => (v === null || v === undefined ? 'null' : String(v));
+    if (op === 'eq') out = out.filter((r) => str(r[col]) === val);
+    if (op === 'neq') out = out.filter((r) => str(r[col]) !== val);
+    if (op === 'in') {
+      const set = new Set(val.replace(/^\(|\)$/g, '').split(',').map((v) => v.replace(/^"|"$/g, '')));
+      out = out.filter((r) => set.has(str(r[col])));
+    }
+  }
+  return out;
 }

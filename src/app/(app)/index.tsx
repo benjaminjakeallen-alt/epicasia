@@ -19,7 +19,7 @@ const MENU: OrbitMenuItem[] = [
   { key: 'flights', label: 'Flights', caption: 'Boarding passes · NRT → HKG', color: legTextColors.beijing, image: require('../../../assets/images/menu/flights.png'), href: '/(app)/flights' },
   { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legTextColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
   { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legTextColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
-  { key: 'journal', label: 'Journal', caption: 'Coming soon', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png') },
+  { key: 'journal', label: 'Journal', caption: 'Your memories, photos and voice notes', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png'), href: '/(app)/journal' },
   { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, image: require('../../../assets/images/menu/games.png') },
 ];
 

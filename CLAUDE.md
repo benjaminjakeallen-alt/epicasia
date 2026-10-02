@@ -24,16 +24,8 @@ Shared (all trip members, editable by all or an organizer role):
 
 Personal (per-user, not shared):
 - Documents wallet (passport/visa/insurance — private,
-  offline-available), Journal (optionally postable to the group)
-- **Journal requirements (user, Oct 1 2026, not started):** record **audio
-  memories** during the trip (voice notes per entry — `expo-audio`'s
-  recorder, already a dependency), **attach photos** to entries, and
-  **export everything at the end as a photo book** (e.g. a laid-out PDF
-  per day/leg with photos, text and transcribed or linked audio — decide
-  the export format with the user before building). Entries stay
-  personal unless shared to the group (the existing `journal_entries`
-  shape); audio/photos belong in a private per-user bucket like
-  `documents`.
+  offline-available), Journal (optionally shared with the group)
+- **Journal — built** (Oct 2 2026, see below).
 
 Utilities (client-side/API only, no backend needed):
 - Currency converter, offline phrasebook, weather, saved map pins
@@ -236,6 +228,68 @@ prints icon, `assets/images/menu/photos.png`).
 - **Not built yet:** "taken at" from EXIF (photos sort by upload time),
   albums, video, bulk share.
 
+### Journal (built, Oct 2 2026)
+
+Personal trip journal with **voice memories, photos and a printable photo
+book**. Data `src/lib/journal.ts`; screens `src/app/(app)/journal/`
+(`index` list, `new`, `[id]` — your own entry opens in the editor, someone
+else's shared entry opens read-only in `JournalReader` — and `book`);
+components `src/components/journal/` (`JournalEditor`, `JournalReader`,
+`VoiceRecorder`, `VoiceNote`). On the ring as "Journal".
+
+- **Schema:** `0007_journal.sql` — `journal_entries` gained `title`,
+  `day` (date, default today), `city`, `updated_at`, length caps;
+  `journal_media` (photo | audio per entry: paths, size, `duration_ms`,
+  caption, `position`; owner writes, readable when the entry is shared);
+  private `journal` bucket (50 MB, images + audio) at
+  `<uid>/<entry id>/<media id>.<ext>`, owner writes, and anyone signed in
+  may read a file once its entry is shared. **Applied as three migrations
+  (0007a/b/c)** — one `apply_migration` call with the whole file timed out
+  twice (nothing applied); smaller parts went through. The repo keeps the
+  single file.
+- **Editor:** trip-day chips (Jun 5–19 + today; the city follows the
+  day's leg via `stopForDay()` in `places.ts` until you type your own),
+  where, serif title, story, photos (library/camera, thumbnails made on
+  device like the gallery), voice notes, and a "Share with the group" row
+  that *is* the switch (a drawn toggle — a real `Switch` nested in a
+  pressable row fails axe as nested controls). Save uploads new files
+  first, then rows; removed media are deleted with their files; "Discard
+  changes?" on close.
+- **Recording** (`VoiceRecorder`): `expo-audio` `useAudioRecorder`
+  (HIGH_QUALITY + metering, level ring), 5 min max, mic permission via
+  `requestRecordingPermissionsAsync`, `setAudioModeAsync({ allowsRecording:
+  true, playsInSilentMode: true })` while recording and `allowsRecording:
+  false` after (else iOS routes playback to the earpiece). Native files
+  are `.m4a` (`audio/mp4`), web `.webm`. `app.json` has the `expo-audio`
+  plugin + mic text, and expo-image-picker's `microphonePermission` is now
+  a string (it was `false`, which would strip the Info.plist key).
+- **Photo book** (`src/lib/photoBook.ts`, user picked "printable PDF"):
+  8×8 in pages — cover (first photo, wordmark + seal, author, dates,
+  route), a divider page per leg in its color, then each of *your own*
+  entries in trip order (kicker date · city, title, story, photos as one
+  big or a 2-up grid, voice-note cards), and a closing seal page. Photos
+  are embedded as data URIs (downloaded, resized to 1400px on device).
+  **A voice note prints as a QR code** to a signed URL valid 10 years
+  for that one file (`qrcode-generator`) — anyone with the printed QR can
+  play that note; that's the trade-off for a book that keeps working.
+  Native: `expo-print` `printToFileAsync` (576×576) → renamed PDF →
+  `expo-sharing` share sheet. Web: the button opens a tab synchronously
+  (popup blockers) and the book HTML is written into it and printed
+  (`expo-print`'s web `printToFileAsync` just prints the current page).
+  Colors come from theme tokens. Fonts are Google Fonts with Georgia /
+  system fallbacks (offline printing falls back cleanly).
+- **Not built yet:** speech-to-text transcripts of voice notes (needs a
+  native speech module or a server), reordering media by drag, a photo
+  viewer inside entries, choosing which entries go in the book.
+- **Tests:** `e2e/journal.spec.ts` — empty state, list by day + "From
+  the group" tab, read-only shared entry, exact insert body for a new
+  entry, edit/remove media, book screen counts, **the book's HTML
+  structure** (cover/leg/entry pages, QR per voice note, only your own
+  entries), and **a real recording** with Chromium's fake microphone
+  (record → play label → caption → upload path `.webm` → media row).
+  The fake backend now applies simple `eq`/`neq`/`in` filters and
+  answers `.single()`/`.maybeSingle()`.
+
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
 form primitives needed well beyond login/register (itinerary's `new.tsx`
@@ -271,7 +325,8 @@ backend code.
   `0002_hide_internal_functions.sql`, `0003_perf_indexes_and_policy_tuning.sql`,
   `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`),
   `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat),
-  `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos).
+  `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos),
+  `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -342,7 +397,7 @@ backend code.
   can update/delete) or **personal** (owner-only via `user_id = auth.uid()`
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
-- Storage: three buckets — `chat` and `gallery` (both private, any member
+- Storage: four buckets — `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
   reads via signed URLs, uploads only under own uid folder; see Group chat
   / Photos) and
   `documents` (private, RLS-gated so a user can only touch objects under a

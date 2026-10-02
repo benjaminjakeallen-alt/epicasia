@@ -22,16 +22,26 @@ export type Stop = {
   dates: string;
   color: string;
   photo: ImageSourcePropType;
+  /** First day in this leg ("YYYY-MM-DD"); a travel day counts as the new leg. */
+  from: string;
 };
 
 // The five legs, in order — drives the home screen's route cards.
 export const STOPS: Stop[] = [
-  { key: 'tokyo', city: 'Tokyo', country: 'Japan', dates: 'Jun 6 – 9', color: legColors.tokyo, photo: PHOTOS.tokyoFuji },
-  { key: 'kyoto', city: 'Kyoto & Nara', country: 'Japan', dates: 'Jun 9 – 11', color: legColors.kyoto, photo: PHOTOS.kyotoKinkakuji },
-  { key: 'beijing', city: 'Beijing', country: 'China', dates: 'Jun 11 – 14', color: legColors.beijing, photo: PHOTOS.beijingGreatWall },
-  { key: 'shanghai', city: 'Shanghai', country: 'China', dates: 'Jun 14 – 17', color: legColors.shanghai, photo: PHOTOS.shanghaiDisney },
-  { key: 'hongKong', city: 'Hong Kong', country: 'China', dates: 'Jun 17 – 19', color: legColors.hongKong, photo: PHOTOS.hongKongPeak },
+  { key: 'tokyo', city: 'Tokyo', country: 'Japan', dates: 'Jun 6 – 9', color: legColors.tokyo, photo: PHOTOS.tokyoFuji, from: '2027-06-05' },
+  { key: 'kyoto', city: 'Kyoto & Nara', country: 'Japan', dates: 'Jun 9 – 11', color: legColors.kyoto, photo: PHOTOS.kyotoKinkakuji, from: '2027-06-09' },
+  { key: 'beijing', city: 'Beijing', country: 'China', dates: 'Jun 11 – 14', color: legColors.beijing, photo: PHOTOS.beijingGreatWall, from: '2027-06-11' },
+  { key: 'shanghai', city: 'Shanghai', country: 'China', dates: 'Jun 14 – 17', color: legColors.shanghai, photo: PHOTOS.shanghaiDisney, from: '2027-06-14' },
+  { key: 'hongKong', city: 'Hong Kong', country: 'China', dates: 'Jun 17 – 19', color: legColors.hongKong, photo: PHOTOS.hongKongPeak, from: '2027-06-17' },
 ];
+
+const TRIP_LAST_DAY = '2027-06-19';
+
+/** The leg a trip day belongs to, or null outside the trip. */
+export function stopForDay(day: string): Stop | null {
+  if (day < STOPS[0].from || day > TRIP_LAST_DAY) return null;
+  return [...STOPS].reverse().find((s) => day >= s.from) ?? null;
+}
 
 // Airports on (or near) the route -> short name + leg, for flight cards.
 const AIRPORTS: Record<string, { name: string; stop: string }> = {
