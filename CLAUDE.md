@@ -10,7 +10,9 @@ trip logistics instead of a family reunion.
 
 Shared (all trip members, editable by all or an organizer role):
 - **Itinerary — built** (day-by-day, grouped by day/city, see below),
-  **Flights — built** (see below)
+  **Arrivals — built** (Oct 2 2026; replaced the Flights menu item — visa
+  rules, airport walk-throughs, the boarding passes and My documents, see
+  below)
 - **Group chat — built** (see below)
 - **Shared photo gallery — built** ("Photos", see below; chat photos flow
   into it automatically)
@@ -23,8 +25,8 @@ Shared (all trip members, editable by all or an organizer role):
   `packing_items` table from 0001 is unused; leave it. Don't re-propose it.
 
 Personal (per-user, not shared):
-- Documents wallet (passport/visa/insurance — private,
-  offline-available), Journal (optionally shared with the group)
+- Documents wallet — **built as "My documents" inside Arrivals** (see
+  below), Journal (optionally shared with the group)
 - **Journal — built** (Oct 2 2026, see below).
 
 Utilities (client-side/API only, no backend needed):
@@ -139,10 +141,65 @@ SQL and re-run rather than retyping entries through the form (existing
 rows with a changed title won't be touched — delete/update those
 explicitly).
 
-### Flights (built, Sept 30 2026)
+### Arrivals (built, Oct 2 2026) — replaced the Flights menu item
+
+The user: "I don't think the flights section is needed, but we could
+replace with info on visas, relevant airport maps and how to navigate to
+customs" — named **Arrivals**, with "a place to load visa docs" as a
+subtask. On the ring as "Arrivals" (same airliner icon, `href
+/(app)/arrivals`).
+- **Content** is bundled (`src/lib/arrivals.ts`, works offline): per
+  country (Japan / Mainland China / Hong Kong) the entry line, visa notes,
+  arrival forms (Visit Japan Web, China arrival card, HK landing slip),
+  tips (IC/Octopus cards, Alipay/WeChat Pay, blocked apps) and official
+  links; per airport on the route (NRT, KIX, PEK, PVG, HKG) numbered
+  arriving (gate → immigration → bags → customs → exit) and/or leaving
+  steps, getting to/from the city, and the official airport-map link; a
+  before-you-go `CHECKLIST`. **Written for US passports, last checked
+  October 2026 (`CHECKED`)** — an assumption; China's 240-hour visa-free
+  transit (Japan → China → Hong Kong qualifies) must be re-checked before
+  the trip. Update `CHECKED` with the text. `countryColor()` maps a country
+  to its first leg's fill/text shades.
+- **Screens** `src/app/(app)/arrivals/`: `index` (country cards, My
+  documents card, checklist — ticks saved per phone in AsyncStorage
+  `epicasia.arrivalsChecklist`, drawn checkboxes with `aria-checked`
+  because RN-web drops `accessibilityState.checked` —, "Your flights"
+  boarding passes, + adds a flight via the kept `/flights/new`),
+  `[country]` (guide + airport cards + your flights touching that
+  country's airports), `documents`, `add-document`. The old
+  `flights/index.tsx` was deleted; `BoardingPass` now lives in
+  `src/components/BoardingPass.tsx`.
+
+### My documents (built, Oct 2 2026)
+
+Private per-user wallet (passport, visa, insurance, Visit Japan Web QR,
+China arrival card, bookings, other). Data `src/lib/documents.ts`; schema
+`0011_travel_documents.sql` on the 0001 `documents` table (owner-only RLS
+already) — adds `kind` (checked list), `mime`, `size_bytes`, `thumb_path`,
+`file_name`, a label length cap and a check that `storage_path` is in the
+owner's folder; the private `documents` bucket now takes only JPEG/PNG/
+WebP/HEIC/PDF up to 20 MB. Files at `<uid>/<id>.<ext>`; photos also get a
+device-made `.thumb.jpg` (shared `uploadPhoto`). Add = pick a kind (chips,
+name follows the kind until edited), then Photo / Camera (native) / "PDF
+or file" (`expo-document-picker`); a failed row insert removes the upload.
+**Offline:** the list is `cached('documents')`, and on a phone
+`keepOffline()` downloads every file to `Paths.document/travel-documents/
+<uid>/` (and drops deleted ones) — "All saved on this phone · they open
+offline". Photos open in a full-screen viewer (pinch-zoom on iOS, Share,
+Delete); PDFs open the iOS share sheet (Quick Look preview, Save to Files,
+Print) from the local copy; web opens a signed URL in a tab. **Sign-out
+deletes the local folder** (`clearLocalDocuments`, next to
+`clearOfflineCopies` in Profile). Tests: `e2e/arrivals.spec.ts` (countries,
+checklist persists, China guide with PEK/PVG + the NRT→PEK pass, add a PDF
+→ exact upload path + row, photo viewer + delete → row + both files
+removed; the fake backend now records storage `removals`) and axe audits
+of all four screens + the viewer.
+
+### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
 Same shape as Itinerary: `src/lib/flights.ts` (fetch/create/delete),
-list + add screens under `src/app/(app)/flights/`, delete only on your own
+the add screen `src/app/(app)/flights/new.tsx` (the list is now Arrivals'
+"Your flights"), delete only on your own
 rows, no schema change. (A Lodging screen was built alongside it and later
 removed at the user's request — see git history if it's ever wanted.)
 
@@ -365,7 +422,7 @@ Trip data stays readable with no signal (mainland China, metro, dead hotel
 Wi-Fi). `src/lib/offline.ts`: `cached(name, fetcher)` wraps the reads in
 the data libs — itinerary, flights, members, the latest chat page +
 reactions, the newest gallery page + favorites, journal (mine + shared),
-profile; each success is saved in AsyncStorage as
+profile, documents; each success is saved in AsyncStorage as
 `epicasia.cache.<uid>.<name>`. A read that fails — **or is still pending
 after 3.5s** — returns the saved copy and flags offline; without a saved
 copy it waits for / rethrows the real result. (supabase-js retries a
@@ -426,7 +483,8 @@ backend code.
   `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal),
   `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile),
   `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat),
-  `0010_trip_invites.sql` (invite codes required at sign-up — see Auth).
+  `0010_trip_invites.sql` (invite codes required at sign-up — see Auth),
+  `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -531,7 +589,8 @@ backend code.
   reads via signed URLs, uploads only under own uid folder; see Group chat
   / Photos) and
   `documents` (private, RLS-gated so a user can only touch objects under a
-  `<their-uid>/...` path prefix via `storage.foldername(name)`).
+  `<their-uid>/...` path prefix via `storage.foldername(name)`; images + PDF
+  ≤ 20 MB since 0011 — see My documents).
 
 ## Design tooling
 
@@ -771,7 +830,7 @@ has them).
 
 `e2e/a11y.spec.ts` runs axe-core (`@axe-core/playwright`, tags
 wcag2a/aa, 21a/aa, 22aa) on every signed-in screen (home, itinerary + add,
-flights + add, chat, photos) plus the open photo viewer and the chat
+arrivals + guides + documents + add flight, chat, photos, journal, profile…) plus the open photo viewer and the chat
 long-press sheet, and fails on any control smaller than **44×44 pt**. All
 pass. What the audit fixed, so the rules stick:
 - **Every `Pressable` gets `accessibilityRole="button"`** (plus a label if

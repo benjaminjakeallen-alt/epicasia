@@ -96,7 +96,7 @@ export function TimelineSkeleton() {
   );
 }
 
-/** Flights: boarding passes. */
+/** Arrivals: boarding passes. */
 export function PassSkeleton() {
   return (
     <SkeletonRoot label="Loading flights" style={styles.pad}>
@@ -187,6 +187,23 @@ export function JournalSkeleton() {
             <Bone width="60%" height={20} />
             <Bone width="95%" height={12} style={styles.mt10} />
             <Bone width="80%" height={12} style={styles.mt8} />
+          </View>
+        </View>
+      ))}
+    </SkeletonRoot>
+  );
+}
+
+/** My documents: rows with a thumbnail. */
+export function DocsSkeleton() {
+  return (
+    <SkeletonRoot label="Loading documents" style={styles.pad}>
+      {[0, 1, 2].map((k) => (
+        <View key={k} style={[styles.card, styles.row, styles.mb14]}>
+          <Bone width={56} height={56} radius={12} />
+          <View style={styles.flex}>
+            <Bone width="55%" height={16} />
+            <Bone width="35%" height={12} style={styles.mt8} />
           </View>
         </View>
       ))}

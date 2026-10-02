@@ -47,7 +47,7 @@ test('turning the mode on in settings makes the menu large and skips the intro n
   await expect(page.getByLabel('Skip intro')).toHaveCount(0);
   await expect(page.getByTestId('home-title')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Itinerary', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Flights', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Arrivals', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open Itinerary' })).toBeInViewport();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/a11y-mode-home.png' });
@@ -63,7 +63,7 @@ test('turning the ring reads the new item aloud', async ({ page }) => {
   await skipIntro(page);
 
   await page.getByLabel('Next').click();
-  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Flights, 2 of 6\. Boarding passes/));
+  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Arrivals, 2 of 6\. Visas, airports/));
   await page.getByLabel('Next').click();
   await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Photos, 3 of 6\./));
 });
@@ -89,5 +89,5 @@ test('the menu is one adjustable control for screen readers', async ({ page }) =
   const ring = page.getByRole('slider', { name: 'Itinerary, 1 of 6' });
   await expect(ring).toBeVisible();
   await page.getByLabel('Next').click();
-  await expect(page.getByRole('slider', { name: 'Flights, 2 of 6' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Arrivals, 2 of 6' })).toBeVisible();
 });

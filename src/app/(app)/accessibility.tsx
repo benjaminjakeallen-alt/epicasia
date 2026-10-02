@@ -116,7 +116,7 @@ export default function AccessibilitySettings() {
             <Pressable
               accessibilityRole="button"
               onPress={() =>
-                announce('Flights, 2 of 6. Boarding passes.', { speak: true, rate: mode.rate })
+                announce('Arrivals, 2 of 6. Visas, airports and your documents.', { speak: true, rate: mode.rate })
               }
               style={({ pressed }) => [styles.example, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
             >

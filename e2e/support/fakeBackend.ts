@@ -14,6 +14,8 @@ export type FakeBackend = {
   updates: { table: string; query: string; body: Record<string, unknown> }[];
   authUpdates: Record<string, unknown>[];
   uploads: { bucket: string; path: string }[];
+  /** Storage files removed: `{ bucket, paths }`. */
+  removals: { bucket: string; paths: string[] }[];
   functions: { name: string; body: unknown }[];
 };
 
@@ -54,7 +56,7 @@ export async function signInWithFakeBackend(
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );
 
-  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], functions: [] };
+  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], removals: [], functions: [] };
   // Realtime (websocket) is never let through: close it so tests stay offline.
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
@@ -91,6 +93,13 @@ export async function signInWithFakeBackend(
     if (upload && req.method() === 'POST') {
       backend.uploads.push({ bucket: upload[1], path: decodeURIComponent(upload[2]) });
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: `${upload[1]}/${upload[2]}` }) });
+    }
+    // Storage removals (supabase-js `remove()`) succeed and are recorded.
+    const removal = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/?$/);
+    if (removal && req.method() === 'DELETE') {
+      const paths: string[] = req.postDataJSON()?.prefixes ?? [];
+      backend.removals.push({ bucket: removal[1], paths });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(paths.map((name) => ({ name }))) });
     }
     const match = url.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (!match) return route.abort();

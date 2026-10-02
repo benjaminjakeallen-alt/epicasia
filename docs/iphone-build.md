@@ -91,7 +91,7 @@ These can only be tested on a phone, not in the web preview:
 - [ ] Record a voice note in the Journal, then make the photo book (it opens the share sheet with a PDF).
 - [ ] Save a photo from Photos to your camera roll.
 - [ ] Turn on **Large & spoken mode** (Profile → Accessibility) and turn the menu. It should speak each item. Try it with VoiceOver too.
-- [ ] Put the phone in Airplane mode and open Itinerary and Flights. The saved copy shows with an "Offline" note.
+- [ ] Add a passport photo and a PDF in Arrivals → My documents. Then put the phone in Airplane mode and open Itinerary, Arrivals and both documents. The saved copies show with an "Offline" note, and the PDF opens in the share sheet preview.
 
 ---
 

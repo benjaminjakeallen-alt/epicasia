@@ -44,9 +44,9 @@ async function open(page: Page, path: string) {
   await expect(skip).toHaveCount(0);
 }
 
-test('flights list shows boarding passes in airport-local time', async ({ page }) => {
+test('arrivals lists boarding passes boarding passes in airport-local time', async ({ page }) => {
   await signInWithFakeBackend(page, { flights: FLIGHTS });
-  await open(page, '/flights');
+  await open(page, '/arrivals');
 
   const passes = page.getByTestId('boarding-pass');
   await expect(passes).toHaveCount(2);

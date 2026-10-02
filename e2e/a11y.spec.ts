@@ -13,7 +13,35 @@ import { signInWithFakeBackend, USER_ID } from './support/fakeBackend';
 const SARAH = '00000000-0000-4000-8000-0000000000aa';
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
+const DOCS = [
+  {
+    id: 'd1',
+    user_id: USER_ID,
+    kind: 'passport',
+    label: 'Passport',
+    storage_path: `${USER_ID}/d1.jpg`,
+    thumb_path: `${USER_ID}/d1.thumb.jpg`,
+    mime: 'image/jpeg',
+    size_bytes: 1_400_000,
+    file_name: 'passport.jpg',
+    created_at: ago(60),
+  },
+  {
+    id: 'd2',
+    user_id: USER_ID,
+    kind: 'insurance',
+    label: 'Travel insurance policy',
+    storage_path: `${USER_ID}/d2.pdf`,
+    thumb_path: null,
+    mime: 'application/pdf',
+    size_bytes: 240_000,
+    file_name: 'policy.pdf',
+    created_at: ago(30),
+  },
+];
+
 const DATA = {
+  documents: DOCS,
   profiles: [
     { id: SARAH, display_name: 'Sarah Lee' },
     { id: USER_ID, display_name: 'Test Traveler' },
@@ -171,7 +199,11 @@ const SCREENS: [string, string][] = [
   ['home', '/'],
   ['itinerary', '/itinerary'],
   ['add itinerary item', '/itinerary/new'],
-  ['flights', '/flights'],
+  ['arrivals', '/arrivals'],
+  ['arrivals: Japan guide', '/arrivals/japan'],
+  ['arrivals: China guide', '/arrivals/china'],
+  ['my documents', '/arrivals/documents'],
+  ['add document', '/arrivals/add-document'],
   ['add flight', '/flights/new'],
   ['chat', '/chat'],
   ['photos', '/photos'],
@@ -200,6 +232,16 @@ test('a11y: photo viewer', async ({ page }) => {
   await open(page, '/photos');
   await page.getByTestId('gallery-cell').first().click();
   await page.waitForTimeout(500);
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: document viewer', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/arrivals/documents');
+  await page.getByRole('button', { name: /^Passport\./ }).click();
+  await expect(page.getByTestId('document-viewer')).toBeVisible();
+  await page.waitForTimeout(400);
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });

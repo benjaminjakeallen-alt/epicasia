@@ -1,118 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useState } from 'react';
-import { useFocusEffect, useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import OfflineNotice from '../../../components/OfflineNotice';
-import CircleButton from '../../../components/CircleButton';
-import { PassSkeleton } from '../../../components/Skeleton';
-import SkyBackdrop from '../../../components/SkyBackdrop';
-import { useAuth } from '../../../lib/AuthProvider';
-import { peek } from '../../../lib/offline';
-import { formatMonthDay, formatWallClockTime, formatWeekday, nightsBetween, wallClockDay } from '../../../lib/dates';
-import { deleteFlight, fetchFlights, type Flight } from '../../../lib/flights';
-import { airportName, STOPS, stopForAirport } from '../../../lib/places';
-import { TRIP } from '../../../lib/trip';
-import { shadow, textShadeOf } from '../../../theme/colors';
-import { fontFamily, type } from '../../../theme/typography';
-import { useTheme } from '../../../theme/useTheme';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { formatMonthDay, formatWallClockTime, formatWeekday, nightsBetween, wallClockDay } from '../lib/dates';
+import type { Flight } from '../lib/flights';
+import { airportName, stopForAirport } from '../lib/places';
+import { shadow, textShadeOf } from '../theme/colors';
+import { fontFamily, type } from '../theme/typography';
+import { useTheme } from '../theme/useTheme';
 
-export default function FlightsList() {
-  const insets = useSafeAreaInsets();
-  const colors = useTheme();
-  const router = useRouter();
-  const { session } = useAuth();
-
-  const [flights, setFlights] = useState<Flight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(() => {
-    setError(null);
-    // Show the saved copy at once (offline, or while the fresh one loads).
-    peek<Flight[]>('flights').then((saved) => {
-      if (saved) {
-        setFlights((cur) => (cur.length ? cur : saved));
-        setLoading(false);
-      }
-    });
-    fetchFlights()
-      .then(setFlights)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  // Refetch whenever the screen regains focus (e.g. back from the add form).
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
-
-  async function handleDelete(id: string) {
-    try {
-      await deleteFlight(id);
-      setFlights((prev) => prev.filter((f) => f.id !== id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
-    }
-  }
-
-  return (
-    <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <SkyBackdrop />
-      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-        <CircleButton icon="chevron-back" label="Back" onPress={() => router.back()} />
-        <Text style={[styles.headerTitle, { color: colors.ink }]}>Flights</Text>
-        <CircleButton
-          icon="add"
-          label="Add a flight"
-          testID="flights-add-button"
-          onPress={() => router.push('/(app)/flights/new')}
-        />
-      </View>
-      <OfflineNotice />
-
-      {loading ? (
-        <PassSkeleton />
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={[styles.summary, { backgroundColor: colors.card }]}>
-            <Text style={[styles.summaryTitle, { color: colors.ink }]}>The route</Text>
-            <View style={styles.routeRow}>
-              {TRIP.route.map((code, i) => (
-                <View key={code} style={styles.routeStop}>
-                  {i > 0 ? <Text style={[styles.routeArrow, { color: colors.inkTertiary }]}>→</Text> : null}
-                  <View style={[styles.routeDot, { backgroundColor: STOPS[i]?.color ?? colors.accent }]} />
-                  <Text style={[styles.routeCode, { color: colors.ink }]}>{code}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {error ? <Text style={[type.body, styles.error, { color: colors.error }]}>{error}</Text> : null}
-
-          {flights.length === 0 && !error ? (
-            <Text style={[type.body, { color: colors.inkSecondary }]}>
-              Add your first boarding pass with the + button.
-            </Text>
-          ) : null}
-
-          {flights.map((flight) => (
-            <BoardingPass
-              key={flight.id}
-              flight={flight}
-              canDelete={flight.created_by === session?.user.id}
-              onDelete={() => handleDelete(flight.id)}
-            />
-          ))}
-        </ScrollView>
-      )}
-    </View>
-  );
-}
-
-function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDelete: boolean; onDelete: () => void }) {
+// A flight as a boarding pass: carrier + date, IATA codes with times, a
+// dashed path with a plane, and a tear-off stub with the confirmation code.
+// Colored by the leg it arrives in. Times are airport-local wall-clock
+// times (see lib/dates.ts) — never reformat them in the phone's zone.
+export default function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDelete: boolean; onDelete: () => void }) {
   const colors = useTheme();
   const legColor =
     stopForAirport(flight.arrival_airport)?.color ?? stopForAirport(flight.departure_airport)?.color ?? colors.accent;
@@ -203,68 +102,6 @@ function BoardingPass({ flight, canDelete, onDelete }: { flight: Flight; canDele
 const styles = StyleSheet.create({
   // 44×44 hit area around a 17pt icon, without moving the layout.
   iconHit: { width: 44, height: 44, margin: -13.5, alignItems: 'center', justifyContent: 'center' },
-  screen: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-  },
-  headerTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: 22,
-    letterSpacing: -0.2,
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 48,
-    gap: 14,
-  },
-  summary: {
-    borderRadius: 24,
-    padding: 16,
-    gap: 10,
-    marginBottom: 12,
-    boxShadow: shadow.card,
-  },
-  summaryTitle: {
-    fontFamily: fontFamily.display,
-    fontSize: 22,
-    lineHeight: 27,
-    letterSpacing: -0.2,
-  },
-  routeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    rowGap: 6,
-  },
-  routeStop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  routeArrow: {
-    fontFamily: fontFamily.body,
-    fontSize: 13,
-    marginHorizontal: 6,
-  },
-  routeDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 5,
-  },
-  routeCode: {
-    fontFamily: fontFamily.monoSemiBold,
-    fontSize: 13,
-    letterSpacing: 0.6,
-  },
-  error: {
-    marginBottom: 4,
-  },
   // Shadow on the outer view, clipping on the inner one: on iOS
   // overflow: 'hidden' would also clip the shadow. The clip trims the
   // stripe to the rounded corners and the notches to half-circles.

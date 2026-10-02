@@ -65,12 +65,12 @@ const DATA = {
   photo_favorites: [],
 };
 
-test('itinerary and flights open offline from the saved copy, with a note', async ({ page }) => {
+test('itinerary and arrivals (flights) open offline from the saved copy, with a note', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/itinerary');
   await expect(page.getByText('Tokyo DisneySea')).toBeVisible();
   await expect(page.getByTestId('offline-notice')).toHaveCount(0);
-  await open(page, '/flights');
+  await open(page, '/arrivals');
   await expect(page.getByText('ABC123')).toBeVisible();
 
   await goOffline(page);
@@ -79,7 +79,7 @@ test('itinerary and flights open offline from the saved copy, with a note', asyn
   await expect(page.getByTestId('offline-notice')).toContainText('Offline · showing what was saved today');
   await page.screenshot({ path: 'test-results/offline-itinerary.png' });
 
-  await open(page, '/flights');
+  await open(page, '/arrivals');
   await expect(page.getByText('ABC123')).toBeVisible(); // confirmation code available with no signal
   await expect(page.getByTestId('offline-notice')).toBeVisible();
 });
