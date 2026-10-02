@@ -780,7 +780,7 @@ has them).
 - **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
   in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
   navigation. Spaced out at the user's request: hubs 96pt, ellipse
-  `rx = min(0.4·width, 190)` and `ry = RY_RATIO·rx` (0.5 — flattened
+  `rx = min(0.4·width, 190)` and `ry = RY_RATIO·rx` (0.485 — 0.5, then "tilt 3% more"; flattened
   from up to 0.66 on Oct 2 2026, user: "tilted slightly so it's more
   ellipse"; squeezed to ≥ 0.36 only on short screens), far hubs shrink to
   0.44 and fade to 0.16. **The ring's centre sits at the screen's centre**

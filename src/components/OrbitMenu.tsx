@@ -38,7 +38,7 @@ const HUB_LARGE = 124;
 const READOUT = 150;
 const READOUT_LARGE = 200;
 /** Ellipse depth as a share of its width: the ring's tilt. */
-const RY_RATIO = 0.5;
+const RY_RATIO = 0.485;
 
 // The soft gold glow connecting neighbouring hubs.
 const LINE_GLOW = 10;
