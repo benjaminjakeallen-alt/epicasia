@@ -84,3 +84,20 @@ cp out-plane-sheet.png ../../assets/images/launch/plane-sheet.png
 ```
 
 Camera elevation (26°) must match `PLANE_ELEV` in `LaunchSequence.tsx`.
+
+## Web app (PWA) icon (Oct 2 2026)
+
+Option A of six mockups, picked by the user. Full-bleed variant of the
+style prompt (not the white-background one in `generate-hf.sh`): "Square
+iOS app icon artwork, full bleed edge to edge, a tiny round sage green
+grass miniature planet floating in a soft misty pale blue sky, with a small
+vermilion torii gate, a tiny golden pagoda and a small snow-capped Mount
+Fuji standing on top, and a tiny silver propeller airliner circling it on a
+thin curved path. Hyper-realistic 3D miniature style with real materials,
+soft hazy golden morning light, gentle pastel palette of warm stone beige,
+cream, pale misty sky blue and muted sage green (#4f7a5c), one small
+vermilion accent, simple bold composition that reads at small size,
+centered subject, no text, no letters, no border, no rounded corners, no
+people." (Qwen still drew rounded corners; crop 4.5% per side.) Saved as
+`assets/pwa-icon.png`; the sizes in `public/` are made from it (see
+CLAUDE.md → Web app icon).

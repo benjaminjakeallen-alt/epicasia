@@ -1016,6 +1016,27 @@ bundle at build time, so changing them needs a redeploy. After the site
 URL exists, set it as Supabase Auth's Site URL + a redirect URL so
 confirmation and password-reset emails land on the app.
 
+### Web app icon ("Add to Home Screen") — Oct 2 2026
+
+User picked option **A, "little planet"** from six mockups (planet, paper
+crane, entry stamp, 旅 hanko, "Ea" monogram, wordmark): a sage grass world
+with a vermilion torii, golden pagoda and snowy Fuji on top and a silver
+prop plane circling, on a misty sky. Master art `assets/pwa-icon.png`
+(1024², Qwen Image 3, prompt in `tools/menu-icons/README.md`; the model
+baked rounded corners in, so it's cropped 4.5% to full bleed). Expo's web
+build uses **`public/index.html` as its page template when it exists**
+(copied from the CLI's default, plus the head tags) and copies everything
+in `public/` to the output: `apple-touch-icon.png` (180), `icons/
+icon-192.png`, `icon-512.png`, `icon-maskable-512.png` (art at 80% with a
+feathered edge over a gradient from the art's four corner colours — a
+blurred copy of the art showed a ghost planet), `manifest.webmanifest`
+(standalone, portrait, paper `#f3f1ea`), Apple web-app meta tags, and the
+favicon (`assets/favicon.png`, 48px of the same art). Chromium reports the
+manifest error-free. Vercel serves real files before its SPA rewrite, so
+the rewrite doesn't swallow them. `e2e/pwa.spec.ts` checks the links and
+that every icon is served. The **native** app icon (`assets/icon.png`) is
+still the older composed planet; the user hasn't asked to change it.
+
 ## Sign-in persistence ("Keep me signed in for 30 days")
 
 `src/lib/rememberMe.ts`, checked once at startup in `AuthProvider`. Login
