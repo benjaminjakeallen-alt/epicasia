@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   Animated,
   Easing,
   Image,
@@ -14,6 +13,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { openFeedback, preloadSounds, stepFeedback } from '../lib/feedback';
+import { watchScreenReader } from '../lib/speech';
 import { colors as palette, shadow } from '../theme/colors';
 import { fontFamily, type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
@@ -34,7 +34,9 @@ export type OrbitMenuItem = {
 const TAU = Math.PI * 2;
 const SAMPLES_PER_ITEM = 16;
 const HUB = 96;
+const HUB_LARGE = 124;
 const READOUT = 150;
+const READOUT_LARGE = 200;
 
 // The soft gold glow connecting neighbouring hubs.
 const LINE_GLOW = 10;
@@ -53,16 +55,25 @@ export default function OrbitMenu({
   items,
   onOpen,
   height: fixedHeight,
+  large = false,
+  onFrontChange,
 }: {
   items: OrbitMenuItem[];
   onOpen: (item: OrbitMenuItem) => void;
   /** Fixed height (e.g. inside a ScrollView); fills its parent otherwise. */
   height?: number;
+  /** Accessibility mode: bigger hubs, every hub labelled, bigger controls. */
+  large?: boolean;
+  /** Called when a new item turns to the front (for spoken announcements). */
+  onFrontChange?: (item: OrbitMenuItem, index: number) => void;
 }) {
   const c = useTheme();
   const { width } = useWindowDimensions();
   const [height, setHeight] = useState(0);
   const N = items.length;
+  const H = large ? HUB_LARGE : HUB;
+  const onFrontChangeRef = useRef(onFrontChange);
+  onFrontChangeRef.current = onFrontChange;
 
   const rotation = useRef(new Animated.Value(0)).current;
   const current = useRef(0);
@@ -78,17 +89,18 @@ export default function OrbitMenu({
   // allows, and as tall as the space above the readout allows (up to 0.66
   // of the width, for a clearly 3D tilt).
   const rx = Math.min(width * 0.4, 190);
-  const roomY = height > 0 ? (height - READOUT - HUB * 1.25) / 2 : rx * 0.5;
+  const readoutH = large ? READOUT_LARGE : READOUT;
+  const roomY = height > 0 ? (height - readoutH - H * 1.25) / 2 : rx * 0.5;
   const ry = Math.max(rx * 0.42, Math.min(rx * 0.66, roomY));
   const cx = width / 2;
-  const cy = Math.max(ry + HUB * 0.62, (height - READOUT) / 2);
+  const cy = Math.max(ry + H * 0.62, (height - readoutH) / 2);
   const glow = useRef(new Animated.Value(0)).current;
   // Horizontal drag distance that turns the ring by one item.
   const step = Math.max(96, width / 3.2);
 
   useEffect(() => {
     preloadSounds();
-    AccessibilityInfo.isScreenReaderEnabled().then((on) => {
+    return watchScreenReader((on) => {
       screenReader.current = on;
     });
   }, []);
@@ -104,11 +116,12 @@ export default function OrbitMenu({
       if (idx !== lastFront.current) {
         lastFront.current = idx;
         stepFeedback();
+        onFrontChangeRef.current?.(items[idx], idx);
       }
       setFront((prev) => (prev === idx ? prev : idx));
     });
     return () => rotation.removeListener(id);
-  }, [rotation, N]);
+  }, [rotation, N, items]);
 
   const open = useCallback(
     (item: OrbitMenuItem) => {
@@ -309,11 +322,20 @@ export default function OrbitMenu({
             return (
               <Animated.View
                 key={item.key}
+                // Large mode: only the front hub is a control — the ring turns
+                // by swipe or the big arrows, so a near-miss can't open the
+                // wrong thing, and VoiceOver uses the adjustable label instead.
+                pointerEvents={large && !isFront ? 'none' : 'auto'}
+                accessibilityElementsHidden={large && !isFront}
+                importantForAccessibility={large && !isFront ? 'no-hide-descendants' : 'auto'}
+                aria-hidden={large && !isFront ? true : undefined}
                 style={[
                   styles.hubWrap,
                   {
-                    left: cx - HUB / 2,
-                    top: cy - HUB / 2,
+                    left: cx - H / 2,
+                    top: cy - H / 2,
+                    width: H,
+                    height: H,
                     zIndex: 1 + Math.round((depth + 1) * 50),
                     opacity: o.opacity,
                     transform: [{ translateX: o.translateX }, { translateY: o.translateY }, { scale: o.scale }],
@@ -343,9 +365,10 @@ export default function OrbitMenu({
                       goTo(i);
                     }
                   }}
-                  style={styles.hub}
+                  style={[styles.hub, { width: H, height: H }]}
                 >
-                  <Image source={item.image} style={styles.hubImage} resizeMode="contain" />
+                  <Image source={item.image} style={{ width: H, height: H }} resizeMode="contain" />
+
                   {item.badge ? (
                     <View style={[styles.badge, { backgroundColor: c.danger }]} testID={`orbit-badge-${item.key}`}>
                       <Text style={[styles.badgeText, { color: c.onDanger }]}>
@@ -358,7 +381,7 @@ export default function OrbitMenu({
             );
           })}
 
-          <View style={[styles.readout, { top: cy + ry + HUB * 0.62 }]}>
+          <View style={[styles.readout, { top: cy + ry + H * (large ? 0.8 : 0.62) }]}>
             <View style={styles.selectRow}>
               <Pressable
                 accessibilityRole="button"
@@ -369,13 +392,35 @@ export default function OrbitMenu({
                 }}
                 hitSlop={14}
                 accessibilityLabel="Previous"
-                style={styles.arrow}
+                style={[styles.arrow, large && styles.arrowLarge]}
               >
-                <Text style={[styles.arrowText, { color: c.inkTertiary }]}>‹</Text>
+                <Text style={[styles.arrowText, large && styles.arrowTextLarge, { color: large ? c.ink : c.inkTertiary }]}>‹</Text>
               </Pressable>
-              <Text testID="orbit-selected" style={[styles.label, { color: selected.color }]}>
-                {selected.label}
-              </Text>
+              {/* For VoiceOver the selected label is one "adjustable" control:
+                  swipe up/down turns the ring and reads the new item,
+                  double-tap opens it. */}
+              <View
+                accessible
+                accessibilityRole="adjustable"
+                accessibilityLabel={`${selected.label}, ${front + 1} of ${N}`}
+                accessibilityValue={{ min: 1, max: N, now: front + 1, text: selected.href ? selected.caption : 'Coming soon' }}
+                aria-valuemin={1}
+                aria-valuemax={N}
+                aria-valuenow={front + 1}
+                aria-valuetext={`${front + 1} of ${N}`}
+                accessibilityHint="Swipe up or down to turn the menu. Double-tap to open."
+                accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate' }]}
+                onAccessibilityAction={(e) => {
+                  if (e.nativeEvent.actionName === 'increment') goTo(front + 1);
+                  else if (e.nativeEvent.actionName === 'decrement') goTo(front - 1);
+                  else if (selected.href) open(selected);
+                }}
+                testID="orbit-adjustable"
+              >
+                <Text testID="orbit-selected" style={[styles.label, large && styles.labelLarge, { color: large ? c.ink : selected.color }]}>
+                  {selected.label}
+                </Text>
+              </View>
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
@@ -385,9 +430,9 @@ export default function OrbitMenu({
                 }}
                 hitSlop={14}
                 accessibilityLabel="Next"
-                style={styles.arrow}
+                style={[styles.arrow, large && styles.arrowLarge]}
               >
-                <Text style={[styles.arrowText, { color: c.inkTertiary }]}>›</Text>
+                <Text style={[styles.arrowText, large && styles.arrowTextLarge, { color: large ? c.ink : c.inkTertiary }]}>›</Text>
               </Pressable>
             </View>
             <Pressable
@@ -397,12 +442,13 @@ export default function OrbitMenu({
               onPress={() => !justDragged() && open(selected)}
               style={({ pressed }) => [
                 styles.open,
+                large && styles.openLarge,
                 selected.href
                   ? { backgroundColor: pressed ? c.accentPressed : c.accent, boxShadow: shadow.card }
                   : { backgroundColor: c.accentSoft },
               ]}
             >
-              <Text style={[type.button, { color: selected.href ? c.onAccent : c.highlight }]}>
+              <Text style={[type.button, large && styles.openTextLarge, { color: selected.href ? c.onAccent : c.highlight }]}>
                 {selected.href ? `Open ${selected.label}` : 'Coming soon'}
               </Text>
             </Pressable>
@@ -500,6 +546,29 @@ const styles = StyleSheet.create({
     letterSpacing: -0.3,
     minWidth: 170,
     textAlign: 'center',
+  },
+  arrowLarge: {
+    width: 64,
+    height: 64,
+    marginHorizontal: 0,
+  },
+  arrowTextLarge: {
+    fontSize: 40,
+    lineHeight: 44,
+  },
+  labelLarge: {
+    fontSize: 40,
+    lineHeight: 46,
+    minWidth: 0,
+  },
+  openLarge: {
+    height: 64,
+    borderRadius: 32,
+    paddingHorizontal: 36,
+  },
+  openTextLarge: {
+    fontSize: 21,
+    lineHeight: 26,
   },
   open: {
     marginTop: 14,

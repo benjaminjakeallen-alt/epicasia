@@ -1,13 +1,15 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
+import { useA11yMode } from '../../lib/a11yMode';
 import { fetchUnreadCount, watchNewMessages } from '../../lib/chatUnread';
+import { announce, isScreenReaderOn, watchScreenReader } from '../../lib/speech';
 import { fetchProfile } from '../../lib/profile';
 import { colors as palette, legTextColors, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
@@ -53,6 +55,23 @@ export default function Home() {
   useEffect(() => (myId ? watchNewMessages(myId, () => setUnread((n) => n + 1)) : undefined), [myId]);
   const menu = useMemo(() => MENU.map((m) => (m.key === 'chat' ? { ...m, badge: unread } : m)), [unread]);
 
+  // Accessibility mode: large menu, each item spoken as it turns to the
+  // front. Offered once to people already using VoiceOver or large text.
+  const { mode, ready, update } = useA11yMode();
+  const { fontScale } = useWindowDimensions();
+  const [screenReader, setScreenReader] = useState(isScreenReaderOn);
+  useEffect(() => watchScreenReader(setScreenReader), []);
+  const needsHelp = screenReader || fontScale >= 1.3;
+  const showOffer = ready && !mode.enabled && !mode.offered && needsHelp;
+  const onFrontChange = useCallback(
+    (item: OrbitMenuItem, index: number) => {
+      if (!mode.enabled) return;
+      const extra = item.href ? (item.badge ? `${item.badge} unread.` : item.caption) : 'Coming soon.';
+      announce(`${item.label}, ${index + 1} of ${MENU.length}. ${extra}`, { speak: mode.speak, rate: mode.rate });
+    },
+    [mode.enabled, mode.speak, mode.rate],
+  );
+
   // The home is one screen, no scrolling: greeting at the top, the orbit
   // menu filling the rest. The avatar opens your profile (and sign out).
   return (
@@ -72,6 +91,27 @@ export default function Home() {
           </Pressable>
         </View>
 
+        {showOffer ? (
+          <View style={[styles.offer, { backgroundColor: colors.card }]} testID="a11y-offer">
+            <Text style={[styles.offerTitle, { color: colors.ink }]}>Try large & spoken mode?</Text>
+            <Text style={[styles.offerText, { color: colors.inkSecondary }]}>
+              A bigger menu with every label showing, menu items read aloud as you turn it, and no intro.
+            </Text>
+            <View style={styles.offerRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => update({ enabled: true, offered: true })}
+                style={({ pressed }) => [styles.offerYes, { backgroundColor: pressed ? colors.accentPressed : colors.accent }]}
+              >
+                <Text style={[styles.offerYesText, { color: colors.onAccent }]}>Turn it on</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" onPress={() => update({ offered: true })} style={styles.offerNo}>
+                <Text style={[styles.offerNoText, { color: colors.highlight }]}>Not now</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
+
         <Text style={[styles.headline, { color: colors.ink }]}>
           Where are we going{name ? ',\n' : '?'}
           {name ? (
@@ -79,7 +119,12 @@ export default function Home() {
           ) : null}
         </Text>
 
-        <OrbitMenu items={menu} onOpen={(item) => item.href && router.push(item.href)} />
+        <OrbitMenu
+          items={menu}
+          large={mode.enabled}
+          onFrontChange={onFrontChange}
+          onOpen={(item) => item.href && router.push(item.href)}
+        />
       </View>
     </View>
   );
@@ -113,5 +158,49 @@ const styles = StyleSheet.create({
   },
   page: {
     flex: 1,
+  },
+  offer: {
+    marginHorizontal: 22,
+    marginTop: 18,
+    borderRadius: 22,
+    padding: 18,
+    gap: 8,
+    boxShadow: shadow.card,
+  },
+  offerTitle: {
+    fontFamily: fontFamily.display,
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  offerText: {
+    fontFamily: fontFamily.body,
+    fontSize: 17,
+    lineHeight: 24,
+  },
+  offerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 6,
+  },
+  offerYes: {
+    height: 54,
+    borderRadius: 27,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  offerYesText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 18,
+  },
+  offerNo: {
+    height: 54,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+  },
+  offerNoText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 18,
   },
 });

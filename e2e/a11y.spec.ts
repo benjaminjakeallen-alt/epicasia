@@ -181,6 +181,7 @@ const SCREENS: [string, string][] = [
   ['new journal entry', '/journal/new'],
   ['photo book', '/journal/book'],
   ['profile', '/profile'],
+  ['accessibility settings', '/accessibility'],
 ];
 
 for (const [name, path] of SCREENS) {
@@ -213,6 +214,18 @@ test('a11y: chat message sheet', async ({ page }) => {
   await page.waitForTimeout(600);
   await page.mouse.up();
   await expect(page.getByRole('dialog')).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: home in large & spoken mode', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await page.addInitScript(() =>
+    localStorage.setItem('epicasia.a11yMode', JSON.stringify({ enabled: true, speak: false, rate: 1, offered: true })),
+  );
+  await page.goto('/');
+  await expect(page.getByTestId('home-title')).toBeVisible();
+  await page.waitForTimeout(400);
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });

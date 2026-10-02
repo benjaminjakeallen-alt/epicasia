@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LaunchSequence from '../components/LaunchSequence';
+import { A11yModeProvider } from '../lib/a11yMode';
 import { introModeForLaunch, markFullIntroSeen, type IntroMode } from '../lib/introPrefs';
 import { AuthProvider } from '../lib/AuthProvider';
 import { colors } from '../theme/colors';
@@ -55,6 +56,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <A11yModeProvider>
       <SafeAreaProvider>
         <StatusBar style="dark" />
         <Stack
@@ -70,6 +72,7 @@ export default function RootLayout() {
           />
         )}
       </SafeAreaProvider>
+      </A11yModeProvider>
     </AuthProvider>
   );
 }

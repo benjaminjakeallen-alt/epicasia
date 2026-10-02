@@ -30,8 +30,31 @@ Personal (per-user, not shared):
 Utilities (client-side/API only, no backend needed):
 - Currency converter, offline phrasebook, weather, saved map pins
 
-**Planned (archived, not started): Accessibility mode for low vision,
-tailored to the unfolded iPhone Fold.** Requested Sept 30 2026 for a
+**Accessibility mode for low vision — phase 1 built (Oct 2 2026),
+phase 2 planned.** Built: "Large & spoken mode" (`src/lib/a11yMode.tsx`
+provider + AsyncStorage `epicasia.a11yMode`; settings screen
+`src/app/(app)/accessibility.tsx`, linked from Profile, itself large —
+72pt rows, 19pt labels): **large home menu** (`OrbitMenu large`: 124pt
+hubs, 40pt selected label, 64pt arrows and Open button; side hubs are
+pictures only — the ring turns by swipe/arrows, so a near-miss can't open
+the wrong thing), **spoken items** as the ring turns (`src/lib/speech.ts`:
+VoiceOver on → `announceForAccessibility`; off → `expo-speech` with the
+chosen rate, Slower/Normal/Faster, cutting off the previous item), **no
+intro** (sets `epicasia.introSkip`), and a one-time **offer card** on
+home when VoiceOver or text size ≥ 130% is detected. For everyone, the
+selected label is a VoiceOver **adjustable** control ("Itinerary, 1 of
+6", swipe up/down turns, double-tap opens; web exposes it as a slider
+with aria-value*). **RN-web's `isScreenReaderEnabled()` resolves `true`
+on web** — it can't detect one — which had made tapping a side hub on web
+open it instead of turning the ring; `watchScreenReader()` treats web as
+off. Tests: `e2e/a11y-mode.spec.ts` (settings persist + intro skipped +
+large menu, spoken text via a stubbed `speechSynthesis`, speech off,
+adjustable control) and the axe audit of home in large mode.
+**Phase 2 (not started):** the high-contrast (AAA) and dark themes and
+app-wide large type — these need a theming refactor first, because most
+screens bake colors and sizes into module-level `StyleSheet`s from the
+static `colors`/`type` tokens; plus fold-aware layouts and on-device
+VoiceOver/Dynamic Type verification. Original brief, for phase 2: Requested Sept 30 2026 for a
 friend on the trip with Stargardt disease (central vision loss, peripheral
 vision largely preserved, reduced contrast sensitivity, glare/light
 sensitivity, slow dark adaptation). Requirements from the user: everything

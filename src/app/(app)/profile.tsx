@@ -208,6 +208,17 @@ export default function ProfileScreen() {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => router.push('/(app)/accessibility')}
+          testID="open-accessibility"
+          style={({ pressed }) => [styles.linkRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
+        >
+          <Ionicons name="accessibility-outline" size={22} color={c.highlight} />
+          <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Accessibility</Text>
+          <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           onPress={signOut}
           testID="sign-out"
           style={({ pressed }) => [styles.signOut, { backgroundColor: pressed ? c.dangerSoft : c.card }]}
@@ -254,6 +265,16 @@ const styles = StyleSheet.create({
     boxShadow: shadow.card,
   },
   card: { borderRadius: 18, padding: 16, gap: 4, boxShadow: shadow.card },
+  flex: { flex: 1 },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 60,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    boxShadow: shadow.card,
+  },
   signOut: {
     height: 54,
     borderRadius: 27,
