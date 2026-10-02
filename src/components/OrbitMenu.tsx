@@ -37,6 +37,8 @@ const HUB = 96;
 const HUB_LARGE = 124;
 const READOUT = 150;
 const READOUT_LARGE = 200;
+/** Ellipse depth as a share of its width: the ring's tilt. */
+const RY_RATIO = 0.5;
 
 // The soft gold glow connecting neighbouring hubs.
 const LINE_GLOW = 10;
@@ -68,8 +70,11 @@ export default function OrbitMenu({
   onFrontChange?: (item: OrbitMenuItem, index: number) => void;
 }) {
   const c = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height: windowH } = useWindowDimensions();
   const [height, setHeight] = useState(0);
+  // Where this view starts on screen, so the ring can sit at the screen's centre.
+  const [top, setTop] = useState(0);
+  const rootRef = useRef<View>(null);
   const N = items.length;
   const H = large ? HUB_LARGE : HUB;
   const onFrontChangeRef = useRef(onFrontChange);
@@ -85,15 +90,21 @@ export default function OrbitMenu({
   const [front, setFront] = useState(0);
   const screenReader = useRef(false);
 
-  // A wide, deep ellipse so seven hubs breathe: as wide as the screen
-  // allows, and as tall as the space above the readout allows (up to 0.66
-  // of the width, for a clearly 3D tilt).
+  // A wide, gently tilted ellipse (depth = half the width, user's call
+  // Oct 2 2026; it was up to 0.66 and read as too tall/low on an iPhone),
+  // squeezed further only if the space is short.
   const rx = Math.min(width * 0.4, 190);
   const readoutH = large ? READOUT_LARGE : READOUT;
   const roomY = height > 0 ? (height - readoutH - H * 1.25) / 2 : rx * 0.5;
-  const ry = Math.max(rx * 0.42, Math.min(rx * 0.66, roomY));
+  const ry = Math.max(rx * 0.36, Math.min(rx * RY_RATIO, roomY));
   const cx = width / 2;
-  const cy = Math.max(ry + H * 0.62, (height - readoutH) / 2);
+  // The ring's centre sits at the screen's centre (not lower down in the
+  // space under the greeting), with the label and Open button beneath it;
+  // clamped so everything stays inside this view on short screens.
+  const above = ry + H * 0.3; // far hub, shrunk, above the centre
+  const below = ry + H * (large ? 0.8 : 0.62) + readoutH;
+  const centred = windowH / 2 - top;
+  const cy = Math.max(above + 8, Math.min(centred, height - below));
   const glow = useRef(new Animated.Value(0)).current;
   // Horizontal drag distance that turns the ring by one item.
   const step = Math.max(96, width / 3.2);
@@ -279,13 +290,17 @@ export default function OrbitMenu({
     [rotation, settle, step, setGlow],
   );
 
-  const onLayout = (e: LayoutChangeEvent) => setHeight(e.nativeEvent.layout.height);
+  const onLayout = (e: LayoutChangeEvent) => {
+    setHeight(e.nativeEvent.layout.height);
+    rootRef.current?.measureInWindow((_x, y) => setTop(y));
+  };
 
   const selected = items[front];
   const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
   return (
     <View
+      ref={rootRef}
       style={[styles.root, fixedHeight != null ? { height: fixedHeight } : styles.flex]}
       onLayout={onLayout}
       {...pan.panHandlers}

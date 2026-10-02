@@ -780,9 +780,13 @@ has them).
 - **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
   in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
   navigation. Spaced out at the user's request: hubs 96pt, ellipse
-  `rx = min(0.4·width, 190)` and `ry` up to `0.66·rx` (as deep as the
-  space above the readout allows), far hubs shrink to 0.44 and fade to
-  0.16. Swipe left/right to turn it (PanResponder → `rotation`
+  `rx = min(0.4·width, 190)` and `ry = RY_RATIO·rx` (0.5 — flattened
+  from up to 0.66 on Oct 2 2026, user: "tilted slightly so it's more
+  ellipse"; squeezed to ≥ 0.36 only on short screens), far hubs shrink to
+  0.44 and fade to 0.16. **The ring's centre sits at the screen's centre**
+  (user: it "sits low on iPhone"): `measureInWindow` gives the menu's
+  offset, `cy = windowH/2 − top`, clamped so the far hubs and the
+  label/Open button stay inside the view. Swipe left/right to turn it (PanResponder → `rotation`
   Animated.Value measured in items, unbounded, wrapped with
   `Animated.modulo`; spring-snaps to the nearest item, one extra item max
   for a fast flick); the front hub is selected — tap it or "Open …" to
