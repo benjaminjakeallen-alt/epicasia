@@ -12,6 +12,8 @@ export type FakeBackend = {
   inserts: { table: string; body: Record<string, unknown> }[];
   deletes: { table: string; query: string }[];
   updates: { table: string; query: string; body: Record<string, unknown> }[];
+  authUpdates: Record<string, unknown>[];
+  uploads: { bucket: string; path: string }[];
 };
 
 export async function signInWithFakeBackend(
@@ -51,7 +53,7 @@ export async function signInWithFakeBackend(
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );
 
-  const backend: FakeBackend = { inserts: [], deletes: [], updates: [] };
+  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [] };
   // Realtime (websocket) is never let through: close it so tests stay offline.
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
@@ -68,6 +70,19 @@ export async function signInWithFakeBackend(
     }
     if (sign && req.method() === 'GET') {
       return route.fulfill({ status: 200, contentType: 'image/jpeg', path: photoFile });
+    }
+    // Auth: updating your own user (name) echoes the change back.
+    if (url.pathname === '/auth/v1/user' && req.method() === 'PUT') {
+      const body = req.postDataJSON() ?? {};
+      backend.authUpdates.push(body);
+      const updated = { ...user, user_metadata: { ...user.user_metadata, ...(body.data ?? {}) } };
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) });
+    }
+    // Storage uploads succeed and are recorded.
+    const upload = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
+    if (upload && req.method() === 'POST') {
+      backend.uploads.push({ bucket: upload[1], path: decodeURIComponent(upload[2]) });
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: `${upload[1]}/${upload[2]}` }) });
     }
     const match = url.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (!match) return route.abort();

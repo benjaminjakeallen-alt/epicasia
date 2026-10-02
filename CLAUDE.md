@@ -290,6 +290,26 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   The fake backend now applies simple `eq`/`neq`/`in` filters and
   answers `.single()`/`.maybeSingle()`.
 
+### Profile (built, Oct 2 2026)
+
+`src/app/(app)/profile.tsx` (opened from the home avatar): your photo
+(library, camera on native, remove), name, email, Sign out (asks first,
+via `src/lib/confirm.ts`). Data `src/lib/profile.ts`: the photo is
+center-cropped to a 512px square JPEG on the device and uploaded to the
+private `avatars` bucket as `<uid>/<new id>.jpg` (a new name every time,
+so no stale cached face), then `profiles.avatar_url` (from 0001 — it holds
+the storage *path*) points at it and the old file is deleted. Renaming
+updates both `profiles.display_name` and the auth user's
+`user_metadata.display_name` (the home greeting reads the latter).
+`src/components/Avatar.tsx` shows a photo or initials-on-person-color,
+and is used on home, chat message rows and the chat header faces
+(`fetchMembers()` now returns `avatar`). `FormField` now passes its label
+as the input's `accessibilityLabel` (axe caught an unlabeled input).
+Tests: `e2e/profile.spec.ts` (rename → exact PATCH + auth update, a real
+photo pick via the file chooser → upload path + row, sign-out confirm);
+the fake backend now answers `PUT /auth/v1/user` and records storage
+uploads (`backend.uploads`, `backend.authUpdates`).
+
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
 form primitives needed well beyond login/register (itinerary's `new.tsx`
@@ -326,7 +346,8 @@ backend code.
   `0004_itinerary_seed_rows.sql` (nullable `created_by`, FK `on delete set null`),
   `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat),
   `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos),
-  `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal).
+  `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal),
+  `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -397,7 +418,7 @@ backend code.
   can update/delete) or **personal** (owner-only via `user_id = auth.uid()`
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
-- Storage: four buckets — `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
+- Storage: five buckets — `avatars` (private, any member reads, own folder writes; see Profile), `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
   reads via signed URLs, uploads only under own uid folder; see Group chat
   / Photos) and
   `documents` (private, RLS-gated so a user can only touch objects under a
@@ -581,7 +602,8 @@ has them).
 - **Home = one page, no scrolling** (user, Oct 1 2026): wordmark +
   avatar, the greeting, the trip line, and the orbit menu filling the rest.
   The "Your route" place cards were removed (and `PlaceCard` deleted);
-  **Sign out lives behind the avatar** (tap → account card).
+  **The avatar (your photo or initials) opens Profile**, where Sign out
+  now lives (it was an account card behind the avatar).
 - **Home = orbit menu** (`src/components/OrbitMenu.tsx`, items in `MENU`
   in `src/app/(app)/index.tsx`): the intro's 360° ring reused as the main
   navigation. Spaced out at the user's request: hubs 96pt, ellipse

@@ -1,14 +1,15 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Avatar from '../../components/Avatar';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
-import { supabase } from '../../lib/supabase';
+import { fetchProfile } from '../../lib/profile';
 import { colors as palette, legTextColors, shadow } from '../../theme/colors';
-import { fontFamily, type } from '../../theme/typography';
+import { fontFamily } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 // Ring order = swipe order. Icons are the generated 3D miniatures
@@ -31,12 +32,20 @@ export default function Home() {
 
   const fullName = session?.user.user_metadata?.display_name as string | undefined;
   const name = fullName?.split(' ')[0];
-  const initial = (fullName || session?.user.email || '?').trim().charAt(0).toUpperCase();
+
+  // Your photo for the avatar (refreshed when you come back from Profile).
+  const [avatar, setAvatar] = useState<string | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      if (!session) return;
+      fetchProfile(session.user.id)
+        .then((p) => setAvatar(p?.avatar_url ?? null))
+        .catch(() => {});
+    }, [session]),
+  );
 
   // The home is one screen, no scrolling: greeting at the top, the orbit
-  // menu filling the rest. Sign out lives behind the avatar.
-  const [accountOpen, setAccountOpen] = useState(false);
-
+  // menu filling the rest. The avatar opens your profile (and sign out).
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <SkyBackdrop height={560} />
@@ -44,12 +53,13 @@ export default function Home() {
         <View style={styles.topRow}>
           <Wordmark size={24} testID="home-title" />
           <Pressable
-            onPress={() => setAccountOpen((o) => !o)}
+            onPress={() => router.push('/(app)/profile')}
             accessibilityRole="button"
-            accessibilityLabel="Account"
+            accessibilityLabel="Your profile"
+            testID="home-avatar"
             style={[styles.avatar, { backgroundColor: colors.card }]}
           >
-            <Text style={[styles.avatarText, { color: colors.accent }]}>{initial}</Text>
+            <Avatar name={fullName || session?.user.email || '?'} path={avatar} color={colors.accent} size={40} />
           </Pressable>
         </View>
 
@@ -62,29 +72,6 @@ export default function Home() {
 
         <OrbitMenu items={MENU} onOpen={(item) => item.href && router.push(item.href)} />
       </View>
-
-      {accountOpen ? (
-        <>
-          <Pressable accessibilityRole="button" style={StyleSheet.absoluteFill} onPress={() => setAccountOpen(false)} accessibilityLabel="Close account menu" />
-          <View style={[styles.accountCard, { top: insets.top + 66, backgroundColor: colors.card }]}>
-            <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={1}>
-              {fullName || 'Signed in'}
-            </Text>
-            {session?.user.email ? (
-              <Text style={[type.caption, { color: colors.inkSecondary }]} numberOfLines={1}>
-                {session.user.email}
-              </Text>
-            ) : null}
-            <Pressable
-              onPress={() => supabase.auth.signOut()}
-              accessibilityRole="button"
-              style={({ pressed }) => [styles.signOut, { borderColor: colors.border, opacity: pressed ? 0.6 : 1 }]}
-            >
-              <Text style={[type.bodyStrong, { color: colors.error }]}>Sign out</Text>
-            </Pressable>
-          </View>
-        </>
-      ) : null}
     </View>
   );
 }
@@ -107,10 +94,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     boxShadow: shadow.card,
   },
-  avatarText: {
-    fontFamily: fontFamily.displayMedium,
-    fontSize: 19,
-  },
   headline: {
     paddingHorizontal: 22,
     marginTop: 26,
@@ -121,19 +104,5 @@ const styles = StyleSheet.create({
   },
   page: {
     flex: 1,
-  },
-  accountCard: {
-    position: 'absolute',
-    right: 18,
-    width: 230,
-    borderRadius: 20,
-    padding: 16,
-    gap: 2,
-    boxShadow: shadow.float,
-  },
-  signOut: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
 });

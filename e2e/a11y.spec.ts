@@ -180,6 +180,7 @@ const SCREENS: [string, string][] = [
   ['journal entry (shared by someone else)', '/journal/j2'],
   ['new journal entry', '/journal/new'],
   ['photo book', '/journal/book'],
+  ['profile', '/profile'],
 ];
 
 for (const [name, path] of SCREENS) {

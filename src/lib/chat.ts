@@ -28,7 +28,7 @@ export type Reaction = {
   created_at?: string;
 };
 
-export type Member = { id: string; name: string };
+export type Member = { id: string; name: string; avatar: string | null };
 
 export const PAGE_SIZE = 40;
 export const QUICK_REACTIONS = ['❤️', '😂', '👍', '😮', '😢', '🙏'];
@@ -52,9 +52,9 @@ export function newId(): string {
 }
 
 export async function fetchMembers(): Promise<Member[]> {
-  const { data, error } = await supabase.from('profiles').select('id, display_name').order('display_name');
+  const { data, error } = await supabase.from('profiles').select('id, display_name, avatar_url').order('display_name');
   if (error) throw error;
-  return (data ?? []).map((p) => ({ id: p.id, name: p.display_name }));
+  return (data ?? []).map((p) => ({ id: p.id, name: p.display_name, avatar: p.avatar_url ?? null }));
 }
 
 /** Newest first; pass the oldest loaded timestamp to page further back. */

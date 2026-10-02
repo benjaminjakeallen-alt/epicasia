@@ -79,7 +79,7 @@ export default function Photos() {
 
   // Signed URLs, grouped by bucket. `full` also fetches originals (viewer).
   const ensureUrls = useCallback(async (list: GalleryPhoto[], full = false) => {
-    const byBucket: Record<PhotoBucket, string[]> = { chat: [], gallery: [], journal: [] };
+    const byBucket: Record<PhotoBucket, string[]> = { chat: [], gallery: [], journal: [], avatars: [] };
     for (const p of list) {
       byBucket[p.bucket].push(p.thumb_path ?? p.storage_path);
       if (full && p.thumb_path) byBucket[p.bucket].push(p.storage_path);

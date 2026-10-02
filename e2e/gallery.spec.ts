@@ -84,7 +84,7 @@ test('grid groups by day, filters, opens the viewer and favourites', async ({ pa
   await expect(page.getByTestId('gallery-cell')).toHaveCount(1);
 });
 
-test('home is one page: Photos on the ring, no Lodging or route cards, sign out under the avatar', async ({ page }) => {
+test('home is one page: Photos on the ring, no Lodging or route cards, the avatar opens your profile', async ({ page }) => {
   await signInWithFakeBackend(page, { profiles: PROFILES });
   await open(page, '/');
   await expect(page.getByText('Your route')).toHaveCount(0);
@@ -92,6 +92,7 @@ test('home is one page: Photos on the ring, no Lodging or route cards, sign out 
   await expect(page.getByLabel('Photos', { exact: true })).toHaveCount(1);
   await expect(page.getByText('Sign out')).toHaveCount(0);
   await page.screenshot({ path: 'test-results/home.png' });
-  await page.getByLabel('Account').click();
+  await page.getByLabel('Your profile').click();
+  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
   await expect(page.getByText('Sign out')).toBeVisible();
 });

@@ -1,8 +1,9 @@
+import Avatar from '../Avatar';
 import { Ionicons } from '@expo/vector-icons';
 import { memo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Message, Reaction } from '../../lib/chat';
-import { dayLabel, firstName, initials, photoSize, timeLabel } from '../../lib/chatFormat';
+import { dayLabel, firstName, photoSize, timeLabel } from '../../lib/chatFormat';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
@@ -18,6 +19,7 @@ type Props = {
   mine: boolean;
   senderName: string;
   senderColor: string;
+  senderAvatar?: string | null;
   /** First message of a run: show the sender's name (others) and round the top corner. */
   startsRun: boolean;
   /** Last message of a run: show avatar + time and the bubble "tail" corner. */
@@ -40,6 +42,7 @@ function MessageRow({
   mine,
   senderName,
   senderColor,
+  senderAvatar,
   startsRun,
   endsRun,
   dayDivider,
@@ -93,9 +96,7 @@ function MessageRow({
         {!mine ? (
           <View style={styles.avatarSlot}>
             {endsRun ? (
-              <View style={[styles.avatar, { backgroundColor: senderColor }]}>
-                <Text style={styles.avatarText}>{initials(senderName)}</Text>
-              </View>
+              <Avatar name={senderName} path={senderAvatar} color={senderColor} size={30} />
             ) : null}
           </View>
         ) : null}
@@ -246,18 +247,6 @@ const styles = StyleSheet.create({
     marginRight: 6,
     // Sit level with the bubble, above the time line.
     marginBottom: 20,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 11.5,
-    color: c.onAccent,
   },
   column: {
     flexShrink: 1,

@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 // files, making thumbnails, signed URLs for the private buckets, and
 // save-to-Photos / share.
 
-export type PhotoBucket = 'chat' | 'gallery' | 'journal';
+export type PhotoBucket = 'chat' | 'gallery' | 'journal' | 'avatars';
 export type PickedPhoto = { uri: string; width: number; height: number; mimeType?: string | null };
 
 const THUMB_WIDTH = 480; // ~3× a 160pt grid cell

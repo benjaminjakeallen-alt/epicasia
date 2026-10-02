@@ -25,6 +25,7 @@ export default function FormField({ label, style, ...inputProps }: Props) {
         ]}
         autoCapitalize="none"
         autoCorrect={false}
+        accessibilityLabel={label}
         {...inputProps}
       />
     </View>

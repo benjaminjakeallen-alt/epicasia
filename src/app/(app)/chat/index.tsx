@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Avatar from '../../../components/Avatar';
 import CircleButton from '../../../components/CircleButton';
 import { Bone, ChatSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
@@ -42,7 +43,7 @@ import {
   type Outgoing,
   type Reaction,
 } from '../../../lib/chat';
-import { firstName, initials, personColor, sameDay, sameRun, typingLabel } from '../../../lib/chatFormat';
+import { firstName, personColor, sameDay, sameRun, typingLabel } from '../../../lib/chatFormat';
 import { colors as c, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 
@@ -98,12 +99,12 @@ export default function GroupChat() {
   membersRef.current = members;
 
   const people = useMemo(() => {
-    const map = new Map<string, { name: string; color: string }>();
-    members.forEach((m, i) => map.set(m.id, { name: m.name, color: personColor(i) }));
+    const map = new Map<string, { name: string; color: string; avatar: string | null }>();
+    members.forEach((m, i) => map.set(m.id, { name: m.name, color: personColor(i), avatar: m.avatar }));
     return map;
   }, [members]);
   const person = useCallback(
-    (id: string) => people.get(id) ?? { name: id === myId ? 'You' : 'Traveler', color: c.inkSecondary },
+    (id: string) => people.get(id) ?? { name: id === myId ? 'You' : 'Traveler', color: c.inkSecondary, avatar: null },
     [people, myId],
   );
 
@@ -402,6 +403,7 @@ export default function GroupChat() {
         mine={item.user_id === myId}
         senderName={sender.name}
         senderColor={sender.color}
+        senderAvatar={sender.avatar}
         startsRun={!sameRun(item, older)}
         endsRun={!sameRun(item, newer) || !!item.status}
         dayDivider={!older || !sameDay(item.created_at, older.created_at)}
@@ -444,14 +446,21 @@ export default function GroupChat() {
             Group chat
           </Text>
         </View>
-        <View style={styles.faces} accessibilityLabel={`${members.length} travelers`}>
+        <View
+          style={styles.faces}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`Travelers: ${members.map((m) => firstName(m.name)).join(', ')}`}
+        >
           {shownMembers.map((m, i) => (
-            <View
+            <Avatar
               key={m.id}
-              style={[styles.face, { backgroundColor: personColor(i), marginLeft: i === 0 ? 0 : -10, zIndex: 10 - i }]}
-            >
-              <Text style={styles.faceText}>{initials(m.name)}</Text>
-            </View>
+              name={m.name}
+              path={m.avatar}
+              color={personColor(i)}
+              size={30}
+              style={{ ...styles.face, marginLeft: i === 0 ? 0 : -10, zIndex: 10 - i }}
+            />
           ))}
         </View>
       </View>
@@ -566,18 +575,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   face: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 2,
     borderColor: c.background,
-  },
-  faceText: {
-    fontFamily: fontFamily.bodySemiBold,
-    fontSize: 10.5,
-    color: c.onAccent,
   },
   list: {
     paddingTop: 10,
