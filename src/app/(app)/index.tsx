@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
@@ -7,6 +7,7 @@ import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import { useAuth } from '../../lib/AuthProvider';
+import { fetchUnreadCount, watchNewMessages } from '../../lib/chatUnread';
 import { fetchProfile } from '../../lib/profile';
 import { colors as palette, legTextColors, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
@@ -35,14 +36,22 @@ export default function Home() {
 
   // Your photo for the avatar (refreshed when you come back from Profile).
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [unread, setUnread] = useState(0);
+  const myId = session?.user.id;
   useFocusEffect(
     useCallback(() => {
-      if (!session) return;
-      fetchProfile(session.user.id)
+      if (!myId) return;
+      fetchProfile(myId)
         .then((p) => setAvatar(p?.avatar_url ?? null))
         .catch(() => {});
-    }, [session]),
+      fetchUnreadCount(myId)
+        .then(setUnread)
+        .catch(() => {});
+    }, [myId]),
   );
+  // New messages from others bump the Group Chat badge live.
+  useEffect(() => (myId ? watchNewMessages(myId, () => setUnread((n) => n + 1)) : undefined), [myId]);
+  const menu = useMemo(() => MENU.map((m) => (m.key === 'chat' ? { ...m, badge: unread } : m)), [unread]);
 
   // The home is one screen, no scrolling: greeting at the top, the orbit
   // menu filling the rest. The avatar opens your profile (and sign out).
@@ -70,7 +79,7 @@ export default function Home() {
           ) : null}
         </Text>
 
-        <OrbitMenu items={MENU} onOpen={(item) => item.href && router.push(item.href)} />
+        <OrbitMenu items={menu} onOpen={(item) => item.href && router.push(item.href)} />
       </View>
     </View>
   );

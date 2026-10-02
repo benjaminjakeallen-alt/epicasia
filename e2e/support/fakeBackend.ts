@@ -14,6 +14,7 @@ export type FakeBackend = {
   updates: { table: string; query: string; body: Record<string, unknown> }[];
   authUpdates: Record<string, unknown>[];
   uploads: { bucket: string; path: string }[];
+  functions: { name: string; body: unknown }[];
 };
 
 export async function signInWithFakeBackend(
@@ -53,7 +54,7 @@ export async function signInWithFakeBackend(
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );
 
-  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [] };
+  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], functions: [] };
   // Realtime (websocket) is never let through: close it so tests stay offline.
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
@@ -78,6 +79,13 @@ export async function signInWithFakeBackend(
       const updated = { ...user, user_metadata: { ...user.user_metadata, ...(body.data ?? {}) } };
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(updated) });
     }
+    // Edge Functions (e.g. notify-chat) are recorded, never run.
+    const fn = url.pathname.match(/^\/functions\/v1\/(.+)$/);
+    if (fn) {
+      if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+      backend.functions.push({ name: fn[1], body: req.postDataJSON() });
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ sent: 0 }) });
+    }
     // Storage uploads succeed and are recorded.
     const upload = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
     if (upload && req.method() === 'POST') {
@@ -88,8 +96,18 @@ export async function signInWithFakeBackend(
     if (!match) return route.abort();
     const table = match[1];
     const method = req.method();
-    if (method === 'GET') {
+    if (method === 'GET' || method === 'HEAD') {
       const rows = filterRows(tables[table] ?? [], url.searchParams);
+      // `select(..., { count: 'exact', head: true })` reads the total from Content-Range.
+      if ((req.headers()['prefer'] ?? '').includes('count=exact')) {
+        const range = {
+          'content-range': `0-${Math.max(rows.length - 1, 0)}/${rows.length}`,
+          'access-control-expose-headers': 'content-range',
+          'access-control-allow-origin': '*',
+        };
+        if (method === 'HEAD') return route.fulfill({ status: 200, headers: range, body: '' });
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: range, body: JSON.stringify(rows) });
+      }
       if ((req.headers()['accept'] ?? '').includes('vnd.pgrst.object')) {
         // .single() / .maybeSingle(): one object, or PostgREST's "no rows" error.
         return rows.length
@@ -122,18 +140,21 @@ export async function signInWithFakeBackend(
   return backend;
 }
 
-// The simple PostgREST filters the app uses (`col=eq.x`, `neq.x`, `in.(a,b)`)
+// The simple PostgREST filters the app uses (`col=eq.x`, `neq.x`, `in.(a,b)`,
+// `is.null`, `gt.x` — a string compare, fine for ISO timestamps)
 // so a fixture table can serve differently filtered queries; other params
 // (select, order, limit, unknown operators) are ignored.
 function filterRows(rows: Record<string, unknown>[], params: URLSearchParams) {
   let out = rows;
   for (const [col, raw] of params) {
-    const m = raw.match(/^(eq|neq|in)\.(.*)$/);
+    const m = raw.match(/^(eq|neq|in|gt|is)\.(.*)$/);
     if (!m || ['select', 'order', 'limit', 'offset'].includes(col)) continue;
     const [, op, val] = m;
     const str = (v: unknown) => (v === null || v === undefined ? 'null' : String(v));
     if (op === 'eq') out = out.filter((r) => str(r[col]) === val);
     if (op === 'neq') out = out.filter((r) => str(r[col]) !== val);
+    if (op === 'is') out = out.filter((r) => str(r[col]) === val);
+    if (op === 'gt') out = out.filter((r) => r[col] !== null && r[col] !== undefined && String(r[col]) > val);
     if (op === 'in') {
       const set = new Set(val.replace(/^\(|\)$/g, '').split(',').map((v) => v.replace(/^"|"$/g, '')));
       out = out.filter((r) => set.has(str(r[col])));

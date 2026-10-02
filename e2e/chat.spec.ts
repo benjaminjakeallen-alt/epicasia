@@ -112,6 +112,11 @@ test('conversation shows names, replies and reactions; sending posts the message
   await expect(page.getByText('Dinner at 7?')).toBeVisible();
   await expect(page.getByText('Not sent · tap to retry')).toHaveCount(0);
   await expect(page.getByTestId('chat-input')).toHaveValue('');
+  // Once saved, the server is asked to push it to everyone else's phones.
+  await expect.poll(() => backend.functions.length).toBe(1);
+  expect(backend.functions[0]).toEqual({ name: 'notify-chat', body: { message_id: sent.id } });
+  // Having the chat open marks it read.
+  expect(backend.inserts.find((i) => i.table === 'chat_reads')!.body).toMatchObject({ user_id: USER_ID });
 });
 
 test('long press opens reactions and reply', async ({ page }) => {
@@ -141,4 +146,28 @@ test('long press opens reactions and reply', async ({ page }) => {
   await page.getByTestId('chat-send').click();
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'messages').length).toBe(1);
   expect(backend.inserts.find((i) => i.table === 'messages')!.body).toMatchObject({ reply_to: 'm2', body: 'On my way too' });
+});
+
+test('home shows unread messages from others on the Group Chat hub', async ({ page }) => {
+  await signInWithFakeBackend(page, {
+    profiles: PROFILES,
+    messages: MESSAGES,
+    // Read up to between Sarah's two messages: only the later one (m2) is new;
+    // my own reply (m3) never counts.
+    chat_reads: [{ user_id: USER_ID, last_read_at: ago(9.5) }],
+  });
+  await open(page, '/');
+  await expect(page.getByTestId('orbit-badge-chat')).toHaveText('1');
+  await expect(page.getByLabel('Group Chat, 1 unread')).toHaveCount(1);
+});
+
+test('no badge when everything is read', async ({ page }) => {
+  await signInWithFakeBackend(page, {
+    profiles: PROFILES,
+    messages: MESSAGES,
+    chat_reads: [{ user_id: USER_ID, last_read_at: ago(0) }],
+  });
+  await open(page, '/');
+  await expect(page.getByLabel('Group Chat', { exact: true })).toHaveCount(1);
+  await expect(page.getByTestId('orbit-badge-chat')).toHaveCount(0);
 });

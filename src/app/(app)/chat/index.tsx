@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
@@ -43,6 +43,8 @@ import {
   type Outgoing,
   type Reaction,
 } from '../../../lib/chat';
+import { markChatRead } from '../../../lib/chatUnread';
+import { notifyChat, setChatOpen } from '../../../lib/push';
 import { firstName, personColor, sameDay, sameRun, typingLabel } from '../../../lib/chatFormat';
 import { colors as c, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
@@ -153,6 +155,20 @@ export default function GroupChat() {
     };
   }, [ensureUrls, mergeReactions]);
 
+  // While the chat is on screen it counts as read (home's badge clears),
+  // and its own messages don't pop banners.
+  useFocusEffect(
+    useCallback(() => {
+      if (!myId) return;
+      setChatOpen(true);
+      markChatRead(myId).catch(() => {});
+      return () => {
+        setChatOpen(false);
+        markChatRead(myId).catch(() => {});
+      };
+    }, [myId]),
+  );
+
   // Realtime: new/edited messages, reactions, typing.
   useEffect(() => {
     if (!myId) return;
@@ -230,6 +246,7 @@ export default function GroupChat() {
         outgoing.current.delete(out.id);
         setMessages((prev) => prev.map((m) => (m.id === out.id ? { ...saved, localUri: m.localUri } : m)));
         ensureUrls([saved]);
+        notifyChat(saved.id);
       } catch {
         setMessages((prev) => prev.map((m) => (m.id === out.id ? { ...m, status: 'failed' } : m)));
       }

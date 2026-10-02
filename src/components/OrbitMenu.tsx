@@ -27,6 +27,8 @@ export type OrbitMenuItem = {
   image: ImageSourcePropType;
   /** Omitted = not built yet; the item still sits on the ring but can't open. */
   href?: string;
+  /** Unread count shown as a small badge on the hub (e.g. new chat messages). */
+  badge?: number;
 };
 
 const TAU = Math.PI * 2;
@@ -321,7 +323,13 @@ export default function OrbitMenu({
                 <Pressable
                   testID={`orbit-item-${item.key}`}
                   accessibilityRole="button"
-                  accessibilityLabel={item.href ? item.label : `${item.label}, coming soon`}
+                  accessibilityLabel={
+                    item.href
+                      ? item.badge
+                        ? `${item.label}, ${item.badge} unread`
+                        : item.label
+                      : `${item.label}, coming soon`
+                  }
                   // The caption isn't shown on screen (decluttered) but is
                   // still useful context for VoiceOver users.
                   accessibilityHint={item.href ? item.caption : undefined}
@@ -338,6 +346,13 @@ export default function OrbitMenu({
                   style={styles.hub}
                 >
                   <Image source={item.image} style={styles.hubImage} resizeMode="contain" />
+                  {item.badge ? (
+                    <View style={[styles.badge, { backgroundColor: c.danger }]} testID={`orbit-badge-${item.key}`}>
+                      <Text style={[styles.badgeText, { color: c.onDanger }]}>
+                        {item.badge > 99 ? '99+' : item.badge}
+                      </Text>
+                    </View>
+                  ) : null}
                 </Pressable>
               </Animated.View>
             );
@@ -399,6 +414,25 @@ export default function OrbitMenu({
 }
 
 const styles = StyleSheet.create({
+  badge: {
+    position: 'absolute',
+    top: 6,
+    right: 4,
+    minWidth: 26,
+    height: 26,
+    borderRadius: 13,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: palette.card,
+    boxShadow: shadow.card,
+  },
+  badgeText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13,
+    lineHeight: 16,
+  },
   // userSelect: stops web from text-selecting labels mid-drag.
   root: { width: '100%', userSelect: 'none' },
   flex: { flex: 1 },

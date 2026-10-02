@@ -178,9 +178,32 @@ pure helpers in `src/lib/chatFormat.ts`, screen
   reopen — `MessageActions`/`PhotoViewer` use `animationType="none"` on
   web. The composer's height ignores `onContentSizeChange` while empty
   (RN-web reports the textarea's tall scrollHeight).
-- **Not built yet:** push notifications (need an EAS dev build + an Edge
-  Function/webhook on insert), unread badge on the menu, editing sent
-  messages, multiple rooms, video.
+- **Unread badge** (Oct 2 2026, `0009_chat_unread_push.sql`,
+  `src/lib/chatUnread.ts`): `chat_reads.last_read_at` per user, set when
+  the chat screen gains and loses focus; home counts others' undeleted
+  messages since then (`count: 'exact', head: true`) on focus and bumps
+  it live from a realtime INSERT subscription. Shown as a red (`danger`)
+  count badge on the Group Chat hub (`OrbitMenuItem.badge`; VoiceOver
+  label "Group Chat, N unread").
+- **Push notifications** (code + server done; delivery needs the EAS
+  build, see Conventions): `src/lib/push.ts` registers the phone's Expo
+  push token in `push_tokens` (PK user+token, own rows only) after
+  sign-in (`(app)/_layout.tsx`; native only, real devices only, and only
+  once `extra.eas.projectId` exists — until `eas init` it silently does
+  nothing), deletes it on sign-out, hides the banner for chat pushes
+  while the chat is open, and opens the chat when a notification is
+  tapped (also from a cold start). After a message saves, the sender's
+  app calls the **`notify-chat` Edge Function**
+  (`supabase/functions/notify-chat/index.ts`, deployed, `verify_jwt`):
+  it reads the message *as the caller* (RLS; only the author can trigger
+  it, only within 10 min), then with the function's built-in service role
+  reads everyone else's tokens, posts to Expo's push API in chunks of 100
+  ("Sarah · Landed at Narita!" / "📷 Photo") and prunes
+  `DeviceNotRegistered` tokens. The service role lives only inside the
+  function, never in the app. Smoke-tested live: unauthenticated calls get
+  401. `tsconfig.json` excludes `supabase/functions` (Deno code).
+- **Not built yet:** editing sent messages, multiple rooms, video,
+  per-person mute.
 - **Tests:** `e2e/chat.spec.ts` (empty state, runs/replies/reactions,
   exact insert bodies, long-press react + reply) on the fake backend,
   which now returns inserted rows for `.select()`, records PATCH/DELETE,
@@ -288,7 +311,10 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   entries), and **a real recording** with Chromium's fake microphone
   (record → play label → caption → upload path `.webm` → media row).
   The fake backend now applies simple `eq`/`neq`/`in` filters and
-  answers `.single()`/`.maybeSingle()`.
+  answers `.single()`/`.maybeSingle()`; later also `gt`/`is` filters,
+  exact counts (with `Content-Range` exposed — without
+  `access-control-expose-headers` the browser hides it and the count reads
+  as null), and records Edge Function calls (`backend.functions`).
 
 ### Profile (built, Oct 2 2026)
 
@@ -347,7 +373,8 @@ backend code.
   `0005_group_chat.sql` (chat photos/replies/reactions/realtime — see Group chat),
   `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos),
   `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal),
-  `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile).
+  `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile),
+  `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

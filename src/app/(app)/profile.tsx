@@ -13,6 +13,7 @@ import SkyBackdrop from '../../components/SkyBackdrop';
 import { useAuth } from '../../lib/AuthProvider';
 import { confirm } from '../../lib/confirm';
 import { fetchProfile, removeAvatar, setAvatar, updateDisplayName, type Profile } from '../../lib/profile';
+import { unregisterPush } from '../../lib/push';
 import { supabase } from '../../lib/supabase';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
@@ -98,6 +99,7 @@ export default function ProfileScreen() {
 
   async function signOut() {
     if (!(await confirm('Sign out?', 'You can sign back in with your email and password.', 'Sign out'))) return;
+    await unregisterPush(myId).catch(() => {});
     await supabase.auth.signOut();
   }
 
