@@ -1,5 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { removePhotoFiles, savePhoto as savePhotoIn, sharePhoto as sharePhotoIn, signedUrls as signedIn, uploadPhoto, type PickedPhoto } from './photos';
+import { cached } from './offline';
 import { supabase } from './supabase';
 
 // Group chat data layer: one room for the whole trip ("everyone").
@@ -51,14 +52,19 @@ export function newId(): string {
   });
 }
 
-export async function fetchMembers(): Promise<Member[]> {
+async function fetchMembersLive(): Promise<Member[]> {
   const { data, error } = await supabase.from('profiles').select('id, display_name, avatar_url').order('display_name');
   if (error) throw error;
   return (data ?? []).map((p) => ({ id: p.id, name: p.display_name, avatar: p.avatar_url ?? null }));
 }
 
+/** Cached for offline use. */
+export async function fetchMembers(): Promise<Member[]> {
+  return cached('members', () => fetchMembersLive());
+}
+
 /** Newest first; pass the oldest loaded timestamp to page further back. */
-export async function fetchMessages(before?: string): Promise<Message[]> {
+async function fetchMessagesLive(before?: string): Promise<Message[]> {
   let q = supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(PAGE_SIZE);
   if (before) q = q.lt('created_at', before);
   const { data, error } = await q;
@@ -66,7 +72,12 @@ export async function fetchMessages(before?: string): Promise<Message[]> {
   return data ?? [];
 }
 
-export async function fetchReactions(messageIds: string[]): Promise<Reaction[]> {
+/** Cached for offline use (first page only). */
+export async function fetchMessages(before?: string): Promise<Message[]> {
+  return before ? fetchMessagesLive(before) : cached('messages', () => fetchMessagesLive());
+}
+
+async function fetchReactionsLive(messageIds: string[]): Promise<Reaction[]> {
   if (messageIds.length === 0) return [];
   const { data, error } = await supabase
     .from('message_reactions')
@@ -74,6 +85,13 @@ export async function fetchReactions(messageIds: string[]): Promise<Reaction[]> 
     .in('message_id', messageIds);
   if (error) throw error;
   return data ?? [];
+}
+
+/** Cached for offline use; offline, the saved set is filtered to `messageIds`. */
+export async function fetchReactions(messageIds: string[]): Promise<Reaction[]> {
+  const want = new Set(messageIds);
+  const all = await cached('reactions', () => fetchReactionsLive(messageIds));
+  return all.filter((r) => want.has(r.message_id));
 }
 
 export type Outgoing = {

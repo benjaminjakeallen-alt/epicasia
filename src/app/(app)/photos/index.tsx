@@ -14,6 +14,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OfflineNotice from '../../../components/OfflineNotice';
 import CircleButton from '../../../components/CircleButton';
 import { GridSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
@@ -427,6 +428,7 @@ export default function Photos() {
           </>
         )}
       </View>
+      <OfflineNotice />
 
       {photos.length > 0 ? (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips} style={styles.chipsBar}>

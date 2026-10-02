@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OfflineNotice from '../../../components/OfflineNotice';
 import CircleButton from '../../../components/CircleButton';
 import { JournalSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
@@ -91,6 +92,7 @@ export default function JournalList() {
           />
         </View>
       </View>
+      <OfflineNotice />
 
       <View style={styles.tabs} accessibilityRole="tablist">
         {(

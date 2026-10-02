@@ -359,6 +359,34 @@ photo pick via the file chooser → upload path + row, sign-out confirm);
 the fake backend now answers `PUT /auth/v1/user` and records storage
 uploads (`backend.uploads`, `backend.authUpdates`).
 
+### Offline (built, Oct 2 2026)
+
+Trip data stays readable with no signal (mainland China, metro, dead hotel
+Wi-Fi). `src/lib/offline.ts`: `cached(name, fetcher)` wraps the reads in
+the data libs — itinerary, flights, members, the latest chat page +
+reactions, the newest gallery page + favorites, journal (mine + shared),
+profile; each success is saved in AsyncStorage as
+`epicasia.cache.<uid>.<name>`. A read that fails — **or is still pending
+after 3.5s** — returns the saved copy and flags offline; without a saved
+copy it waits for / rethrows the real result. (supabase-js retries a
+failed GET 3× with 1s/2s/4s backoff, so a dead connection takes ~7s to
+fail — hence the 3.5s cut-off; the late read still refreshes the saved
+copy.) Itinerary and flights also `peek()` the saved copy on open, so they
+appear instantly online too. `fetchEntry` falls back to the saved journal
+lists. **Photos offline:** signed URLs are kept in
+`epicasia.cache.signedUrls`; with signing unavailable the last (even
+expired) URL is handed back, and expo-image serves the photo from its disk
+cache because its `cacheKey` is `bucket:path`, not the URL. `OfflineNotice`
+("Offline · showing what was saved today 1:03 PM", ink on `warningSoft`,
+`useSyncExternalStore` on the offline flag) sits under the header of
+itinerary, flights, chat, photos and journal. **Sign-out deletes every
+saved copy** (`clearOfflineCopies`). Not offline yet: writing (adding
+items, sending messages — chat's retry covers sends), photos never opened
+before, voice notes. Tests: `e2e/offline.spec.ts` (load online, abort all
+database + signing requests, reload: itinerary/flights/confirmation code/
+photo grid still show with the note; nothing saved → no fake data;
+sign-out clears; axe on the note).
+
 `src/components/form/` (`FormField`/`FormButton`/`FormScreen`) started as
 `src/components/auth/Auth*` — renamed once it became clear they're generic
 form primitives needed well beyond login/register (itinerary's `new.tsx`

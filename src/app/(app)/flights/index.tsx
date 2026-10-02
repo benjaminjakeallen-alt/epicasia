@@ -3,10 +3,12 @@ import { useCallback, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OfflineNotice from '../../../components/OfflineNotice';
 import CircleButton from '../../../components/CircleButton';
 import { PassSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
+import { peek } from '../../../lib/offline';
 import { formatMonthDay, formatWallClockTime, formatWeekday, nightsBetween, wallClockDay } from '../../../lib/dates';
 import { deleteFlight, fetchFlights, type Flight } from '../../../lib/flights';
 import { airportName, STOPS, stopForAirport } from '../../../lib/places';
@@ -27,6 +29,13 @@ export default function FlightsList() {
 
   const load = useCallback(() => {
     setError(null);
+    // Show the saved copy at once (offline, or while the fresh one loads).
+    peek<Flight[]>('flights').then((saved) => {
+      if (saved) {
+        setFlights((cur) => (cur.length ? cur : saved));
+        setLoading(false);
+      }
+    });
     fetchFlights()
       .then(setFlights)
       .catch((e) => setError(e.message))
@@ -62,6 +71,7 @@ export default function FlightsList() {
           onPress={() => router.push('/(app)/flights/new')}
         />
       </View>
+      <OfflineNotice />
 
       {loading ? (
         <PassSkeleton />

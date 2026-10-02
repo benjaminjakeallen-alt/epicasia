@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { newId } from './chat';
 import { removePhotoFiles, uploadPhoto, type PhotoBucket, type PickedPhoto } from './photos';
+import { cached } from './offline';
 import { supabase } from './supabase';
 
 // Shared trip gallery (0006_shared_gallery.sql). Photos uploaded here live
@@ -26,7 +27,7 @@ export type Favorite = { photo_id: string; user_id: string };
 
 export const GALLERY_PAGE = 150;
 
-export async function fetchPhotos(before?: string): Promise<GalleryPhoto[]> {
+async function fetchPhotosLive(before?: string): Promise<GalleryPhoto[]> {
   let q = supabase.from('gallery_photos').select('*').order('created_at', { ascending: false }).limit(GALLERY_PAGE);
   if (before) q = q.lt('created_at', before);
   const { data, error } = await q;
@@ -34,10 +35,20 @@ export async function fetchPhotos(before?: string): Promise<GalleryPhoto[]> {
   return (data ?? []) as GalleryPhoto[];
 }
 
-export async function fetchFavorites(): Promise<Favorite[]> {
+/** Cached for offline use (first page only). */
+export async function fetchPhotos(before?: string): Promise<GalleryPhoto[]> {
+  return before ? fetchPhotosLive(before) : cached('photos', () => fetchPhotosLive());
+}
+
+async function fetchFavoritesLive(): Promise<Favorite[]> {
   const { data, error } = await supabase.from('photo_favorites').select('photo_id, user_id');
   if (error) throw error;
   return data ?? [];
+}
+
+/** Cached for offline use. */
+export async function fetchFavorites(): Promise<Favorite[]> {
+  return cached('favorites', () => fetchFavoritesLive());
 }
 
 /** Uploads one photo (original + thumbnail) and adds it to the gallery. */

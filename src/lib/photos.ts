@@ -76,8 +76,37 @@ const SIGNED_TTL = 60 * 60; // seconds
 const cache = new Map<string, { url: string; expires: number }>();
 const key = (bucket: PhotoBucket, path: string) => `${bucket}:${path}`;
 
-/** Signed URLs for private photos, cached until shortly before they expire. */
+// The URL map is also kept on the phone. Offline, signing fails; handing
+// back the last URL (even an expired one) still lets expo-image show the
+// photo from its disk cache, which is keyed by `bucket:path`, not by URL.
+const STORED = 'epicasia.cache.signedUrls'; // cleared with the other offline copies on sign-out
+const MAX_STORED = 3000;
+let hydrated: Promise<void> | null = null;
+function hydrate() {
+  hydrated ??= (async () => {
+    try {
+      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+      const raw = await AsyncStorage.getItem(STORED);
+      if (raw) for (const [k, v] of Object.entries(JSON.parse(raw))) if (!cache.has(k)) cache.set(k, v as { url: string; expires: number });
+    } catch {
+      // nothing saved
+    }
+  })();
+  return hydrated;
+}
+async function persist() {
+  try {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const entries = [...cache.entries()].slice(-MAX_STORED);
+    await AsyncStorage.setItem(STORED, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    // best effort
+  }
+}
+
+/** Signed URLs for private photos, cached until shortly before they expire (and kept for offline). */
 export async function signedUrls(bucket: PhotoBucket, paths: string[]): Promise<Record<string, string>> {
+  await hydrate();
   const now = Date.now();
   const out: Record<string, string> = {};
   const missing: string[] = [];
@@ -86,18 +115,34 @@ export async function signedUrls(bucket: PhotoBucket, paths: string[]): Promise<
     if (hit && hit.expires > now + 60_000) out[p] = hit.url;
     else missing.push(p);
   }
-  // createSignedUrls takes up to ~1000 paths; chunk to be safe.
-  for (let i = 0; i < missing.length; i += 200) {
-    const chunk = missing.slice(i, i + 200);
-    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(chunk, SIGNED_TTL);
-    if (error) throw error;
-    for (const item of data ?? []) {
-      if (item.path && item.signedUrl) {
-        cache.set(key(bucket, item.path), { url: item.signedUrl, expires: now + SIGNED_TTL * 1000 });
-        out[item.path] = item.signedUrl;
+  let signed = false;
+  try {
+    // createSignedUrls takes up to ~1000 paths; chunk to be safe.
+    for (let i = 0; i < missing.length; i += 200) {
+      const chunk = missing.slice(i, i + 200);
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrls(chunk, SIGNED_TTL);
+      if (error) throw error;
+      for (const item of data ?? []) {
+        if (item.path && item.signedUrl) {
+          cache.set(key(bucket, item.path), { url: item.signedUrl, expires: now + SIGNED_TTL * 1000 });
+          out[item.path] = item.signedUrl;
+          signed = true;
+        }
       }
     }
+  } catch (e) {
+    // Offline: fall back to any URL we had for these photos.
+    let any = false;
+    for (const p of missing) {
+      const old = cache.get(key(bucket, p));
+      if (old) {
+        out[p] = old.url;
+        any = true;
+      }
+    }
+    if (!any && Object.keys(out).length === 0) throw e;
   }
+  if (signed) persist();
   return out;
 }
 

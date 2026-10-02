@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { newId } from './chat';
 import { readBytes, removePhotoFiles, uploadPhoto } from './photos';
+import { cached, peek } from './offline';
 import { supabase } from './supabase';
 
 // Personal trip journal (0007_journal.sql). An entry has a trip day, an
@@ -68,7 +69,7 @@ function sortMedia(e: JournalEntry): JournalEntry {
   return { ...e, journal_media: [...(e.journal_media ?? [])].sort((a, b) => a.position - b.position) };
 }
 
-export async function fetchMyEntries(userId: string): Promise<JournalEntry[]> {
+async function fetchMyEntriesLive(userId: string): Promise<JournalEntry[]> {
   const { data, error } = await supabase
     .from('journal_entries')
     .select(SELECT)
@@ -79,7 +80,12 @@ export async function fetchMyEntries(userId: string): Promise<JournalEntry[]> {
   return ((data ?? []) as JournalEntry[]).map(sortMedia);
 }
 
-export async function fetchSharedEntries(userId: string): Promise<JournalEntry[]> {
+/** Cached for offline use. */
+export async function fetchMyEntries(userId: string): Promise<JournalEntry[]> {
+  return cached('journal-mine', () => fetchMyEntriesLive(userId));
+}
+
+async function fetchSharedEntriesLive(userId: string): Promise<JournalEntry[]> {
   const { data, error } = await supabase
     .from('journal_entries')
     .select(SELECT)
@@ -91,10 +97,26 @@ export async function fetchSharedEntries(userId: string): Promise<JournalEntry[]
   return ((data ?? []) as JournalEntry[]).map(sortMedia);
 }
 
+/** Cached for offline use. */
+export async function fetchSharedEntries(userId: string): Promise<JournalEntry[]> {
+  return cached('journal-shared', () => fetchSharedEntriesLive(userId));
+}
+
 export async function fetchEntry(id: string): Promise<JournalEntry | null> {
-  const { data, error } = await supabase.from('journal_entries').select(SELECT).eq('id', id).maybeSingle();
-  if (error) throw error;
-  return data ? sortMedia(data as JournalEntry) : null;
+  try {
+    const { data, error } = await supabase.from('journal_entries').select(SELECT).eq('id', id).maybeSingle();
+    if (error) throw error;
+    return data ? sortMedia(data as JournalEntry) : null;
+  } catch (e) {
+    // Offline: look in the saved journal lists.
+    const [mine, shared] = await Promise.all([
+      peek<JournalEntry[]>('journal-mine'),
+      peek<JournalEntry[]>('journal-shared'),
+    ]);
+    const hit = [...(mine ?? []), ...(shared ?? [])].find((x) => x.id === id);
+    if (hit) return hit;
+    throw e;
+  }
 }
 
 export function draftFrom(e: JournalEntry): Draft {

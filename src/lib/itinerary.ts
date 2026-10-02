@@ -1,3 +1,4 @@
+import { cached } from './offline';
 import { supabase } from './supabase';
 
 export type ItineraryItem = {
@@ -12,7 +13,7 @@ export type ItineraryItem = {
   created_at: string;
 };
 
-export async function fetchItinerary(): Promise<ItineraryItem[]> {
+async function fetchItineraryLive(): Promise<ItineraryItem[]> {
   const { data, error } = await supabase
     .from('itinerary_items')
     .select('*')
@@ -21,6 +22,11 @@ export async function fetchItinerary(): Promise<ItineraryItem[]> {
 
   if (error) throw error;
   return data ?? [];
+}
+
+/** Cached for offline use. */
+export async function fetchItinerary(): Promise<ItineraryItem[]> {
+  return cached('itinerary', () => fetchItineraryLive());
 }
 
 export async function createItineraryItem(

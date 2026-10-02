@@ -1,5 +1,6 @@
 import { newId } from './chat';
 import { readBytes, removePhotoFiles, type PickedPhoto } from './photos';
+import { cached } from './offline';
 import { supabase } from './supabase';
 
 // Your profile: display name and photo (0008_avatars.sql). The photo is a
@@ -11,7 +12,7 @@ export type Profile = { id: string; display_name: string; avatar_url: string | n
 
 const AVATAR_SIZE = 512;
 
-export async function fetchProfile(userId: string): Promise<Profile | null> {
+async function fetchProfileLive(userId: string): Promise<Profile | null> {
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, avatar_url, is_admin')
@@ -19,6 +20,11 @@ export async function fetchProfile(userId: string): Promise<Profile | null> {
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+/** Cached for offline use. */
+export async function fetchProfile(userId: string): Promise<Profile | null> {
+  return cached('profile', () => fetchProfileLive(userId));
 }
 
 /** Updates the name everywhere it's read: the profile row and the auth user (the home greeting). */

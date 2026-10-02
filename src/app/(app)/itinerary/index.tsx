@@ -10,10 +10,12 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import OfflineNotice from '../../../components/OfflineNotice';
 import CircleButton from '../../../components/CircleButton';
 import { TimelineSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
+import { peek } from '../../../lib/offline';
 import { formatMonthDay, formatWeekday, parseDay } from '../../../lib/dates';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
 import { photoForDay, STOPS } from '../../../lib/places';
@@ -37,6 +39,13 @@ export default function ItineraryList() {
 
   const load = useCallback(() => {
     setError(null);
+    // Show the saved copy at once (offline, or while the fresh one loads).
+    peek<ItineraryItem[]>('itinerary').then((saved) => {
+      if (saved) {
+        setItems((cur) => (cur.length ? cur : saved));
+        setLoading(false);
+      }
+    });
     fetchItinerary()
       .then(setItems)
       .catch((e) => setError(e.message))
@@ -75,6 +84,7 @@ export default function ItineraryList() {
           onPress={() => router.push('/(app)/itinerary/new')}
         />
       </View>
+      <OfflineNotice />
 
       {loading ? (
         <TimelineSkeleton />

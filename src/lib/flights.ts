@@ -1,3 +1,4 @@
+import { cached } from './offline';
 import { supabase } from './supabase';
 
 export type Flight = {
@@ -23,7 +24,7 @@ export type NewFlight = {
   confirmation_code: string | null;
 };
 
-export async function fetchFlights(): Promise<Flight[]> {
+async function fetchFlightsLive(): Promise<Flight[]> {
   const { data, error } = await supabase
     .from('flights')
     .select('*')
@@ -31,6 +32,11 @@ export async function fetchFlights(): Promise<Flight[]> {
 
   if (error) throw error;
   return data ?? [];
+}
+
+/** Cached for offline use. */
+export async function fetchFlights(): Promise<Flight[]> {
+  return cached('flights', () => fetchFlightsLive());
 }
 
 export async function createFlight(input: NewFlight, createdBy: string): Promise<void> {
