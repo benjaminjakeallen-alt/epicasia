@@ -19,6 +19,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LaunchSequence from '../components/LaunchSequence';
+import { introModeForLaunch, markFullIntroSeen, type IntroMode } from '../lib/introPrefs';
 import { AuthProvider } from '../lib/AuthProvider';
 import { colors } from '../theme/colors';
 
@@ -36,14 +37,19 @@ export default function RootLayout() {
     IBMPlexMono_600SemiBold,
   });
   const [introDone, setIntroDone] = useState(false);
+  // Full intro the first time (and after updates), a short one after that.
+  const [introMode, setIntroMode] = useState<IntroMode | null>(null);
+  useEffect(() => {
+    introModeForLaunch().then(setIntroMode);
+  }, []);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (fontsLoaded && introMode) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [fontsLoaded, introMode]);
 
-  if (!fontsLoaded) {
+  if (!fontsLoaded || !introMode) {
     return null;
   }
 
@@ -54,7 +60,15 @@ export default function RootLayout() {
         <Stack
           screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
         />
-        {!introDone && <LaunchSequence onFinish={() => setIntroDone(true)} />}
+        {!introDone && introMode !== 'none' && (
+          <LaunchSequence
+            variant={introMode === 'short' ? 'short' : 'full'}
+            onFinish={() => {
+              if (introMode === 'full') markFullIntroSeen();
+              setIntroDone(true);
+            }}
+          />
+        )}
       </SafeAreaProvider>
     </AuthProvider>
   );

@@ -70,6 +70,10 @@ const PLANE_MS = 5600;
 const PLANE_TURNS = 1.25;
 const PLANE_START = -100; // degrees round the orbit: just behind the left limb
 const HERO_AT = 3300;
+// The short intro (later cold opens): its length, and how far round the
+// orbit the plane gets (a fraction of the full intro's flight).
+const SHORT_MS = 1500;
+const SHORT_PLANE_SPAN = 0.3;
 const HOLD_MS = 1400;
 const LOAD_TIMEOUT_MS = 1500;
 
@@ -104,7 +108,14 @@ function popDelays(): number[] {
   });
 }
 
-export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
+export default function LaunchSequence({
+  onFinish,
+  variant = 'full',
+}: {
+  onFinish: () => void;
+  /** 'short': the finished planet settles in, a landmark ripple, one plane pass (~1.5s). */
+  variant?: 'full' | 'short';
+}) {
   const { width, height } = useWindowDimensions();
 
   // Planet radius and landmark size scale with the screen, capped so the
@@ -250,6 +261,45 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
           ]),
           Animated.delay(1500),
         ]);
+      } else if (variant === 'short') {
+        // Later cold opens: the world is already turned into place; it
+        // settles in, the landmarks ripple up in quick succession, the
+        // plane makes one short pass, and the wordmark follows.
+        spin.setValue(1);
+        sequence.current = Animated.parallel([
+          Animated.timing(planetIn, {
+            toValue: 1,
+            duration: 450,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          ...pops.map((p, i) =>
+            Animated.spring(p, {
+              toValue: 1,
+              delay: 120 + 45 * i,
+              stiffness: 320,
+              damping: 16,
+              mass: 1,
+              useNativeDriver: true,
+            }),
+          ),
+          Animated.timing(planeIn, { toValue: 1, duration: 300, delay: 100, useNativeDriver: true }),
+          Animated.timing(plane, {
+            toValue: SHORT_PLANE_SPAN,
+            duration: SHORT_MS,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.delay(260),
+            Animated.timing(heroIn, {
+              toValue: 1,
+              duration: 420,
+              easing: Easing.out(Easing.cubic),
+              useNativeDriver: true,
+            }),
+          ]),
+        ]);
       } else {
         sequence.current = Animated.parallel([
           Animated.timing(planetIn, {
@@ -290,11 +340,11 @@ export default function LaunchSequence({ onFinish }: { onFinish: () => void }) {
       }
       // Finish once the hero has been held — not when the plane's longer
       // loop ends.
-      const total = reduceMotion ? 1800 : HERO_AT + 650 + HOLD_MS;
+      const total = reduceMotion ? (variant === 'short' ? 900 : 1800) : variant === 'short' ? SHORT_MS : HERO_AT + 650 + HOLD_MS;
       sequence.current.start();
       finishTimer.current = setTimeout(finish, total);
     });
-  }, [delays, finish, heroIn, planeIn, plane, planetIn, pops, spin]);
+  }, [delays, finish, heroIn, planeIn, plane, planetIn, pops, spin, variant]);
 
   // Start once every image has decoded (so no landmark pops in blank), or
   // after a short timeout as a fallback.

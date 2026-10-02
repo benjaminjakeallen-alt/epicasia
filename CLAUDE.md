@@ -579,16 +579,19 @@ has them).
   generated in the menu icons' style (see `tools/menu-icons/README.md`).
   Shown on every cold open; tap anywhere ("Skip intro" label, which the e2e
   helper relies on) skips; reduce-motion shows the finished scene still.
-  **Planned (archived, not started): abbreviated intro after the first
-  view** (user request, Sept 30 2026). The full ~5.4s sequence should play
-  only the first time; later cold opens get a short version that reaches
-  the app quickly (e.g. ~1.5s: the finished planet fades in already
-  settled, a brief settle/landmark shimmer and one plane pass, wordmark,
-  out). Persist a "seen intro" flag (AsyncStorage, like `rememberMe.ts`),
-  keep tap-to-skip and the reduce-motion path, and consider replaying the
-  full version occasionally (e.g. once per new app version or on trip
-  day). The accessibility mode (below, under Planned feature set) should
-  skip the intro entirely.
+  **Abbreviated intro after the first view — built (Oct 2 2026).**
+  `src/lib/introPrefs.ts` decides per cold open: **full** the first time
+  ever, after each app update (`expo.version` differs from the stored
+  `epicasia.introSeenVersion`) and once on the trip's first day
+  (2027-06-05); **short** otherwise; **none** when `epicasia.introSkip`
+  is set (the accessibility mode). The root layout keeps the splash up
+  until both fonts and the mode are known. The short variant
+  (`<LaunchSequence variant="short">`, `SHORT_MS` 1500): the world
+  already turned into place fades/settles in, the landmarks ripple up
+  45ms apart, the plane flies 30% of its orbit, the wordmark rises, then
+  the usual fade. Tap-to-skip and the reduce-motion path work in both.
+  Tests: `e2e/intro.spec.ts` (full + flag written, short finishes on its
+  own, new version → full, skip flag → none).
   Implementation notes, so they aren't re-learned:
   - Three layers share the world's placement: landmarks (rotating) →
     planet (rotating) → a **static** SVG sunlight/rim-shade overlay. The
