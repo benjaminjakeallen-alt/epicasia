@@ -1,13 +1,17 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
+import { INVITE_PATTERN, isInviteRejection, normalizeInvite } from '../../lib/invites';
 import { PHOTOS } from '../../lib/places';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
   const router = useRouter();
+  // An invite link (or scanned QR) opens /register?invite=CODE.
+  const params = useLocalSearchParams<{ invite?: string }>();
+  const [invite, setInvite] = useState(() => (params.invite ? normalizeInvite(String(params.invite)) : ''));
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -19,6 +23,11 @@ export default function Register() {
   async function handleRegister() {
     setError(null);
 
+    const code = normalizeInvite(invite);
+    if (!INVITE_PATTERN.test(code)) {
+      setError('Enter the invite code a trip organizer sent you (like K7QM-2XPA).');
+      return;
+    }
     if (!displayName.trim()) {
       setError('Enter your name.');
       return;
@@ -32,12 +41,16 @@ export default function Register() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { display_name: displayName.trim() } },
+      options: { data: { display_name: displayName.trim(), invite_code: code } },
     });
     setLoading(false);
 
     if (signUpError) {
-      setError(signUpError.message);
+      setError(
+        isInviteRejection(signUpError.message)
+          ? 'That invite code isn’t valid any more. Ask a trip organizer for a current one.'
+          : signUpError.message,
+      );
       return;
     }
 
@@ -77,6 +90,16 @@ export default function Register() {
         />
       }
     >
+      <FormField
+        label="Invite code"
+        value={invite}
+        onChangeText={setInvite}
+        onBlur={() => setInvite((v) => normalizeInvite(v))}
+        placeholder="K7QM-2XPA"
+        autoCapitalize="characters"
+        maxLength={12}
+        testID="invite-code"
+      />
       <FormField label="Name" value={displayName} onChangeText={setDisplayName} autoCapitalize="words" />
       <FormField
         label="Email"

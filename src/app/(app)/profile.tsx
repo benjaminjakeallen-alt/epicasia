@@ -206,6 +206,19 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
+        {profile?.is_admin ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/(app)/invites')}
+            testID="open-invites"
+            style={({ pressed }) => [styles.linkRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
+          >
+            <Ionicons name="person-add-outline" size={22} color={c.highlight} />
+            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Invite travelers</Text>
+            <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
+          </Pressable>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push('/(app)/accessibility')}

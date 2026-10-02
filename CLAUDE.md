@@ -397,7 +397,8 @@ backend code.
   `0006_shared_gallery.sql` (gallery + favorites + chat→gallery trigger — see Photos),
   `0007_journal.sql` (journal entries/media + private `journal` bucket — see Journal),
   `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile),
-  `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat).
+  `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat),
+  `0010_trip_invites.sql` (invite codes required at sign-up — see Auth).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -437,6 +438,35 @@ backend code.
   their own) via a client update, only an existing admin can, and only
   Postgres enforces it (not app code), so it holds even if the client is
   compromised or bypassed entirely.
+  **Sign-up is closed: an invite code is required** (Oct 2 2026, user
+  choice "invite code which can be email or QR"; `0010_trip_invites.sql`,
+  applied as 0010a/0010b). `trip_invites` (code like `K7QM-2XPA` generated
+  in the database by `private.new_invite_code()` from `gen_random_bytes`,
+  no 0/O/1/I; optional label, `max_uses`, `expires_at`, `revoked_at`;
+  admin-only RLS). `private.handle_new_user()` now reads
+  `raw_user_meta_data.invite_code`, counts a use on a current code and
+  **raises otherwise, so the sign-up fails** — enforced for direct Auth API
+  calls too; existing accounts unaffected. Supabase surfaces that as
+  "Database error saving new user", which the register screen turns into
+  "That invite code isn't valid any more…" (`isInviteRejection`).
+  Verified live in a block that raised at the end (so it all rolled back):
+  admin creates a 1-use code → sign-up with it (lower-case) makes the
+  profile and counts the use → reuse refused → no code refused → a
+  non-admin sees 0 codes; afterwards 0 invites, users/profiles unchanged.
+  App: `src/app/(app)/invites.tsx` (Profile → "Invite travelers", admins
+  only): create a code (who it's for, 1/5/15/unlimited uses, 7/30 days or
+  no expiry), each active code shown big in Plex Mono with a **QR code**
+  (`src/components/QrCode.tsx`, `qrcode-generator` → react-native-svg) of
+  the invite link, **Share** (message), **Email** (`mailto:` with subject
+  + body), **Copy**, **Turn off**; inactive codes listed below. Register
+  (`(auth)/register.tsx`) has an "Invite code" field, pre-filled from
+  `/register?invite=CODE` and normalized (`k7qm2xpa` → `K7QM-2XPA`).
+  **The invite link** is `EXPO_PUBLIC_SITE_URL/register?invite=…` when that
+  env var is set (the deployed web app — works for anyone, app or not),
+  otherwise the app's own `epicasia://` link (works only with the app
+  installed). **Set `EXPO_PUBLIC_SITE_URL` once the web app is deployed.**
+  Tests: `e2e/invites.spec.ts` + axe audits of the invite and register
+  screens.
   **Register → email confirmation → login → sign out is verified live**
   against the real project (this container's network policy was widened to
   allow `*.supabase.co` — see the egress note below): signUp correctly
@@ -468,6 +498,7 @@ backend code.
   can update/delete) or **personal** (owner-only via `user_id = auth.uid()`
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
+- `trip_invites` (admin-only) gates sign-up — see the Auth bullet.
 - Storage: five buckets — `avatars` (private, any member reads, own folder writes; see Profile), `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
   reads via signed URLs, uploads only under own uid folder; see Group chat
   / Photos) and

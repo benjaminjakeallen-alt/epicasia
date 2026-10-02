@@ -229,3 +229,28 @@ test('a11y: home in large & spoken mode', async ({ page }) => {
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });
+
+test('a11y: invites (admin)', async ({ page }) => {
+  await signInWithFakeBackend(page, {
+    ...DATA,
+    profiles: [{ id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true }],
+    trip_invites: [
+      { code: 'K7QM-2XPA', label: 'The Allen family', created_at: ago(60), expires_at: null, max_uses: 5, uses: 1, revoked_at: null },
+    ],
+  });
+  await open(page, '/invites');
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: register with an invite link', async ({ page }) => {
+  await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
+  await page.route(/supabase\.co/, (route) => route.abort());
+  await page.goto('/register?invite=K7QM-2XPA');
+  const skip = page.getByLabel('Skip intro');
+  await skip.click();
+  await expect(skip).toHaveCount(0);
+  await page.waitForTimeout(400);
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
