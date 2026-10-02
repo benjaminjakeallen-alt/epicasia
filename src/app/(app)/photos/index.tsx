@@ -20,7 +20,7 @@ import SkyBackdrop from '../../../components/SkyBackdrop';
 import GalleryViewer from '../../../components/gallery/GalleryViewer';
 import { useAuth } from '../../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../../lib/chat';
-import { dayLabel, firstName, initials, personColor, sameDay } from '../../../lib/chatFormat';
+import { dayLabel, firstName, personColor, sameDay } from '../../../lib/chatFormat';
 import {
   GALLERY_PAGE,
   addPhoto,
@@ -314,7 +314,7 @@ export default function Photos() {
   // every render.
   const needFullUrls = useCallback((list: GalleryPhoto[]) => ensureUrls(list, true), [ensureUrls]);
 
-  const selectedList = selected ? photos.filter((p) => selected.has(p.id)) : [];
+  const selectedList = useMemo(() => (selected ? photos.filter((p) => selected.has(p.id)) : []), [selected, photos]);
   const canDeleteSelected =
     selectedList.length > 0 && selectedList.every((p) => p.user_id === myId && p.bucket === 'gallery');
 

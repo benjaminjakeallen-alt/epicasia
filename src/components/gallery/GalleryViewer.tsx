@@ -71,13 +71,17 @@ export default function GalleryViewer({
   const list = useRef<FlatList<GalleryPhoto>>(null);
   const open = startIndex !== null;
 
-  useEffect(() => {
+  // Opening the viewer on a photo resets it — adjusted during render (React's
+  // "storing information from previous renders" pattern), not in an effect.
+  const [shownStart, setShownStart] = useState<number | null>(null);
+  if (startIndex !== shownStart) {
+    setShownStart(startIndex);
     if (startIndex !== null) {
       setIndex(startIndex);
       setNote(null);
       setEditing(false);
     }
-  }, [startIndex]);
+  }
 
   const current = photos[index];
 

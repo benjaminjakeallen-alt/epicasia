@@ -22,16 +22,19 @@ export default function Avatar({
   size: number;
   style?: ViewStyle;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
+  // The URL is kept with the path it belongs to, so a changed path never
+  // shows the old face while the new one loads.
+  const [signed, setSigned] = useState<{ path: string; url: string } | null>(null);
+  const url = path && signed?.path === path ? signed.url : null;
 
   useEffect(() => {
+    if (!path) return;
     let live = true;
-    setUrl(null);
-    if (path) {
-      signedUrls('avatars', [path])
-        .then((u) => live && setUrl(u[path] ?? null))
-        .catch(() => {});
-    }
+    signedUrls('avatars', [path])
+      .then((u) => {
+        if (live && u[path]) setSigned({ path, url: u[path] });
+      })
+      .catch(() => {});
     return () => {
       live = false;
     };

@@ -736,12 +736,23 @@ otherwise `toBeVisible()` still passes on content hidden under the intro
 and screenshots show the intro. Flight specs run with
 `timezoneId: 'America/Los_Angeles'` to prove times don't shift.
 
-**Lint is not set up yet**: `npx expo lint` installs eslint +
-`eslint-config-expo` and edits `package.json` on first run, then reports
-~40 pre-existing errors (LaunchSequence, reset-password). Don't let that
-side effect ride along in an unrelated commit; setting lint up properly is
-its own task. No Prettier config either — match the existing style
-(single quotes, ~120 cols) by hand or with
+**Lint + CI (set up Oct 2 2026).** `npm run lint` (ESLint 9 flat config,
+`eslint.config.js` = `eslint-config-expo` + three React Compiler rules
+switched off — `react-hooks/refs`, `purity`, `use-memo` — because the app
+doesn't use the compiler and they flag the standard
+`useRef(new Animated.Value(0)).current` pattern; the config says so.
+`set-state-in-effect` stays on and its three hits were fixed (derive
+state, or React's adjust-during-render pattern in `GalleryViewer`).
+Edge Functions (Deno) are ignored; `tools/*.mjs` get Node globals.
+`npm run typecheck` (`tsc --noEmit`; `tsconfig.json` excludes
+`supabase/functions`). Both must stay at zero problems.
+**GitHub Actions** `.github/workflows/ci.yml` on push to `main` and on
+PRs: job 1 `npm ci` → typecheck → lint; job 2 installs Playwright's
+Chromium and runs the whole e2e suite with **placeholder**
+`EXPO_PUBLIC_SUPABASE_*` values (the fake backend answers everything, so
+CI needs no secrets — verified locally with the same placeholders), and
+uploads `test-results/` on failure. No Prettier config — match the
+existing style (single quotes, ~120 cols) by hand or with
 `npx prettier --single-quote --print-width 120`.
 
 **Container note:** in this cloud dev environment, `npx expo install` fails

@@ -72,7 +72,6 @@ const PLANE_START = -100; // degrees round the orbit: just behind the left limb
 const HERO_AT = 3300;
 const HOLD_MS = 1400;
 const LOAD_TIMEOUT_MS = 1500;
-const SAMPLES = 72;
 
 // t in [0,1] at which SPIN_EASING(t) reaches `progress` (bisection).
 function invertEasing(progress: number): number {

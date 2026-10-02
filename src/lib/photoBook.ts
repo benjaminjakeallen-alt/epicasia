@@ -1,3 +1,4 @@
+// eslint-disable-next-line import/no-named-as-default -- the package's documented default export
 import qrcode from 'qrcode-generator';
 import { Platform } from 'react-native';
 import { GLYPH } from '../components/Seal';

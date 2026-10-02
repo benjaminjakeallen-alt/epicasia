@@ -1,6 +1,6 @@
 import * as Linking from 'expo-linking';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import FormButton from '../components/form/FormButton';
 import FormField from '../components/form/FormField';
 import FormScreen from '../components/form/FormScreen';
@@ -18,30 +18,30 @@ export default function ResetPassword() {
   const router = useRouter();
   const incomingUrl = Linking.useURL();
   const [exchanging, setExchanging] = useState(true);
-  const [exchangeError, setExchangeError] = useState<string | null>(null);
+  const [exchangeFailure, setExchangeFailure] = useState<string | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!incomingUrl) return;
-
+  const code = useMemo(() => {
+    if (!incomingUrl) return undefined; // URL not known yet
     const { queryParams } = Linking.parse(incomingUrl);
-    const code = typeof queryParams?.code === 'string' ? queryParams.code : null;
+    return typeof queryParams?.code === 'string' ? queryParams.code : null;
+  }, [incomingUrl]);
+  const missingCode = code === null;
+  const exchangeError = missingCode
+    ? 'This reset link is missing its code — it may be malformed or expired.'
+    : exchangeFailure;
 
-    if (!code) {
-      setExchangeError('This reset link is missing its code — it may be malformed or expired.');
-      setExchanging(false);
-      return;
-    }
-
+  useEffect(() => {
+    if (!code) return;
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
       setExchanging(false);
-      if (error) setExchangeError(error.message);
+      if (error) setExchangeFailure(error.message);
     });
-  }, [incomingUrl]);
+  }, [code]);
 
   async function handleSave() {
     setSaveError(null);
@@ -73,7 +73,7 @@ export default function ResetPassword() {
     );
   }
 
-  if (exchanging) {
+  if (exchanging && !missingCode) {
     return <FormScreen title="Reset Password" subtitle="Verifying your link..." />;
   }
 
