@@ -30,7 +30,8 @@ Personal (per-user, not shared):
 - **Journal — built** (Oct 2 2026, see below).
 
 Utilities (client-side/API only, no backend needed):
-- Currency converter, offline phrasebook, weather, saved map pins
+- **Toolkit — built (Oct 3 2026): currency converter + phrasebook** (see
+  below); weather and shared map pins still to come (pins need a table).
 
 **Accessibility mode for low vision — phase 1 built (Oct 2 2026),
 phase 2 planned.** Built: "Large & spoken mode" (`src/lib/a11yMode.tsx`
@@ -196,6 +197,45 @@ checklist persists, China guide with PEK/PVG + the NRT→PEK pass, add a PDF
 → exact upload path + row, photo viewer + delete → row + both files
 removed; the fake backend now records storage `removals`) and axe audits
 of all four screens + the viewer.
+
+### Toolkit (built, Oct 3 2026) — currency converter + phrasebook
+
+On the ring as **"Toolkit"** (user's name, 6th of 7, before Games), icon
+`assets/images/menu/satchel.png` — an open sage leather messenger bag with
+a phrasebook, banknotes, coins and a red map pin spilling out (the user's
+idea; "Satchel 2" of three; prompt in `tools/menu-icons/README.md`). The
+ring went 6 → 7 items, so VoiceOver/spoken labels read "… of 7".
+Screens `src/app/(app)/toolkit/`: `index` (tool cards), `currency`,
+`phrases`. Both tools work offline.
+- **Currency** (`src/lib/currency.ts`): JPY / CNY / HKD against your own
+  currency (USD default; GBP, EUR, CAD, AUD, NZD; saved as
+  `epicasia.homeCurrency`). Rates: **open.er-api.com** (free, no key,
+  daily, CORS-enabled — attribution "Rates By Exchange Rate API" is
+  shown), backup **api.frankfurter.dev** (no CORS header, so native-only
+  in practice). Each fetch is saved (`epicasia.rates`, not per-user); no
+  network → saved copy ("Offline · using rates saved Oct 1"), else
+  **bundled approximate rates** from Oct 2 2026 (labelled approximate).
+  Starts on the currency of today's leg (`stopForDay`), JPY before the
+  trip. Built-in keypad (no keyboard; "00" replaces "." for yen; hold ⌫
+  to clear), swap button carries the converted amount over, "Quick
+  prices" table of everyday amounts. `formatMoney()` formats by hand (no
+  locale APIs) so it's identical on every platform.
+- **Phrasebook** (`src/lib/phrases.ts`): ~34 phrases × Japanese (romaji),
+  Mandarin (simplified + pinyin), Cantonese (traditional + Jyutping) in
+  Basics / Getting around / Food & drink / Shopping / Help, plus each
+  country's emergency numbers. Tap a phrase → full-screen card (64pt
+  script, to hand the phone over) with "Play in …"; the speaker icon plays
+  inline. Speech is `expo-speech` with the phone's own voice
+  (`ja-JP`/`zh-CN`/`zh-HK`, rate 0.85); if the voice list has none for
+  that language it says how to add one (iOS Settings → Accessibility →
+  Spoken Content → Voices). **The web voice list can wait forever** when
+  a browser has no voices (expo-speech awaits `onvoiceschanged`) — capped
+  at 800ms. **Not yet checked by a native speaker** — worth doing.
+- Tests: `e2e/toolkit.spec.ts` (ring shows 7; keypad conversion, swap,
+  HKD, GBP remembered; offline saved vs bundled rates; phrase plays with
+  the right `lang`, card, no-Cantonese-voice notice) + axe audits of all
+  three screens and the phrase card. The fake backend now aborts the rate
+  services in every test (specs that need rates answer them).
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 

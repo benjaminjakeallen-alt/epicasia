@@ -205,6 +205,9 @@ const SCREENS: [string, string][] = [
   ['my documents', '/arrivals/documents'],
   ['add document', '/arrivals/add-document'],
   ['add flight', '/flights/new'],
+  ['toolkit', '/toolkit'],
+  ['currency converter', '/toolkit/currency'],
+  ['phrasebook', '/toolkit/phrases'],
   ['chat', '/chat'],
   ['photos', '/photos'],
   ['journal', '/journal'],
@@ -242,6 +245,15 @@ test('a11y: document viewer', async ({ page }) => {
   await page.getByRole('button', { name: /^Passport\./ }).click();
   await expect(page.getByTestId('document-viewer')).toBeVisible();
   await page.waitForTimeout(400);
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: phrase shown large', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/toolkit/phrases');
+  await page.getByRole('button', { name: /^Hello\. konnichiwa/ }).click();
+  await expect(page.getByTestId('phrase-card')).toBeVisible();
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });

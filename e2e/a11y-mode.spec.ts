@@ -63,9 +63,9 @@ test('turning the ring reads the new item aloud', async ({ page }) => {
   await skipIntro(page);
 
   await page.getByLabel('Next').click();
-  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Arrivals, 2 of 6\. Visas, airports/));
+  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Arrivals, 2 of 7\. Visas, airports/));
   await page.getByLabel('Next').click();
-  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Photos, 3 of 6\./));
+  await expect.poll(() => spoken(page)).toContainEqual(expect.stringMatching(/^Photos, 3 of 7\./));
 });
 
 test('with speech off, nothing is spoken', async ({ page }) => {
@@ -86,8 +86,8 @@ test('the menu is one adjustable control for screen readers', async ({ page }) =
   await page.goto('/');
   await skipIntro(page);
   // RN-web exposes accessibilityRole="adjustable" as a slider.
-  const ring = page.getByRole('slider', { name: 'Itinerary, 1 of 6' });
+  const ring = page.getByRole('slider', { name: 'Itinerary, 1 of 7' });
   await expect(ring).toBeVisible();
   await page.getByLabel('Next').click();
-  await expect(page.getByRole('slider', { name: 'Arrivals, 2 of 6' })).toBeVisible();
+  await expect(page.getByRole('slider', { name: 'Arrivals, 2 of 7' })).toBeVisible();
 });
