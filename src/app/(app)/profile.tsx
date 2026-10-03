@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import NotificationsRow from '../../components/chat/NotificationsRow';
+import YukiWakeRow from '../../components/yuki/YukiWakeRow';
 import CircleButton from '../../components/CircleButton';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
@@ -259,6 +260,8 @@ export default function ProfileScreen() {
         ) : null}
 
         <NotificationsRow />
+
+        <YukiWakeRow />
 
         <Pressable
           accessibilityRole="button"

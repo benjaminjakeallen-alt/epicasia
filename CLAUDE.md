@@ -43,6 +43,10 @@ Personal (per-user, not shared):
   below), Journal (optionally shared with the group)
 - **Journal — built** (Oct 2 2026, see below).
 
+AI: **Yuki — built (Oct 3 2026)**, a "Hey Yuki" voice assistant over the
+whole app (see below). Ideas we talked about but didn't build are kept in
+`docs/ideas.md`.
+
 Utilities (client-side/API only, no backend needed):
 - **Toolkit — built (Oct 3 2026): currency converter, phrasebook, weather
   and shared map pins** (see below).
@@ -710,8 +714,19 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   save as PDF from the print dialog.
   Colors come from theme tokens. Fonts are Google Fonts with Georgia /
   system fallbacks (offline printing falls back cleanly).
-- **Not built yet:** speech-to-text transcripts of voice notes (needs a
-  server), reordering media by drag, a photo
+- **Voice notes are written down as you speak** (Oct 3 2026,
+  `src/lib/transcribe.ts`): the browser's own speech recognition
+  (`SpeechRecognition` / `webkitSpeechRecognition`, restarted after each
+  pause until stop) runs beside the recorder; the live text shows while
+  recording (`live-transcript`), is editable under the note
+  (`voice-transcript`) and saved as `journal_media.transcript` (0016,
+  ≤ 8000). Free and nothing goes to our server; no recognizer → just audio.
+- **Write it with Yuki** (`write-with-yuki` in the editor): sends the
+  title, story, voice transcripts, captions and up to 4 photos (≤ 1024 px
+  JPEG via `imageForYuki`) to the `yuki` function's `journal_draft`; the
+  draft card offers "Use it" (or "Replace my story"), "Add below",
+  "Discard". This is the one place Yuki is text, by the user's choice.
+- **Not built yet:** reordering media by drag, a photo
   viewer inside entries, choosing which entries go in the book.
 - **Tests:** `e2e/journal.spec.ts` — empty state, list by day + "From
   the group" tab, read-only shared entry, exact insert body for a new
@@ -724,6 +739,73 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   exact counts (with `Content-Range` exposed — without
   `access-control-expose-headers` the browser hides it and the count reads
   as null), and records Edge Function calls (`backend.functions`).
+
+### Yuki — the voice assistant (built, Oct 3 2026)
+
+Named by the user. **Voice, not a chat page** (user, Oct 3 2026: "Yuki
+shouldn't be a text interface and a separate page. It should be activated
+by a user saying 'Hey Yuki' … and Yuki speaks back. There should be a
+glowing cherry blossom while she speaks"; the old text screen was deleted).
+She can read **everything in the app the traveler can see**.
+- **Server:** `supabase/functions/yuki` (deployed v2, `verify_jwt`).
+  Claude via `@anthropic-ai/sdk`, a manual tool loop (≤ 6 rounds), effort
+  low, the server-side fallback beta. Tools read **as the caller** (RLS):
+  itinerary, flights, trip guide (bundled), map pins, chat search (by
+  text/room) and rooms, photos (per person/city, albums, favourites), my
+  journal + shared journals (with transcripts), my documents (names
+  only), travelers, Lost in Translation, game standings, phrasebook,
+  invites (organizers only by RLS), live weather (Open-Meteo), currency
+  (open.er-api). `voice: true` adds the spoken-answer rules (1–3 sentences,
+  no lists/URLs, numbers said naturally); `device` carries what only the
+  phone knows (screen, home currency, °F/°C, checklist ticks).
+  `knowledge.ts` is **generated** from the app's own content by
+  `npm run build:yuki` (esbuild bundles arrivals/places/phrases/weather
+  with stubs); CI runs it with `--check`. Daily cap 60 per traveler
+  (`assistant_usage` + service-role `assistant_bump`, 0016). **Needs the
+  `ANTHROPIC_API_KEY` Edge Function secret** — without it every call
+  answers 503 `not_configured` ("Yuki isn't switched on yet…"), which she
+  says aloud. Deploying = paste `index.ts` + `knowledge.ts`.
+- **Client:** `src/lib/yukiVoice.ts` (state machine, no React):
+  off → wake ("Hey Yuki" heard in the browser's speech recognition —
+  `WAKE` regex allows hey/hi/okay + yuki/you key/yookie…) → listening
+  (ends 1.2 s after a final result, 2.2 s after an interim one, 8 s with
+  nothing, 20 s max; a second tap sends at once) → thinking (`askYuki`
+  with `voice: true`, in-memory history of 10 turns, forgotten after
+  5 min) → speaking (`speechSynthesis`, sentence by sentence, an English
+  female-ish voice if the browser has one; `onboundary` words pulse the
+  blossom) → a 6 s **follow-up** listen with no wake phrase → rest. The
+  recognizer is off while she speaks (she can't hear herself). Errors are
+  spoken too, and never sent back as conversation.
+  **"Listen for 'Hey Yuki'"** is opt-in per phone
+  (`epicasia.yukiWake`; Profile row `YukiWakeRow`, and an offer button in
+  the overlay) — browsers only listen while the app is open and in front
+  (stopped on `visibilitychange`), and the toggle's tap is what asks for
+  the mic. **iOS:** speech only plays after the page has spoken once in a
+  tap, so the first `pointerdown` speaks a silent utterance. `claimMic()`
+  pauses her while something else needs the recognizer (the journal
+  `VoiceRecorder` claims it while open). No recognizer (Firefox) → the
+  toggle explains, a tap says so aloud.
+- **UI:** `src/components/yuki/YukiVoice.tsx`, mounted once in
+  `(app)/_layout.tsx` over every screen: a paper veil (`yukiVeil`
+  token) with the big **`Blossom`** (`src/components/yuki/Blossom.tsx`,
+  react-native-svg: five notched sakura petals, rose base, gold-tipped
+  stamens; a pink halo that breathes while listening, turns while
+  thinking, and flares on each spoken word; still under Reduce Motion),
+  the status ("I'm listening" / "Listening…" / "Thinking…" / "Anything
+  else?"), "what you said" and her reply as large text (live region),
+  ✕ Stop. Home has the "Yuki" pill (her blossom, `YukiMark`) as
+  tap-to-talk, with a green dot while she's listening for her name.
+  Colour tokens `blossom*`, `yukiVeil`, `shadow.blossom`.
+- **Not verified on a phone yet:** wake-word reliability in iPhone Safari
+  / the Home Screen app (Safari's recognizer stops after pauses and needs
+  restarts; iOS may re-ask for the mic per session), voice quality.
+- **Tests:** `e2e/yuki.spec.ts` with a fake recognizer (`__speech.say()`)
+  and a fake `speechSynthesis`: tap → ask → exact request (`voice`,
+  `device`) → reply shown and spoken → follow-up carries history → fades
+  out; wake toggle → random talk ignored → "Hey Yuki, …" strips the
+  phrase → ✕ → listening again → persists across reload; a voice note
+  takes the mic and gives it back; `not_configured` spoken and not sent
+  back. a11y: the overlay over home.
 
 ### Profile (built, Oct 2 2026)
 
@@ -818,7 +900,9 @@ backend code.
   `0013_games.sql` (game entries/votes + private `games` bucket — see Games),
   `0014_game_scores.sql` (arcade runs — see Godzilla Rampage),
   `0015_chat_rooms_media_push.sql` (chat rooms/edits/mutes/video, web push,
-  gallery taken_at/video/albums — see Group chat and Photos).
+  gallery taken_at/video/albums — see Group chat and Photos),
+  `0016_yuki_and_transcripts.sql` (Yuki's daily cap, voice-note
+  transcripts — see Yuki and Journal).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

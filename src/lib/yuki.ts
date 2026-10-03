@@ -1,48 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { todayDay } from './dates';
 import { supabase } from './supabase';
 
-// Yuki (雪), the trip's AI assistant: the `yuki` Edge Function answers with
-// Claude, reading the app's data as the signed-in traveler (see
-// supabase/functions/yuki). The conversation is kept on this phone only,
-// under the offline-cache prefix, so signing out clears it.
+// Yuki (雪), the trip's AI voice assistant: the `yuki` Edge Function answers
+// with Claude, reading the app's data as the signed-in traveler (see
+// supabase/functions/yuki). The conversation itself is voice — see
+// yukiVoice.ts — and only lives in memory for a few minutes.
 
-export type YukiTurn = { id: string; role: 'user' | 'assistant'; text: string; failed?: boolean };
-
-export const YUKI_SUGGESTIONS = [
-  'What’s the plan today?',
-  'When do we fly to Beijing?',
-  'Do I need a visa for China?',
-  'What’s 5,000 yen in dollars?',
-];
-
-const key = (uid: string) => `epicasia.cache.${uid}.yuki`;
-const KEEP = 40;
-
-export async function loadConversation(uid: string): Promise<YukiTurn[]> {
-  try {
-    const raw = await AsyncStorage.getItem(key(uid));
-    return raw ? (JSON.parse(raw) as YukiTurn[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function saveConversation(uid: string, turns: YukiTurn[]): Promise<void> {
-  try {
-    await AsyncStorage.setItem(key(uid), JSON.stringify(turns.slice(-KEEP)));
-  } catch {
-    // best effort
-  }
-}
-
-export async function clearConversation(uid: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(key(uid));
-  } catch {
-    // ignore
-  }
-}
+export type YukiTurn = { role: 'user' | 'assistant'; text: string };
 
 /** The function's own message for a failed call (it answers { error, message }). */
 async function errorMessage(error: unknown): Promise<string> {
@@ -66,15 +30,24 @@ function timeZone(): string {
   }
 }
 
-/** Asks Yuki; throws an Error whose message is safe to show. */
-export async function askYuki(history: YukiTurn[], name: string): Promise<{ reply: string; remaining: number | null }> {
+/**
+ * Asks Yuki; throws an Error whose message is safe to say. `voice` asks for
+ * a short spoken answer; `device` is what's kept on this phone only
+ * (settings, checklist ticks, the screen they're on).
+ */
+export async function askYuki(
+  history: YukiTurn[],
+  opts: { name: string; voice?: boolean; device?: Record<string, unknown> },
+): Promise<{ reply: string; remaining: number | null }> {
   const { data, error } = await supabase.functions.invoke('yuki', {
     body: {
       action: 'ask',
-      messages: history.filter((t) => !t.failed).map((t) => ({ role: t.role, text: t.text })),
+      messages: history,
       today: todayDay(),
       tz: timeZone(),
-      name,
+      name: opts.name,
+      voice: !!opts.voice,
+      device: opts.device,
     },
   });
   if (error) throw new Error(await errorMessage(error));

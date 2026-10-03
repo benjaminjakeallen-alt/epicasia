@@ -18,7 +18,9 @@ async function recordSpeech(page: Page) {
   });
 }
 
-const spoken = (page: Page) => page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken);
+// (Blank utterances are Yuki unlocking speech on the first tap — iOS needs it.)
+const spoken = (page: Page) =>
+  page.evaluate(() => (window as unknown as { __spoken: string[] }).__spoken.filter((t) => t.trim()));
 
 async function skipIntro(page: Page) {
   const skip = page.getByLabel('Skip intro');

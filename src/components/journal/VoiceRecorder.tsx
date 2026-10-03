@@ -11,6 +11,7 @@ import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from '
 import { confirmTap } from '../../lib/haptics';
 import { formatDuration } from '../../lib/journal';
 import { startTranscriber, type Transcriber } from '../../lib/transcribe';
+import { claimMic } from '../../lib/yukiVoice';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
@@ -49,6 +50,10 @@ export default function VoiceRecorder({
     if (state.isRecording && state.durationMillis >= MAX_MS) stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.durationMillis, state.isRecording]);
+
+  // Yuki stops listening for "Hey Yuki" while the recorder is open (one
+  // recognizer at a time), and starts again when it closes.
+  useEffect(() => claimMic(), []);
 
   // Never leave the microphone running if the sheet closes mid-recording.
   useEffect(

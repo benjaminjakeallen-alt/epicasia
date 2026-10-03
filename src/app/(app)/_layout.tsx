@@ -1,5 +1,7 @@
 import { Redirect, Stack, useRouter, type Href } from 'expo-router';
 import { useEffect } from 'react';
+import { View } from 'react-native';
+import YukiVoice from '../../components/yuki/YukiVoice';
 import { useAuth } from '../../lib/AuthProvider';
 import { startServiceWorker, syncPush } from '../../lib/push';
 
@@ -23,5 +25,13 @@ export default function AppLayout() {
   if (initializing) return null;
   if (!session) return <Redirect href="/(auth)/login" />;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // Yuki floats over every screen: say "Hey Yuki" (or tap her blossom on
+  // home) and her glowing blossom comes up while she listens and answers.
+  const name = String(session.user.user_metadata?.display_name ?? '').split(' ')[0];
+  return (
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <YukiVoice name={name} />
+    </View>
+  );
 }

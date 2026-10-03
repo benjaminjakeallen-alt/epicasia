@@ -7,11 +7,13 @@ import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import YukiMark from '../../components/YukiMark';
+import { useYuki } from '../../components/yuki/YukiVoice';
 import { useAuth } from '../../lib/AuthProvider';
 import { useA11yMode } from '../../lib/a11yMode';
 import { fetchUnreadCount, watchNewMessages } from '../../lib/chatUnread';
 import { announce, isScreenReaderOn, watchScreenReader } from '../../lib/speech';
 import { fetchProfile } from '../../lib/profile';
+import { talkToYuki } from '../../lib/yukiVoice';
 import { colors as palette, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
@@ -43,6 +45,7 @@ export default function Home() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [unread, setUnread] = useState(0);
   const myId = session?.user.id;
+  const yuki = useYuki();
   useFocusEffect(
     useCallback(() => {
       if (!myId) return;
@@ -85,14 +88,18 @@ export default function Home() {
           <Wordmark size={24} testID="home-title" />
           <View style={styles.topActions}>
             <Pressable
-              onPress={() => router.push('/(app)/yuki')}
+              onPress={talkToYuki}
               accessibilityRole="button"
-              accessibilityLabel="Ask Yuki, your trip assistant"
+              accessibilityLabel="Talk to Yuki, your trip assistant"
+              accessibilityHint={yuki.wakeOn ? 'Or just say “Hey Yuki”' : undefined}
               testID="home-yuki"
-              style={[styles.yuki, { backgroundColor: colors.card }]}
+              style={({ pressed }) => [styles.yuki, { backgroundColor: pressed ? colors.cardRaised : colors.card }]}
             >
               <YukiMark size={30} />
               <Text style={[styles.yukiText, { color: colors.ink }]}>Yuki</Text>
+              {yuki.state === 'wake' ? (
+                <View style={[styles.yukiEar, { backgroundColor: colors.success }]} testID="yuki-listening-dot" />
+              ) : null}
             </Pressable>
             <Pressable
               onPress={() => router.push('/(app)/profile')}
@@ -173,6 +180,13 @@ const styles = StyleSheet.create({
   yukiText: {
     fontFamily: fontFamily.bodySemiBold,
     fontSize: 15,
+  },
+  // A small green dot while she's listening for "Hey Yuki".
+  yukiEar: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginLeft: -2,
   },
   avatar: {
     width: 44,

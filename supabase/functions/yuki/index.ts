@@ -1,8 +1,9 @@
-// yuki: the trip's AI assistant (Claude), and journal writing help.
+// yuki: the trip's AI voice assistant (Claude), and journal writing help.
 //
 // POST, the traveler's own JWT in Authorization:
-//   { action: 'ask', messages: [{ role, text }…], today, tz, name }
-//       → { reply, remaining }   Answers from the app's data through tools.
+//   { action: 'ask', messages: [{ role, text }…], today, tz, name, voice, device }
+//       → { reply, remaining }   Answers from the app's data through tools;
+//                                 voice: true = written to be spoken aloud.
 //   { action: 'journal_draft', entry: { day, city, title, story, voice[], captions[] }, photos: [{ media_type, data }] }
 //       → { draft, remaining }   A first-person entry from the day's notes.
 //
@@ -37,10 +38,10 @@ function json(body: unknown, status = 200) {
 
 // ---------- prompts (stable text first, so it caches) ----------
 
-const SYSTEM = `You are Yuki (雪, "snow"), the assistant inside Epic Asia, a private app for one family's group trip:
+const SYSTEM = `You are Yuki (雪, "snow"), the voice assistant inside Epic Asia, a private app for one family's group trip:
 Tokyo → Kyoto & Nara → Beijing → Shanghai → Hong Kong, June 5–19, 2027, with three Disney parks on the way.
 
-You help the traveler you're talking to with anything about the trip or the app: what's on today or any day, flights, getting through each airport and border, visas and arrival forms, map pins the group saved, what people said in the group chat, their own journal and documents, who's on the trip, weather, money conversions, games, and practical travel help (phrases, etiquette, food, getting around).
+You help the traveler you're talking to with anything about the trip or the app — you can read everything in it that they can see: the itinerary, flights, the Arrivals guides (visas, airports, checklist), map pins, every chat room they're in, the shared photo gallery and albums, their own journal and the entries others shared, their saved documents (names, not contents), who's on the trip, the games and leaderboards, invite codes (organizers only), the phrasebook, live weather and money conversions — plus practical travel help (etiquette, food, getting around).
 
 How to answer:
 - Look things up with your tools instead of guessing. If the app doesn't have it (an empty itinerary day, no flight saved), say so plainly and suggest where to add it in the app.
@@ -48,11 +49,13 @@ How to answer:
 - Times in flights are local airport times. Say dates like "Mon, Jun 7".
 - Entry rules in the Arrivals guide were last checked ${KNOWLEDGE.checked} for ${KNOWLEDGE.passport}; when visas or border rules come up, mention they should be re-checked 4–6 weeks before flying.
 - Never invent confirmation codes, addresses, times or prices. Quote what the app holds.
-- For phrases, give the local script plus an easy pronunciation.
-- Answer in the language the traveler writes in.
+- For phrases, use the app's phrasebook when it has the phrase; give the local script plus an easy pronunciation.
+- Answer in the language the traveler speaks or writes in.
 - You can't change anything in the app (read-only): point to the screen where they can.
 
 Where things live in the app: Itinerary; Arrivals (country guides, airports, checklist, boarding passes, My documents); Group chat (rooms); Photos (albums); Journal; Toolkit (currency, phrasebook, weather, map pins); Games; Profile.`;
+
+const VOICE = `They're talking to you out loud, and your answer will be read aloud by the phone. Answer in one to three short spoken sentences — no lists, bullets, symbols, emoji or URLs. Say times, dates and money the way a person would ("ten thirty in the morning", "about thirty-four dollars"). Spell out a code letter by letter only if they ask for it. If there's more, give the key part and offer the rest.`;
 
 const JOURNAL_SYSTEM = `You write travel-journal entries for one person on a family group trip through Japan, China and Hong Kong (June 2027).
 Write in their voice — first person, warm, natural, a little playful — from ONLY the notes, voice-note transcripts, captions and photos they give you. Don't invent people, places, food or events that aren't there; if there's very little to go on, keep it short.
@@ -100,10 +103,10 @@ const TOOLS: Anthropic.Tool[] = [
   {
     name: 'search_chat',
     description:
-      'Group chat messages this traveler can see (all rooms), newest first, with sender and room. Optional text to search for and a limit (max 40).',
+      'Group chat messages this traveler can see, newest first, with sender and room. Optional text to search for, a room name, and a limit (max 40).',
     input_schema: {
       type: 'object',
-      properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 40 } },
+      properties: { query: { type: 'string' }, room: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 40 } },
       additionalProperties: false,
     },
   },
@@ -141,6 +144,45 @@ const TOOLS: Anthropic.Tool[] = [
       required: ['amount', 'from', 'to'],
       additionalProperties: false,
     },
+  },
+  {
+    name: 'get_chat_rooms',
+    description: 'The chat rooms this traveler can see (name, open or private, newest message).',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'get_photos',
+    description:
+      'The shared photo gallery: recent photos and videos (who, when taken, caption, city, from chat?, favorites), counts per person, and the albums. Optional person name, city (tokyo, kyoto, beijing, shanghai, hongKong) and limit (max 60).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        person: { type: 'string' },
+        city: { type: 'string', enum: ['tokyo', 'kyoto', 'beijing', 'shanghai', 'hongKong'] },
+        limit: { type: 'integer', minimum: 1, maximum: 60 },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_shared_journals',
+    description: "Journal entries other travelers shared with the group (who, day, city, title, story, voice-note transcripts).",
+    input_schema: { type: 'object', properties: { day: { type: 'string' } }, additionalProperties: false },
+  },
+  {
+    name: 'get_lost_in_translation',
+    description: 'The Lost in Translation game: photos of funny English signs people posted (caption, city, who, upvotes, when).',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'get_phrasebook',
+    description: "The app's phrasebook: English → Japanese, Mandarin and Cantonese (script + pronunciation), by category (Basics, Getting around, Food & drink, Shopping, Help).",
+    input_schema: { type: 'object', properties: { category: { type: 'string' } }, additionalProperties: false },
+  },
+  {
+    name: 'get_invites',
+    description: 'Invite codes for joining the trip, with uses and expiry. Only organizers can see them (others get an empty list).',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
     name: 'get_game_standings',
@@ -232,7 +274,13 @@ async function runTool(name: string, input: Record<string, unknown>, ctx: Ctx): 
         .order('created_at', { ascending: false })
         .limit(limit);
       if (typeof input.query === 'string' && input.query.trim()) q = q.ilike('body', `%${input.query.trim().replace(/[%_]/g, '')}%`);
-      const [{ data, error }, people, { data: rooms }] = await Promise.all([q, names(db), db.from('chat_rooms').select('id, name')]);
+      const { data: rooms } = await db.from('chat_rooms').select('id, name');
+      if (typeof input.room === 'string' && input.room.trim()) {
+        const want = input.room.trim().toLowerCase();
+        const ids = (rooms ?? []).filter((r) => r.name.toLowerCase().includes(want)).map((r) => r.id);
+        q = q.in('room_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+      }
+      const [{ data, error }, people] = await Promise.all([q, names(db)]);
       if (error) throw error;
       const roomName = new Map((rooms ?? []).map((r) => [r.id, r.name]));
       return (data ?? []).map((m) => ({
@@ -301,6 +349,119 @@ async function runTool(name: string, input: Record<string, unknown>, ctx: Ctx): 
       const rate = r?.rates?.[to];
       if (!rate) return { error: `no rate for ${from} → ${to}` };
       return { amount: input.amount, from, to, result: Math.round(Number(input.amount) * rate * 100) / 100, rate, updated: r.time_last_update_utc };
+    }
+    case 'get_chat_rooms': {
+      const { data, error } = await db.from('chat_rooms').select('id, name, is_private').order('created_at');
+      if (error) throw error;
+      return Promise.all(
+        (data ?? []).map(async (r) => {
+          const { data: last } = await db
+            .from('messages')
+            .select('body, created_at')
+            .eq('room_id', r.id)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          return { name: r.name, private: r.is_private, newest: last?.[0]?.body ?? null };
+        }),
+      );
+    }
+    case 'get_photos': {
+      const limit = Math.min(60, Math.max(1, Number(input.limit) || 30));
+      const [people, { data, error }, { data: favs }, { data: albums }, { data: links }] = await Promise.all([
+        names(db),
+        db.from('gallery_photos').select('id, user_id, caption, taken_at, bucket, video_path').order('taken_at', { ascending: false }).limit(500),
+        db.from('photo_favorites').select('photo_id'),
+        db.from('photo_albums').select('id, name'),
+        db.from('album_photos').select('album_id'),
+      ]);
+      if (error) throw error;
+      const favCount = new Map<string, number>();
+      for (const f of favs ?? []) favCount.set(f.photo_id, (favCount.get(f.photo_id) ?? 0) + 1);
+      const cityOf = (iso: string) => {
+        const day = new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
+        return [...KNOWLEDGE.legs].reverse().find((l) => day >= l.from && day <= '2027-06-19')?.key ?? null;
+      };
+      let rows = (data ?? []).map((p) => ({
+        who: p.user_id === me ? 'you' : (people.get(p.user_id) ?? 'someone'),
+        whoId: p.user_id,
+        kind: p.video_path ? 'video' : 'photo',
+        caption: p.caption,
+        taken: new Date(p.taken_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: tz }),
+        city: cityOf(p.taken_at),
+        from_chat: p.bucket === 'chat',
+        favorites: favCount.get(p.id) ?? 0,
+      }));
+      const total = rows.length;
+      const perPerson: Record<string, number> = {};
+      for (const r of rows) perPerson[r.who] = (perPerson[r.who] ?? 0) + 1;
+      if (typeof input.person === 'string' && input.person.trim()) {
+        const want = input.person.trim().toLowerCase();
+        rows = rows.filter((r) => r.who.toLowerCase().includes(want) || (want === 'me' && r.whoId === me));
+      }
+      if (typeof input.city === 'string') rows = rows.filter((r) => r.city === input.city);
+      const albumCount = new Map<string, number>();
+      for (const l of links ?? []) albumCount.set(l.album_id, (albumCount.get(l.album_id) ?? 0) + 1);
+      return {
+        total_in_gallery: total,
+        per_person: perPerson,
+        albums: (albums ?? []).map((a) => ({ name: a.name, items: albumCount.get(a.id) ?? 0 })),
+        photos: rows.slice(0, limit).map(({ whoId: _w, ...r }) => r),
+      };
+    }
+    case 'get_shared_journals': {
+      let q = db
+        .from('journal_entries')
+        .select('id, user_id, day, city, title, body')
+        .eq('shared_to_group', true)
+        .neq('user_id', me)
+        .order('day');
+      if (typeof input.day === 'string') q = q.eq('day', input.day);
+      const [{ data, error }, people] = await Promise.all([q, names(db)]);
+      if (error) throw error;
+      const ids = (data ?? []).map((e) => e.id);
+      const { data: media } = ids.length
+        ? await db.from('journal_media').select('entry_id, kind, transcript').in('entry_id', ids)
+        : { data: [] };
+      return (data ?? []).map((e) => ({
+        by: people.get(e.user_id) ?? 'someone',
+        date: dayLabel(e.day),
+        city: e.city,
+        title: e.title,
+        story: e.body?.slice(0, 2000) ?? null,
+        voice_notes: (media ?? []).filter((m) => m.entry_id === e.id && m.kind === 'audio' && m.transcript).map((m) => m.transcript),
+      }));
+    }
+    case 'get_lost_in_translation': {
+      const [people, { data, error }, { data: votes }] = await Promise.all([
+        names(db),
+        db.from('game_entries').select('id, created_by, caption, city, created_at').eq('game', 'lost_in_translation').order('created_at', { ascending: false }),
+        db.from('game_votes').select('entry_id'),
+      ]);
+      if (error) throw error;
+      const count = new Map<string, number>();
+      for (const v of votes ?? []) count.set(v.entry_id, (count.get(v.entry_id) ?? 0) + 1);
+      return (data ?? []).map((e) => ({
+        by: e.created_by === me ? 'you' : (people.get(e.created_by) ?? 'someone'),
+        caption: e.caption,
+        city: e.city,
+        upvotes: count.get(e.id) ?? 0,
+        posted: new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: tz }),
+      }));
+    }
+    case 'get_phrasebook': {
+      const cat = typeof input.category === 'string' ? input.category.toLowerCase() : '';
+      const book = KNOWLEDGE.phrasebook as Record<string, unknown>;
+      return cat ? Object.fromEntries(Object.entries(book).filter(([k]) => k.toLowerCase().includes(cat))) : book;
+    }
+    case 'get_invites': {
+      const { data } = await db.from('trip_invites').select('code, label, max_uses, uses, expires_at, revoked_at');
+      return (data ?? []).map((i) => ({
+        code: i.code,
+        for: i.label,
+        uses: `${i.uses}${i.max_uses ? ` of ${i.max_uses}` : ''}`,
+        active: !i.revoked_at && (!i.expires_at || new Date(i.expires_at) > new Date()) && (!i.max_uses || i.uses < i.max_uses),
+      }));
     }
     case 'get_game_standings': {
       const [people, { data: scores }, { data: entries }, { data: votes }] = await Promise.all([
@@ -415,11 +576,19 @@ Deno.serve(async (req) => {
 
     const today = typeof input.today === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input.today) ? input.today : new Date().toISOString().slice(0, 10);
     const name = typeof input.name === 'string' ? input.name.slice(0, 60) : '';
+    const voice = input.voice === true;
+    const device = typeof input.device === 'object' && input.device ? JSON.stringify(input.device).slice(0, 2000) : '';
     const ctx: Ctx = { db, me, tz };
     const messages: Anthropic.Beta.BetaMessageParam[] = turns;
     const system: Anthropic.Beta.BetaTextBlockParam[] = [
       { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: `Today is ${dayLabel(today)} (${today}), time zone ${tz}. You're talking with ${name || 'a traveler'}.` },
+      {
+        type: 'text',
+        text:
+          `Today is ${dayLabel(today)} (${today}), time zone ${tz}. You're talking with ${name || 'a traveler'}.` +
+          (device ? `\nSettings and lists kept on their phone: ${device}` : '') +
+          (voice ? `\n${VOICE}` : ''),
+      },
     ];
 
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {

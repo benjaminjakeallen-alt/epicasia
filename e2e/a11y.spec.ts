@@ -283,9 +283,30 @@ const SCREENS: [string, string][] = [
   ['photo book', '/journal/book'],
   ['profile', '/profile'],
   ['travelers (admin)', '/travelers'],
-  ['yuki', '/yuki'],
   ['accessibility settings', '/accessibility'],
 ];
+
+test('a11y: Yuki listening over home', async ({ page }) => {
+  // A recognizer that just listens, so the overlay stays up for the audit.
+  await page.addInitScript(() => {
+    class Quiet {
+      start() {}
+      stop() {}
+      abort() {}
+    }
+    const w = window as unknown as Record<string, unknown>;
+    w.SpeechRecognition = Quiet;
+    w.webkitSpeechRecognition = Quiet;
+  });
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/');
+  await page.getByTestId('home-yuki').click();
+  await expect(page.getByTestId('yuki-overlay')).toBeVisible();
+  const violations = await axe(page);
+  const small = await smallTargets(page);
+  expect(violations).toEqual([]);
+  expect(small).toEqual([]);
+});
 
 for (const [name, path] of SCREENS) {
   test(`a11y: ${name}`, async ({ page }) => {

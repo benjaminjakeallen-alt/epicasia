@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 import { colors as c } from '../theme/colors';
+import { BlossomArt } from './yuki/Blossom';
 
-/** Yuki's picture: a snowflake (雪, "snow") on sage. */
+/** Yuki's small picture: her cherry blossom on a white disc. */
 export default function YukiMark({ size = 32 }: { size?: number }) {
   return (
     <View
@@ -10,11 +10,11 @@ export default function YukiMark({ size = 32 }: { size?: number }) {
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
     >
-      <Ionicons name="snow" size={Math.round(size * 0.58)} color={c.onAccent} />
+      <BlossomArt size={Math.round(size * 0.92)} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mark: { backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' },
+  mark: { backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.border },
 });

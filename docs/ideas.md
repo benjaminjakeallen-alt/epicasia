@@ -43,9 +43,10 @@ Every game scores into the shared points / leaderboards (`game_entries`,
 
 ## AI
 
-- **Yuki — AI trip assistant:** building (Oct 3 2026). Ask about the day's
-  plan, flights, arrivals, pins, the chat, your journal, weather, money.
-- **Journal help:** building (Oct 3 2026). Voice notes transcribed, and
+- **Yuki — voice assistant:** built (Oct 3 2026). Say "Hey Yuki" (or tap
+  her) and ask anything in the app; she answers aloud with a glowing
+  cherry blossom.
+- **Journal help:** built (Oct 3 2026). Voice notes transcribed, and
   "write it with Yuki" drafts an entry from the day's notes and photos.
 - **Later / not chosen yet:** sign & menu reader (photo → translation),
   translate in chat, photo auto-captions.

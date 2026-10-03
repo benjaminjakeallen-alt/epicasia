@@ -1,7 +1,8 @@
 // Yuki (the AI trip assistant, supabase/functions/yuki) answers from the
 // same bundled content the app shows: the Arrivals guides and checklist
 // (src/lib/arrivals.ts), the trip's legs (src/lib/places.ts) and emergency
-// numbers (src/lib/phrases.ts) and the weather cities (src/lib/weather.ts). Edge Functions can't import the app's React
+// numbers and phrasebook (src/lib/phrases.ts) and the weather cities
+// (src/lib/weather.ts). Edge Functions can't import the app's React
 // Native modules, so this script bundles those files with esbuild (colours and
 // photos stubbed out), runs them and writes the data as
 // supabase/functions/yuki/knowledge.ts.
@@ -21,7 +22,7 @@ const result = await build({
     contents: `
       export { COUNTRIES, CHECKLIST, CHECKED, PASSPORT, airportByCode } from './src/lib/arrivals';
       export { STOPS } from './src/lib/places';
-      export { EMERGENCY, LANGUAGES } from './src/lib/phrases';
+      export { EMERGENCY, LANGUAGES, PHRASES } from './src/lib/phrases';
       export { CITIES } from './src/lib/weather';
     `,
     resolveDir: root,
@@ -71,6 +72,17 @@ const knowledge = {
   }),
   checklist: mod.CHECKLIST.map((c) => c.text),
   weatherCities: mod.CITIES.map(({ key, name, lat, lng, june }) => ({ key, name, lat, lng, typicalJune: june })),
+  phrasebook: Object.fromEntries(
+    Object.entries(mod.PHRASES).map(([cat, list]) => [
+      cat,
+      list.map((ph) => ({
+        en: ph.en,
+        japanese: `${ph.ja.text} (${ph.ja.say})`,
+        mandarin: `${ph.zh.text} (${ph.zh.say})`,
+        cantonese: `${ph.yue.text} (${ph.yue.say})`,
+      })),
+    ]),
+  ),
   emergency: Object.fromEntries(
     Object.entries(mod.EMERGENCY).map(([k, v]) => {
       const lang = mod.LANGUAGES.find((l) => l.key === k);

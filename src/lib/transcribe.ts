@@ -4,7 +4,7 @@
 // Safari ends a recognition session after a pause, so it's restarted until
 // stop(). If recognition fails, the recording itself carries on untouched.
 
-type Recognition = {
+export type Recognition = {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
@@ -13,23 +13,25 @@ type Recognition = {
   onerror: ((e: { error?: string }) => void) | null;
   start(): void;
   stop(): void;
+  abort?(): void;
 };
 
-function Ctor(): (new () => Recognition) | null {
+/** The browser's speech recognizer (Chromium has it unprefixed, Safari as webkit…). */
+export function recognitionCtor(): (new () => Recognition) | null {
   if (typeof window === 'undefined') return null;
   const w = window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
 export function canTranscribe(): boolean {
-  return !!Ctor();
+  return !!recognitionCtor();
 }
 
 export type Transcriber = { stop(): string };
 
 /** Starts listening; `onText` gets the transcript so far (final + in progress). */
 export function startTranscriber(onText: (text: string) => void): Transcriber | null {
-  const C = Ctor();
+  const C = recognitionCtor();
   if (!C) return null;
   let finished = '';
   let interim = '';
