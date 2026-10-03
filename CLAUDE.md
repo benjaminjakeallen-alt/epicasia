@@ -722,7 +722,7 @@ backend code.
   **Supabase must allow-list them** (Authentication → URL Configuration:
   Site URL `https://epicasia.vercel.app`, Redirect URLs
   `https://epicasia.vercel.app/**` and `epicasia://**`) — otherwise it
-  silently falls back to the Site URL. Tests in `invites.spec.ts` pin the
+  silently falls back to the Site URL. **Done by the user Oct 3 2026.** Tests in `invites.spec.ts` pin the
   shared link and the sign-up `redirect_to`.
   Tests: `e2e/invites.spec.ts` + axe audits of the invite and register
   screens.
