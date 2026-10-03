@@ -283,6 +283,7 @@ const SCREENS: [string, string][] = [
   ['photo book', '/journal/book'],
   ['profile', '/profile'],
   ['admin', '/admin'],
+  ['trip leaderboard', '/games/leaderboard'],
   ['accessibility settings', '/accessibility'],
 ];
 

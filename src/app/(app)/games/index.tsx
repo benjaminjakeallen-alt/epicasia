@@ -88,7 +88,12 @@ export default function Games() {
         <Text style={[styles.headerTitle, { color: colors.ink }]} accessibilityRole="header">
           Games
         </Text>
-        <View style={styles.spacer} />
+        <CircleButton
+          icon="trophy-outline"
+          label="Leaderboard"
+          onPress={() => router.push('/(app)/games/leaderboard')}
+          testID="games-leaderboard"
+        />
       </View>
 
       <View style={styles.stage} {...pan.panHandlers}>
@@ -186,7 +191,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   headerTitle: { fontFamily: fontFamily.display, fontSize: 22, letterSpacing: -0.2 },
-  spacer: { width: 44 },
   stage: { flex: 1, minHeight: 260, alignItems: 'center', justifyContent: 'center' },
   halo: { position: 'absolute', width: 230, height: 230, borderRadius: 115, opacity: 0.9 },
   shadow: { position: 'absolute', bottom: '6%', width: 130, height: 14, borderRadius: 7, boxShadow: shadow.stage },
