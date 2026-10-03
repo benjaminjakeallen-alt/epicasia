@@ -134,7 +134,7 @@
   // Each hero is a palette over shared body frames. A hero drawn from a
   // reference photo also has his own head (rows 0-5, facing right) and back
   // of the head (climbing): heroFrames() swaps those rows in. Wives may have
-  // their own full frames. Shea and Heather are still PLACEHOLDERS (no photos yet).
+  // their own full frames. All four are drawn from the user's photos.
   var HERO_FRAMES = {
     stand: ['...HHHHH....','..HHHHHHH...','..HHSSSSS...','..HSSESSES..','..SSSSSSSS..','..BSSSMMS...','...BBBBB....','...TTTTT....','..TTUTUTT...','.STTUTUTTS..','.S.TTTTT.S..','...PPPPP....','...PP.PP....','...PP.PP....','...KK.KK....','..KKK.KKK...'],
     walk1: ['...HHHHH....','..HHHHHHH...','..HHSSSSS...','..HSSESSES..','..SSSSSSSS..','..BSSSMMS...','...BBBBB....','...TTTTT....','..TTUTUTT...','.STTUTUTTS..','.S.TTTTT.S..','...PPPPP....','..PP...PP...','..PP...PP...','..KK...KK...','.KKK...KKK..'],
@@ -156,28 +156,43 @@
       back: ['...SSSSS....', '..SSLLSSS...', '..SSLSSSSs..', '.sSSSSSSSs..', '..sSSSSSs...', '...sSSSs....'],
       pal: { S: '#f2c3a0', s: '#d39c78', L: '#fff0e2', E: '#2d5f9a', B: '#c49a7c', M: '#b0503f', T: '#7196e3', U: '#7196e3', P: '#82868d', K: '#1c1c1e', W: '#ffffff' }
     },
+    // Shea (from his photos): dark curly hair swept back, high forehead,
+    // blue mirrored sunglasses pushed up on his head, hazel eyes, stubble,
+    // royal-blue tee, tan pants, white sneakers.
     shea: {
       name: 'SHEA', wife: 'heather', power: 'CANDY CANE', powerMsg: 'CANDY CANE POWER!',
-      pal: { H: '#c59a5b', S: '#f3cfa0', E: '#1b1b1b', B: '#f3cfa0', M: '#b5543f', T: '#2f9e44', U: '#1b6e2e', P: '#a07850', K: '#3b2a1a', W: '#ffffff' }
+      head: ['..HhHHhH....', '.HHHGGHGG...', '.HHSSSSSSs..', '.HsSSESSES..', '..SSSSSSSs..', '..bSSSSMM...'],
+      back: ['..HhHHhH....', '.HHHHHhHH...', '.HHhHHHHHH..', '.sHHHHHhHs..', '..HHHHHHH...', '...sSSSs....'],
+      pal: { H: '#2b2420', h: '#4a403a', G: '#3f8fd9', S: '#f0c6a4', s: '#d29f7c', E: '#5a7347', b: '#b89a86', B: '#c7a58e', M: '#b4645a', T: '#2259c4', U: '#2259c4', P: '#c8b597', K: '#eef0f2', W: '#ffffff' }
     }
   };
+  // A wife's 18-row standing map → { stand, wave }: the wave raises her
+  // right arm (a sleeve of her dress colour D, hand S) beside her head.
+  function princessFrames(stand) {
+    var wave = stand.slice();
+    function put(r, c, ch) { wave[r] = wave[r].slice(0, c) + ch + wave[r].slice(c + 1); }
+    put(2, 11, 'S'); put(3, 11, 'S'); put(4, 11, 'D'); put(5, 11, 'D'); put(6, 11, 'D'); put(7, 10, 'D'); put(8, 9, 'D'); put(10, 9, 'D');
+    return { stand: stand, wave: wave };
+  }
   var WIVES = {
     // Emily (from her photos): big wavy red hair, black wayfarer sunglasses,
     // silver necklace, the blue ball gown with black florals and a white petticoat.
     emily: {
       name: 'EMILY',
-      frames: (function () {
-        var stand = ['..H.HhH.H...', '.HHhHHHHhH..', 'HHHSSSSSSHH.', '.HHGGGGGGHH.', 'HHhSSSSSShH.', '.HHSSMMSSHH.',
-          'HHHSSSSSHHH.', '.HhdnnnndhH.', '...dDDDDd...', '..DDDdDDDD..', '..SDdDDdDS..', '...DDdDDD...',
-          '..DDdDDdDD..', '..DdDDdDDD..', '.DDDDdDDdDD.', '.DdDDDDdDDD.', 'DDDDdDDDDdDD', 'WWWWWWWWWWWW'];
-        var wave = stand.slice();
-        function put(r, c, ch) { wave[r] = wave[r].slice(0, c) + ch + wave[r].slice(c + 1); }
-        put(2, 11, 'S'); put(3, 11, 'S'); put(4, 11, 'D'); put(5, 11, 'D'); put(6, 11, 'D'); put(7, 10, 'D'); put(8, 9, 'D'); put(10, 9, 'D');
-        return { stand: stand, wave: wave };
-      })(),
+      frames: princessFrames(['..H.HhH.H...', '.HHhHHHHhH..', 'HHHSSSSSSHH.', '.HHGGGGGGHH.', 'HHhSSSSSShH.', '.HHSSMMSSHH.',
+        'HHHSSSSSHHH.', '.HhdnnnndhH.', '...dDDDDd...', '..DDDdDDDD..', '..SDdDDdDS..', '...DDdDDD...',
+        '..DDdDDdDD..', '..DdDDdDDD..', '.DDDDdDDdDD.', '.DdDDDDdDDD.', 'DDDDdDDDDdDD', 'WWWWWWWWWWWW']),
       pal: { H: '#c4552b', h: '#e7864f', S: '#f6d2b8', G: '#111111', M: '#c2414f', n: '#e4ebf2', d: '#141c26', D: '#3d7cae', W: '#f8f9fa' }
     },
-    heather: { name: 'HEATHER', pal: { H: '#f2d06b', S: '#f7d8b5', E: '#1b1b1b', M: '#d6336c', D: '#0ca678', W: '#c3fae8', K: '#08594a' } }
+    // Heather (from her photos): blonde chin-length bob, pearls, the white
+    // gown with pink peonies and green leaves, puffed sleeves.
+    heather: {
+      name: 'HEATHER',
+      frames: princessFrames(['...hHHHHH...', '..HhHHHHHH..', '.HHHSSSSSHH.', '.HHSESSESHH.', '.HHSSSSSSHH.', '.HySSMMSSyH.',
+        '..yHSSSSHy..', '...SppppS...', '..PDDDDDDP..', '..PDFDDLDP..', '..SDDDFDDS..', '...DLDDDD...',
+        '..DDDFDDLD..', '..DFLDDDFD..', '.DDDDDLDDFD.', '.DLFDDDDFLD.', 'DDDDFDDLDDDD', 'DDFDDDDDDFDD']),
+      pal: { H: '#e6cd8c', h: '#f7e7b8', y: '#c4a865', S: '#f4cfb4', E: '#4f7c86', M: '#c9495c', p: '#f6f1e4', P: '#ffffff', D: '#fafafa', F: '#e8579a', L: '#5f9e4c' }
+    }
   };
   function heroFrames(key) {
     var h = HEROES[key];

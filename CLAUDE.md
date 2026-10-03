@@ -347,8 +347,12 @@ Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
   from one of his photos when he rescues Emily (`crown: true`); his own `head`/
   `back` rows sit on the shared body frames (`heroFrames()`). Emily — big
   wavy red hair, black wayfarers, silver necklace, the blue ball gown with
-  black florals (her own full `frames`, `wifeFrames()`). **Shea and Heather
-  are still placeholders** until their photos arrive.
+  black florals (her own full `frames`, `wifeFrames()`). Shea — dark curls
+  swept back, high forehead, blue mirrored sunglasses pushed up on his head,
+  hazel eyes, stubble, a smirk, royal-blue tee, tan pants, white sneakers.
+  Heather — blonde chin-length bob, pearls, the white gown with pink
+  peonies and green leaves. A wife's wave frame is generated from her
+  standing map (`princessFrames()`).
 - Tests: `e2e/rampage.spec.ts` (board ranks; play through the iframe —
   pick Shea by tapping, pad + keyboard move, power-up lights SWING, game
   over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕ back to the
