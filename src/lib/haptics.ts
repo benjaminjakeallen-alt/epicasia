@@ -41,3 +41,13 @@ export function confirmTap() {
   if (Platform.OS === 'web') return webTick();
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
+
+/** Game feedback: a light tick, a heavy thump, or a success/error buzz. */
+export function gameHaptic(kind: unknown) {
+  if (Platform.OS === 'web') return webTick();
+  const done = () => {};
+  if (kind === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(done);
+  else if (kind === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(done);
+  else if (kind === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(done);
+  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(done);
+}

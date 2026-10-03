@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint .
+      - run: node tools/build-rampage.mjs --check
 
   e2e:
     name: Playwright (web build, fake backend)

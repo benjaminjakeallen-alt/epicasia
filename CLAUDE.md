@@ -101,8 +101,8 @@ through them. Build it with standard accessibility practice:
   none of this can be verified in the web/Playwright build.
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
-points and a leaderboard; the first, **Lost in Translation**, is built (see
-below). (Trivia from the reunion app is still not planned.)
+points and a leaderboard; **Lost in Translation** and **Godzilla Rampage**
+are built (see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -304,6 +304,53 @@ cross-game leaderboard is a sum over the same tables (not built yet).
   New order; leaderboard ranks/points/ties; posting uploads two files to
   `games` and inserts **no** `gallery_photos` row; delete removes row +
   files) + axe audits of the hub, wall, leaderboard and new-find form.
+
+### Games → Godzilla Rampage (built, Oct 3 2026)
+
+A retro arcade platformer from the user's brief: climb girders/ladders
+while Godzilla throws barrels, rescue the wife at the top. **Chris**
+(pickaxe, from Price, Utah) rescues **Emily**; **Shea** (giant candy cane)
+rescues **Heather**. Four levels — Godzilla Rampage, Coal Mine Chaos,
+Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
+- **The game is one self-contained HTML file**, `assets/games/rampage.html`
+  (192×288 logical canvas, all pixel art and Web Audio sound drawn/synthesised
+  in code, a DOM touch pad sized from the viewport width via `--u`).
+  **Its pixel palette is game art, the one exception to the colour-token
+  rule** — it never leaves the file. `tools/build-rampage.mjs` syntax-checks
+  the inline script and writes `src/games/rampage/html.ts` (the file as a
+  string): **edit the .html, then `npm run build:rampage`**; CI runs it with
+  `--check` and fails if html.ts is stale.
+- **Host:** `src/app/(app)/games/rampage/index.tsx` (Play card + high-score
+  board: each player's best run, ties share a rank) and `play.tsx` (full
+  screen, swipe-back off, light status bar) using
+  `src/components/games/GameFrame` — `react-native-webview` (13.16.1, the
+  SDK's version) natively, a `sandbox="allow-scripts"` iframe `srcDoc` on
+  web (null origin: no access to the app's storage/session; it focuses the
+  iframe's window on load so keys reach the game). The host swaps
+  `/*INIT*/null` for `{highScore, debug: __DEV__}` (HIGH SCORE = best of the
+  phone's own and the group's saved runs). Messages from the game:
+  `ready`, `score {score, level, round, hero, outcome}` (once per run, on
+  game over or ✕), `haptic {kind}` (`gameHaptic()` in `haptics.ts`),
+  `exit`.
+- **Scores:** `0014_game_scores.sql` — `game_scores` (game
+  `godzilla_rampage`, user, score 1…9,999,999, level 1–4, round, hero
+  chris/shea); members read, insert own, admin deletes. Arcade games score
+  themselves; photo games use upvotes. `src/lib/rampage.ts` validates the
+  message (`parseRun`), keeps the phone's best (`epicasia.rampage.best`),
+  queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
+  so a run finished offline goes up on the next save or board visit.
+- `window.__rampage` exposes mode/score/lives/level/hero/hi/player for
+  tests; in development `__rampage.debug` adds giveTool, rescue, die,
+  gameOver(score), spawnBarrelAt, pause, setLevel.
+- **Character sprites are placeholders** until the user sends reference
+  photos of Chris, Shea, Emily and Heather (`HEROES`/`WIVES` palettes and
+  `HERO_FRAMES`/`PRINCESS_FRAMES` in the .html).
+- Tests: `e2e/rampage.spec.ts` (board ranks; play through the iframe —
+  pick Shea by tapping, pad + keyboard move, power-up lights SWING, game
+  over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕ back to the
+  board with the new best, no page errors; offline run saved on the next
+  visit) + axe audits of the board and the game (inside the frame, all
+  buttons ≥ 44). The fake backend's session init script now skips iframes.
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
@@ -596,7 +643,8 @@ backend code.
   `0010_trip_invites.sql` (invite codes required at sign-up — see Auth),
   `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents),
   `0012_map_pins.sql` (shared map pins — see Toolkit),
-  `0013_games.sql` (game entries/votes + private `games` bucket — see Games).
+  `0013_games.sql` (game entries/votes + private `games` bucket — see Games),
+  `0014_game_scores.sql` (arcade runs — see Godzilla Rampage).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

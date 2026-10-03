@@ -80,6 +80,11 @@ export const colors = {
   winner: '#c39233',
   winnerSoft: '#fdf1d4',
   winnerInk: '#6e4e15',
+  // Arcade games (Godzilla Rampage): the night behind the game while it
+  // loads and around it on wide screens. The game's own pixel palette is
+  // game art inside assets/games/rampage.html, not app chrome.
+  arcade: '#0b0820',
+  onArcade: '#ffffff', // 19.5:1
   // Soft gold for the home orbit's glowing connector line only.
   gold: '#d4a64a',
   goldLight: '#ffe2a3',

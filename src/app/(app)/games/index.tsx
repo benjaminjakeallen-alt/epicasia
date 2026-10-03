@@ -10,8 +10,8 @@ import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
 // Games hub: one card per game. New games are added to GAMES in
-// src/lib/games.ts; they all score the same way (upvotes received), so a
-// combined leaderboard can sit here once there's more than one.
+// src/lib/games.ts. Photo games score by upvotes received (game_entries/
+// game_votes); arcade games by runs (game_scores) — each has its own board.
 
 export default function Games() {
   const insets = useSafeAreaInsets();

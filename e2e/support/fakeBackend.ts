@@ -50,6 +50,7 @@ export async function signInWithFakeBackend(
 
   await page.addInitScript(
     ([key, value]) => {
+      if (window.top !== window) return; // init scripts run in iframes too (e.g. the sandboxed game, no storage)
       localStorage.setItem(key, value);
       localStorage.setItem('epicasia.rememberUntil', String(Date.now() + 86_400_000));
     },

@@ -12,13 +12,21 @@ import type { CityKey } from './weather';
 
 export type GameKey = 'lost_in_translation';
 
-export const GAMES: { key: GameKey; title: string; line: string; icon: string; href: Href }[] = [
+export const GAMES: { key: GameKey | 'godzilla_rampage'; title: string; line: string; icon: string; href: Href }[] = [
   {
     key: 'lost_in_translation',
     title: 'Lost in Translation',
     line: 'Snap the wonkiest English on the trip. Most upvotes wins.',
     icon: 'language-outline',
     href: '/(app)/games/lost-in-translation',
+  },
+  {
+    // Arcade: scores itself (src/lib/rampage.ts, game_scores), not upvotes.
+    key: 'godzilla_rampage',
+    title: 'Godzilla Rampage',
+    line: 'Climb the girders, dodge the barrels, rescue Emily and Heather.',
+    icon: 'game-controller-outline',
+    href: '/(app)/games/rampage',
   },
 ];
 

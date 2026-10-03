@@ -40,7 +40,8 @@
     "react-native-screens": "^4.28.0",
     "react-native-svg": "^15.15.5",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "^0.21.3"
+    "react-native-web": "^0.21.3",
+    "react-native-webview": "^13.16.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
@@ -57,7 +58,8 @@
     "web": "expo start --web",
     "test:e2e": "playwright test",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:rampage": "node tools/build-rampage.mjs"
   },
   "private": true
 }
