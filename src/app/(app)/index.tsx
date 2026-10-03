@@ -25,7 +25,7 @@ const MENU: OrbitMenuItem[] = [
   { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legTextColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
   { key: 'journal', label: 'Journal', caption: 'Your memories, photos and voice notes', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png'), href: '/(app)/journal' },
   { key: 'toolkit', label: 'Toolkit', caption: 'Currency, phrases, weather and map pins', color: legTextColors.shanghai, image: require('../../../assets/images/menu/satchel.png'), href: '/(app)/toolkit' },
-  { key: 'games', label: 'Games', caption: 'Coming soon', color: palette.seal, image: require('../../../assets/images/menu/games.png') },
+  { key: 'games', label: 'Games', caption: 'Lost in Translation and more', color: palette.seal, image: require('../../../assets/images/menu/games.png'), href: '/(app)/games' },
 ];
 
 export default function Home() {

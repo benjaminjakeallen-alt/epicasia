@@ -55,8 +55,37 @@ const PINS = [
   },
 ];
 
+const FINDS = [
+  {
+    id: 'g1',
+    game: 'lost_in_translation',
+    created_by: SARAH,
+    storage_path: `${SARAH}/g1.jpg`,
+    thumb_path: `${SARAH}/g1.thumb.jpg`,
+    width: 1200,
+    height: 900,
+    caption: 'Slip carefully',
+    city: 'tokyo',
+    created_at: ago(30),
+  },
+  {
+    id: 'g2',
+    game: 'lost_in_translation',
+    created_by: USER_ID,
+    storage_path: `${USER_ID}/g2.jpg`,
+    thumb_path: null,
+    width: 900,
+    height: 1200,
+    caption: null,
+    city: null,
+    created_at: ago(10),
+  },
+];
+
 const DATA = {
   documents: DOCS,
+  game_entries: FINDS,
+  game_votes: [{ entry_id: 'g1', user_id: USER_ID }],
   map_pins: PINS,
   profiles: [
     { id: SARAH, display_name: 'Sarah Lee' },
@@ -227,6 +256,9 @@ const SCREENS: [string, string][] = [
   ['weather (no forecast)', '/toolkit/weather'],
   ['map pins', '/toolkit/pins'],
   ['add a map pin', '/toolkit/new-pin'],
+  ['games', '/games'],
+  ['lost in translation', '/games/lost-in-translation'],
+  ['new find', '/games/lost-in-translation/new'],
   ['chat', '/chat'],
   ['photos', '/photos'],
   ['journal', '/journal'],
@@ -303,6 +335,15 @@ test('a11y: pin address shown large', async ({ page }) => {
   await open(page, '/toolkit/pins');
   await page.getByRole('button', { name: /^Show the address of/ }).click();
   await expect(page.getByTestId('address-card')).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: lost in translation leaderboard', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/lost-in-translation');
+  await page.getByRole('tab', { name: 'Leaderboard' }).click();
+  await expect(page.getByTestId('leaderboard')).toBeVisible();
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });

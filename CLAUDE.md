@@ -100,8 +100,9 @@ through them. Build it with standard accessibility practice:
   Inspector, every Dynamic Type size, and both folded/unfolded postures —
   none of this can be verified in the web/Playwright build.
 
-Explicitly deferred: gamification/points/trivia (was reunion-specific,
-revisit later if wanted).
+**Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
+points and a leaderboard; the first, **Lost in Translation**, is built (see
+below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -262,6 +263,47 @@ pins from the last saved copy).
   audits of every Toolkit screen, the phrase card, weather with data and
   the address card. The fake backend aborts the rate and weather services
   in every test (specs that need them answer them).
+
+### Games → Lost in Translation (built, Oct 3 2026)
+
+The ring's **Games** hub (mahjong icon, 7th item; it said "Coming soon")
+now opens `src/app/(app)/games/index.tsx`, one card per game in `GAMES`
+(`src/lib/games.ts`). **Shared scoring for every game** (user: "eventually
+all 5-6 games will have a leaderboard and points"): `game_entries` (a
+`game` key + player) and `game_votes` (one per entry per person, never on
+your own — enforced by RLS); **points = upvotes received**. A combined
+cross-game leaderboard is a sum over the same tables (not built yet).
+- **Lost in Translation** (title picked by the user from six; "Engrish"
+  avoided on purpose): post a photo of wonky English (library/camera),
+  optional caption "What does it say?" (≤ 200, whitespace collapsed), city
+  (default today's leg, or "Somewhere else"). Wall with **Top** (votes,
+  then newest) / **New** / **Leaderboard** tabs; upvote toggles
+  optimistically (rolls back on error); your own find shows its count +
+  delete instead of a vote button.
+- **Daily winner highlighted** (user asked): per local calendar day, the
+  entry with the most upvotes (≥ 1; tie → posted first) gets a gold frame
+  and a trophy badge — "Leading today" for today, "Winner · Jun 7" after.
+  Highlight only, **no bonus points**. Leaderboard ties share a rank; daily
+  wins, then finds, order a tie. New tokens `winner` / `winnerSoft` /
+  `winnerInk` (6.8:1).
+- **Photos are NOT in the shared gallery** (user: "Don't put photos in
+  gallery"): private **`games` bucket** (15 MB images; members read; you
+  write only under `<uid>/`), `<uid>/<entry id>.<ext>` + device-made
+  `.thumb.jpg`; deleting an entry deletes its row (votes cascade) and both
+  files. The insert policy also checks `storage_path` is in your folder.
+- **Live schema note:** `game_entries.photo_id` still exists, nullable and
+  unused — 0013 first linked entries to gallery photos; the fix-ups
+  (0013b/c/d) avoided `DROP COLUMN`/`DROP POLICY` because **destructive
+  statements through the Supabase MCP connector hang until timeout** (a
+  confirmation that never arrives). Non-destructive DDL (`ALTER POLICY`,
+  `ALTER COLUMN … DROP NOT NULL`) went through. The repo's
+  `0013_games.sql` is the clean final schema.
+- Cached for offline (`game.<key>.entries`, `game.votes`).
+- Tests: `e2e/games.spec.ts` (hub; Top order; winner badges for a past
+  day and today; own find not votable; vote insert + exact delete query;
+  New order; leaderboard ranks/points/ties; posting uploads two files to
+  `games` and inserts **no** `gallery_photos` row; delete removes row +
+  files) + axe audits of the hub, wall, leaderboard and new-find form.
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
@@ -553,7 +595,8 @@ backend code.
   `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat),
   `0010_trip_invites.sql` (invite codes required at sign-up — see Auth),
   `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents),
-  `0012_map_pins.sql` (shared map pins — see Toolkit).
+  `0012_map_pins.sql` (shared map pins — see Toolkit),
+  `0013_games.sql` (game entries/votes + private `games` bucket — see Games).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -667,7 +710,7 @@ backend code.
   on every operation) — `journal_entries` is personal but adds one extra
   `select` policy for rows with `shared_to_group = true`.
 - `trip_invites` (admin-only) gates sign-up — see the Auth bullet.
-- Storage: five buckets — `avatars` (private, any member reads, own folder writes; see Profile), `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
+- Storage: six buckets — `games` (private, any member reads, own folder writes; see Games), `avatars` (private, any member reads, own folder writes; see Profile), `journal` (private, per-user, see Journal), `chat` and `gallery` (both private, any member
   reads via signed URLs, uploads only under own uid folder; see Group chat
   / Photos) and
   `documents` (private, RLS-gated so a user can only touch objects under a

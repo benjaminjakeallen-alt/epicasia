@@ -74,6 +74,12 @@ export const colors = {
   // ---- Brand ----
   // The hanko seal next to the wordmark — the only red in the chrome.
   seal: '#c8452f',
+  // Game winners (Lost in Translation's daily winner): a gold frame
+  // (decorative, the badge text carries the meaning), a pale gold badge
+  // fill, and dark gold-brown text on it (6.8:1 on winnerSoft, 7.6 on white).
+  winner: '#c39233',
+  winnerSoft: '#fdf1d4',
+  winnerInk: '#6e4e15',
   // Soft gold for the home orbit's glowing connector line only.
   gold: '#d4a64a',
   goldLight: '#ffe2a3',

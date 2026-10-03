@@ -170,9 +170,9 @@ export function GridSkeleton({ cell, gap, pad }: { cell: number; gap: number; pa
 }
 
 /** Journal: day labels + entry cards with a photo strip. */
-export function JournalSkeleton() {
+export function JournalSkeleton({ label = 'Loading journal' }: { label?: string }) {
   return (
-    <SkeletonRoot label="Loading journal" style={styles.pad}>
+    <SkeletonRoot label={label} style={styles.pad}>
       {[0, 1].map((d) => (
         <View key={d} style={styles.mb14}>
           <Bone width={120} height={14} style={styles.sectionHead} />
