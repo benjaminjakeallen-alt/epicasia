@@ -12,21 +12,44 @@ async function skipIntro(page: Page) {
 }
 
 /** Signed out: answer Supabase auth calls in-test and record sign-up bodies. */
-async function fakeAuth(page: Page, signup: (route: Route) => Promise<void>) {
-  const bodies: Record<string, unknown>[] & { redirects?: (string | null)[] } = [];
-  bodies.redirects = [];
+// Sign-up goes through the join-trip Edge Function, then a password sign-in.
+async function fakeAuth(page: Page, join: (route: Route) => Promise<void>) {
+  const bodies: Record<string, unknown>[] = [];
+  const signIns: Record<string, unknown>[] = [];
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   await page.route(/supabase\.co/, async (route) => {
     const url = new URL(route.request().url());
-    if (url.pathname === '/auth/v1/signup') {
+    if (url.pathname === '/functions/v1/join-trip') {
+      if (route.request().method() === 'OPTIONS')
+        return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
       bodies.push(route.request().postDataJSON());
-      bodies.redirects!.push(url.searchParams.get('redirect_to'));
-      return signup(route);
+      return join(route);
     }
+    if (url.pathname === '/auth/v1/token') {
+      signIns.push(route.request().postDataJSON());
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fakeSession()) });
+    }
+    if (url.pathname === '/auth/v1/signup') throw new Error('sign-up must not use Supabase Auth directly (its emails are rate-limited)');
     return route.abort();
   });
-  return bodies;
+  return { bodies, signIns };
 }
+
+function fakeSession() {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return {
+    access_token: `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER_ID, exp, role: 'authenticated' })}.sig`,
+    refresh_token: 'r',
+    token_type: 'bearer',
+    expires_in: 3600,
+    expires_at: exp,
+    user: { id: USER_ID, aud: 'authenticated', role: 'authenticated', email: 'sarah@example.com', user_metadata: { display_name: 'Sarah Lee' }, app_metadata: {} },
+  };
+}
+
+const answer = (status: number, body: object) => (route: Route) =>
+  route.fulfill({ status, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
 
 async function fillRegister(page: Page) {
   await page.getByLabel('Name').fill('Sarah Lee');
@@ -35,14 +58,8 @@ async function fillRegister(page: Page) {
   await page.getByLabel('Confirm Password').fill('correct horse battery');
 }
 
-test('an invite link fills the code; a valid code signs up with it', async ({ page }) => {
-  const bodies = await fakeAuth(page, (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ id: 'new-user', aud: 'authenticated', email: 'sarah@example.com', user_metadata: {} }),
-    }),
-  );
+test('an invite link fills the code; signing up makes the account and goes straight in (no email)', async ({ page }) => {
+  const { bodies, signIns } = await fakeAuth(page, answer(200, { ok: true }));
   await page.goto('/register?invite=k7qm2xpa');
   await skipIntro(page);
 
@@ -50,17 +67,14 @@ test('an invite link fills the code; a valid code signs up with it', async ({ pa
   await fillRegister(page);
   await page.getByRole('button', { name: 'Create Account' }).click();
 
-  await expect(page.getByText('Check your email')).toBeVisible();
-  expect(bodies[0]).toMatchObject({
-    email: 'sarah@example.com',
-    data: { display_name: 'Sarah Lee', invite_code: 'K7QM-2XPA' },
-  });
-  // The confirmation email must bring them back to the public site (Supabase
-  // used its default, localhost:3000, which can't open on anyone's phone).
-  expect(bodies.redirects![0]).toBe('https://epicasia.vercel.app/login?confirmed=1');
+  await expect(page).not.toHaveURL(/register/);
+  expect(bodies).toEqual([
+    { email: 'sarah@example.com', password: 'correct horse battery', display_name: 'Sarah Lee', invite_code: 'K7QM-2XPA' },
+  ]);
+  expect(signIns).toEqual([{ email: 'sarah@example.com', password: 'correct horse battery', gotrue_meta_security: {} }]);
 });
 
-test('arriving from the confirmation email says the email is confirmed', async ({ page }) => {
+test('arriving from a confirmation email says the email is confirmed', async ({ page }) => {
   await fakeAuth(page, (route) => route.abort());
   await page.goto('/login?confirmed=1');
   await skipIntro(page);
@@ -68,7 +82,7 @@ test('arriving from the confirmation email says the email is confirmed', async (
 });
 
 test('no code: refused before anything is sent', async ({ page }) => {
-  const bodies = await fakeAuth(page, (route) => route.abort());
+  const { bodies } = await fakeAuth(page, (route) => route.abort());
   await page.goto('/register');
   await skipIntro(page);
   await fillRegister(page);
@@ -77,41 +91,24 @@ test('no code: refused before anything is sent', async ({ page }) => {
   expect(bodies).toHaveLength(0);
 });
 
-test('a code the server rejects gets a plain explanation', async ({ page }) => {
-  // What Supabase returns when the new-user trigger raises.
-  await fakeAuth(page, (route) =>
-    route.fulfill({
-      status: 500,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 500, error_code: 'unexpected_failure', msg: 'Database error saving new user' }),
-    }),
-  );
+test('the server’s reason is shown: a dead code, an existing account', async ({ page }) => {
+  let reply = answer(400, { error: 'invalid_invite', message: 'That invite code isn’t valid any more. Ask a trip organizer for a current one.' });
+  const { signIns } = await fakeAuth(page, (route) => reply(route));
   await page.goto('/register');
   await skipIntro(page);
   await page.getByTestId('invite-code').fill('ZZZZ-ZZZZ');
   await fillRegister(page);
   await page.getByRole('button', { name: 'Create Account' }).click();
   await expect(page.getByText(/That invite code isn’t valid any more/)).toBeVisible();
-});
 
-test('the email service being over its limit gets a plain explanation', async ({ page }) => {
-  // What Supabase returns when its email sender is out of quota (seen live, Oct 3 2026).
-  await fakeAuth(page, (route) =>
-    route.fulfill({
-      status: 429,
-      contentType: 'application/json',
-      body: JSON.stringify({ code: 429, error_code: 'over_email_send_rate_limit', msg: 'email rate limit exceeded' }),
-    }),
-  );
-  await page.goto('/register?invite=YRJA-DM4F');
-  await skipIntro(page);
-  await fillRegister(page);
+  reply = answer(409, { error: 'exists', message: 'There’s already an account with that email. Sign in, or use “Forgot password”.' });
   await page.getByRole('button', { name: 'Create Account' }).click();
-  await expect(page.getByText(/Too many sign-up emails went out this hour/)).toBeVisible();
+  await expect(page.getByText(/already an account with that email/)).toBeVisible();
+  expect(signIns).toHaveLength(0);
 });
 
 test('a blank email or short password is caught before anything is sent', async ({ page }) => {
-  const bodies = await fakeAuth(page, (route) => route.abort());
+  const { bodies } = await fakeAuth(page, (route) => route.abort());
   await page.goto('/register?invite=YRJA-DM4F');
   await skipIntro(page);
   await page.getByLabel('Name').fill('Sarah Lee');
@@ -123,32 +120,6 @@ test('a blank email or short password is caught before anything is sent', async 
   await page.getByRole('button', { name: 'Create Account' }).click();
   await expect(page.getByText('Choose a password of at least 8 characters.')).toBeVisible();
   expect(bodies).toHaveLength(0);
-});
-
-test('with email confirmation off, signing up goes straight into the app', async ({ page }) => {
-  await fakeAuth(page, (route) => {
-    const exp = Math.floor(Date.now() / 1000) + 3600;
-    const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
-    const user = { id: USER_ID, aud: 'authenticated', role: 'authenticated', email: 'sarah@example.com', user_metadata: { display_name: 'Sarah Lee' }, app_metadata: {} };
-    return route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER_ID, exp, role: 'authenticated' })}.sig`,
-        refresh_token: 'r',
-        token_type: 'bearer',
-        expires_in: 3600,
-        expires_at: exp,
-        user,
-      }),
-    });
-  });
-  await page.goto('/register?invite=YRJA-DM4F');
-  await skipIntro(page);
-  await fillRegister(page);
-  await page.getByRole('button', { name: 'Create Account' }).click();
-  await expect(page.getByText('Check your email')).toHaveCount(0);
-  await expect(page).not.toHaveURL(/register/);
 });
 
 const ADMIN = [{ id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true }];

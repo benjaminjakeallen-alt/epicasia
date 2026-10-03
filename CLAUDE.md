@@ -859,6 +859,19 @@ backend code.
   their own) via a client update, only an existing admin can, and only
   Postgres enforces it (not app code), so it holds even if the client is
   compromised or bypassed entirely.
+  **Sign-up runs in the `join-trip` Edge Function** (Oct 3 2026, deployed,
+  `verify_jwt` off — the invite code is the gate): it validates the fields,
+  then `auth.admin.createUser({ email_confirm: true, user_metadata:
+  { display_name, invite_code } })` with the function's service role, and
+  the app signs in with the password straight away. **No confirmation email
+  is sent** — Supabase's built-in sender allows only a few emails an hour
+  and real sign-ups were failing with "429 email rate limit exceeded"
+  (three travelers lost their sign-ups). The invite trigger below still
+  runs (a bad code creates nothing; checked live: bad code → 400, nothing
+  created; existing email → 409 "already an account… Forgot password").
+  Password resets still email (rare enough for the quota); a custom SMTP
+  server (Authentication → SMTP Settings) would lift the limit.
+  `e2e/invites.spec.ts` fails if the app ever calls `/auth/v1/signup`.
   **Sign-up is closed: an invite code is required** (Oct 2 2026, user
   choice "invite code which can be email or QR"; `0010_trip_invites.sql`,
   applied as 0010a/0010b). `trip_invites` (code like `K7QM-2XPA` generated

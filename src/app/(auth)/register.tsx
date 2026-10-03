@@ -3,9 +3,9 @@ import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
-import { INVITE_PATTERN, isEmailRateLimit, isInviteRejection, normalizeInvite } from '../../lib/invites';
+import { INVITE_PATTERN, joinErrorMessage, normalizeInvite } from '../../lib/invites';
 import { PHOTOS } from '../../lib/places';
-import { siteUrl } from '../../lib/site';
+import { recordSignIn } from '../../lib/rememberMe';
 import { supabase } from '../../lib/supabase';
 
 export default function Register() {
@@ -19,7 +19,6 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmationSent, setConfirmationSent] = useState(false);
 
   async function handleRegister() {
     setError(null);
@@ -47,49 +46,28 @@ export default function Register() {
     }
 
     setLoading(true);
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { display_name: displayName.trim(), invite_code: code },
-        // The confirmation email's link lands here (public site, works on any
-        // device the email is opened on); login then says the email is confirmed.
-        emailRedirectTo: siteUrl('/login', { confirmed: '1' }),
-      },
+    // Sign-up runs in the join-trip Edge Function: it checks the invite code
+    // and creates the account already confirmed, so no confirmation email is
+    // needed (Supabase's built-in sender only allows a few an hour, and
+    // sign-ups were failing on it). Then we sign in with the same password.
+    const cleanEmail = email.trim();
+    const { error: joinError } = await supabase.functions.invoke('join-trip', {
+      body: { email: cleanEmail, password, display_name: displayName.trim(), invite_code: code },
     });
-    setLoading(false);
-
-    if (signUpError) {
-      setError(
-        isInviteRejection(signUpError.message)
-          ? 'That invite code isn’t valid any more. Ask a trip organizer for a current one.'
-          : isEmailRateLimit(signUpError)
-            ? 'Too many sign-up emails went out this hour, so yours couldn’t be sent. Wait an hour and try again, or ask a trip organizer.'
-            : signUpError.message,
-      );
+    if (joinError) {
+      setLoading(false);
+      setError(await joinErrorMessage(joinError));
       return;
     }
-
-    // A Supabase project with email confirmation enabled (the default for
-    // new projects) returns a user but no session here — the account isn't
-    // usable until the confirmation link is clicked. Detect that case by
-    // the absence of a session rather than assuming either behavior.
-    if (data.user && !data.session) {
-      setConfirmationSent(true);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+    if (signInError) {
+      setLoading(false);
+      setError('Your account is ready — sign in with your email and password.');
+      return;
     }
-    // If a session came back immediately (confirmations disabled),
-    // AuthProvider picks it up and (app)/_layout.tsx redirects on its own.
-  }
-
-  if (confirmationSent) {
-    return (
-      <FormScreen
-        title="Check your email"
-        subtitle={`We sent a confirmation link to ${email}. Click it, then come back and sign in.`}
-      >
-        <FormButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
-      </FormScreen>
-    );
+    await recordSignIn(true, cleanEmail);
+    setLoading(false);
+    // AuthProvider picks up the session and (auth)/_layout.tsx moves on to the app.
   }
 
   return (

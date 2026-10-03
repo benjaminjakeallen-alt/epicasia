@@ -86,6 +86,17 @@ export function isEmailRateLimit(error: { status?: number; code?: string; messag
   return error.code === 'over_email_send_rate_limit' || error.status === 429 || /rate limit/i.test(error.message);
 }
 
-export function isInviteRejection(message: string): boolean {
-  return /database error saving new user|invalid_invite_code/i.test(message);
+
+/** The join-trip function's own message for a failed sign-up (it answers { error, message }). */
+export async function joinErrorMessage(error: unknown): Promise<string> {
+  const ctx = (error as { context?: unknown })?.context;
+  if (ctx instanceof Response) {
+    try {
+      const body = await ctx.clone().json();
+      if (typeof body?.message === 'string') return body.message;
+    } catch {
+      // not JSON
+    }
+  }
+  return 'Couldn’t reach the server. Check your connection and try again.';
 }
