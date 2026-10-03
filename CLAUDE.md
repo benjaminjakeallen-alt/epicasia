@@ -279,8 +279,8 @@ Each game in `GAMES` (`src/lib/games.ts`) has an `image` —
 `assets/images/games/*.png`, generated like the menu icons (Higgsfield Qwen
 Image 3, same style prompt, sage in every object; prompts in
 `tools/menu-icons/README.md`). Three options were made per game; the
-defaults are the instant camera (Lost in Translation) and the kaiju toy on
-a red girder (Godzilla Rampage) until the user picks. **Shared scoring for every game** (user: "eventually
+user picked the **instant camera** (Lost in Translation) and the **sage
+arcade cabinet** (Godzilla Rampage). **Shared scoring for every game** (user: "eventually
 all 5-6 games will have a leaderboard and points"): `game_entries` (a
 `game` key + player) and `game_votes` (one per entry per person, never on
 your own — enforced by RLS); **points = upvotes received**. A combined
