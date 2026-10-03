@@ -12,12 +12,22 @@ import type { CityKey } from './weather';
 
 export type GameKey = 'lost_in_translation';
 
-export const GAMES: { key: GameKey | 'godzilla_rampage'; title: string; line: string; icon: string; href: Href }[] = [
+// `image`: the game's 3D icon (assets/images/games, generated like the menu
+// icons — see tools/menu-icons/README.md).
+export const GAMES: {
+  key: GameKey | 'godzilla_rampage';
+  title: string;
+  line: string;
+  icon: string;
+  image: number;
+  href: Href;
+}[] = [
   {
     key: 'lost_in_translation',
     title: 'Lost in Translation',
     line: 'Snap the wonkiest English on the trip. Most upvotes wins.',
     icon: 'language-outline',
+    image: require('../../assets/images/games/lost-in-translation.png'),
     href: '/(app)/games/lost-in-translation',
   },
   {
@@ -26,6 +36,7 @@ export const GAMES: { key: GameKey | 'godzilla_rampage'; title: string; line: st
     title: 'Godzilla Rampage',
     line: 'Climb the girders, dodge the barrels, rescue Emily and Heather.',
     icon: 'game-controller-outline',
+    image: require('../../assets/images/games/godzilla-rampage.png'),
     href: '/(app)/games/rampage',
   },
 ];

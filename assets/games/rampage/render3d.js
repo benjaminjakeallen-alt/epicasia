@@ -649,9 +649,16 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const hud = createHud(hudCanvas, game, view, project);
   setTheme(0);
 
+  // Low-power (software WebGL): redraw the 3D at most ~12 times a second so
+  // taps and the game loop stay responsive; the HUD still draws every frame.
+  let glAge = 1;
   function render(dt) {
-    sync(dt);
-    if (renderer) {
+    glAge += dt;
+    const drawGL = renderer && (!lowPower || glAge >= 1 / 12);
+    const elapsed = Math.min(0.25, glAge);
+    if (drawGL) glAge = 0;
+    if (drawGL || !renderer) sync(elapsed);
+    if (drawGL) {
       const sh = S.shakeT > 0 ? 1.6 : 0;
       placeCamera((Math.random() * 2 - 1) * sh, (Math.random() * 2 - 1) * sh * 0.7);
       renderer.render(scene, camera);

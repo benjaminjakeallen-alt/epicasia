@@ -48,6 +48,18 @@ used:
 | chat | a vintage muted sage green enamel rotary telephone with a coiled cord, cream dial and small brass details (Oct 1 2026, pick: try 2; the airmail-postcards alternative read too close to Journal) |
 | satchel (utilities: converter, phrasebook, weather, pins — Oct 3 2026, user's idea and pick of 3) | an open muted sage green leather messenger bag overflowing with travel essentials springing out of the top: a small cream pocket phrasebook, folded colorful foreign banknotes, gold and silver coins, and a tiny red map pin |
 
+**Game icons** (`assets/images/games/`, Oct 3 2026, for the Games hub; three
+options each, user to pick):
+
+| game | option | subject |
+|---|---|---|
+| Lost in Translation | A | a small vintage enamel street sign on a muted sage green post, the sign crowded with a playful jumble of mismatched oversized letters and a little red exclamation mark, with a tiny brass camera hanging from the post |
+| | **B (default)** | a vintage muted sage green instant camera with a freshly printed instant photo sliding out of it, the photo showing a colorful quirky little shop sign |
+| | C | a cream ceramic speech bubble with a big red question mark on it, leaning against a small muted sage green pocket dictionary with a red ribbon bookmark |
+| Godzilla Rampage | **A (default)** | a cute chunky vinyl toy of an original cartoon green kaiju dinosaur with pale spiky back plates, roaring playfully, standing on a short red steel construction girder beside a small wooden barrel |
+| | B | a small vintage arcade cabinet painted muted sage green with chrome trim, a red joystick and buttons, and a glowing screen showing a tiny green dinosaur climbing red girders |
+| | C | a chunky voxel-style toy figure made of small cubes of a friendly green kaiju dinosaur hugging the top of a tiny pastel voxel skyscraper, with a little cube barrel in its claws |
+
 Qwen occasionally returns "model temporarily unavailable" (not charged) —
 just retry.
 

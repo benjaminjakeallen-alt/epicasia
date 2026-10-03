@@ -93,6 +93,8 @@ export const colors = {
   // Illustration colors: sky clouds, the intro planet's sunlight and halo.
   cloud: '#ffffff',
   sunlight: '#fff6dc',
+  // Games hub stage: the soft shadow under the floating hero icon.
+  stageShadow: 'rgba(30,39,33,0.09)',
   halo: 'rgba(255,255,255,0.55)',
 
   // ---- Chat bubbles ----
@@ -129,6 +131,10 @@ export const colors = {
 export const shadow = {
   card: '0px 6px 20px rgba(30,39,33,0.07)',
   float: '0px 10px 28px rgba(30,39,33,0.13)',
+  // sage glow around the Games hub's hero icon
+  glow: '0px 0px 46px rgba(74,114,86,0.38)',
+  // the soft blur around the Games hub's floor shadow
+  stage: '0px 0px 12px 6px rgba(30,39,33,0.09)',
 };
 
 // One color per leg, in trip order — kept stable so a city always reads as

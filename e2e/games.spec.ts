@@ -52,11 +52,20 @@ async function open(page: Page, path: string) {
   await expect(skip).toHaveCount(0);
 }
 
-test('Games opens from the ring into the hub', async ({ page }) => {
+test('Games hub: a stage shows the picked game; tiles switch it, Play opens it', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games');
-  await page.getByTestId('game-lost_in_translation').click();
-  await expect(page.getByRole('heading', { name: 'Lost in Translation' })).toBeVisible();
+  await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
+  await expect(page.getByRole('tab', { name: 'Lost in Translation' })).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: 'test-results/games-hub.png' });
+  await page.getByRole('tab', { name: 'Godzilla Rampage' }).click();
+  await expect(page.getByTestId('games-title')).toHaveText('Godzilla Rampage');
+  await expect(page.getByRole('tab', { name: 'Godzilla Rampage' })).toHaveAttribute('aria-selected', 'true');
+  await page.screenshot({ path: 'test-results/games-hub-rampage.png' });
+  await page.getByRole('tab', { name: 'Lost in Translation' }).click();
+  await page.getByTestId('games-play').click();
+  await expect(page.getByRole('heading', { name: 'Lost in Translation' }).last()).toBeVisible();
+  await expect(page.getByTestId('lit-add')).toBeVisible();
 });
 
 test('the wall: top first, daily winners crowned, vote on others, not your own', async ({ page }) => {

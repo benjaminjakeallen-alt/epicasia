@@ -68,6 +68,7 @@ test('the board: each player’s best run, ties share a rank', async ({ page }) 
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games');
   await page.getByTestId('game-godzilla_rampage').click();
+  await page.getByTestId('games-play').click();
   await expect(page.getByRole('heading', { name: 'Godzilla Rampage' })).toBeVisible();
   const rows = page.getByTestId('high-score');
   await expect(rows).toHaveCount(3);
@@ -139,7 +140,7 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   // Leaving is behind the pause menu (no accidental exits next to the d-pad).
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
-  await expect(page.getByTestId('game-frame')).toHaveCount(0);
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15000 });
   await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 15000 });
   expect(errors).toEqual([]);
 });

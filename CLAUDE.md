@@ -266,9 +266,21 @@ pins from the last saved copy).
 
 ### Games → Lost in Translation (built, Oct 3 2026)
 
-The ring's **Games** hub (mahjong icon, 7th item; it said "Coming soon")
-now opens `src/app/(app)/games/index.tsx`, one card per game in `GAMES`
-(`src/lib/games.ts`). **Shared scoring for every game** (user: "eventually
+The ring's **Games** hub (mahjong icon, 7th item) opens
+`src/app/(app)/games/index.tsx` — **a spotlight stage, not a ring** (user,
+Oct 3 2026: "we don't want to do another rotary menu… a cool hero
+animation… have the user select the icons"): the picked game's 3D icon
+floats large on a white halo with a sage glow (bob + sway + breathing floor
+shadow, off under Reduce Motion), then the title, one line and a Play pill;
+a row of icon tiles (`role="tab"`, selected one raised with a sage ring)
+picks the game, or swipe across the stage; switching springs the new icon
+in with a sparkle burst and a haptic tick. Tapping the big icon also plays.
+Each game in `GAMES` (`src/lib/games.ts`) has an `image` —
+`assets/images/games/*.png`, generated like the menu icons (Higgsfield Qwen
+Image 3, same style prompt, sage in every object; prompts in
+`tools/menu-icons/README.md`). Three options were made per game; the
+defaults are the instant camera (Lost in Translation) and the kaiju toy on
+a red girder (Godzilla Rampage) until the user picks. **Shared scoring for every game** (user: "eventually
 all 5-6 games will have a leaderboard and points"): `game_entries` (a
 `game` key + player) and `game_votes` (one per entry per person, never on
 your own — enforced by RLS); **points = upvotes received**. A combined
@@ -339,7 +351,8 @@ city) — then they loop harder (`1.15^round`).
   `npm run build:rampage`**; CI runs it with `--check` and fails if html.ts is
   stale. Works offline (no CDN).
 - **Software WebGL** (SwiftShader/llvmpipe — CI, some emulators) switches
-  to a low-power mode (no shadows, 0.75 pixel ratio); `RAMPAGE_INIT.quality
+  to a low-power mode (no shadows, 0.75 pixel ratio, 3D redrawn at most
+  ~12×/s so taps stay responsive); `RAMPAGE_INIT.quality
   = 'high'` forces full quality for screenshots. With no WebGL at all the
   game still runs with only the HUD. `playwright.config.ts` launches
   Chromium with `--use-angle=swiftshader --enable-unsafe-swiftshader` so the
