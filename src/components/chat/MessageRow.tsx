@@ -4,6 +4,7 @@ import { memo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Message, Reaction } from '../../lib/chat';
 import { dayLabel, firstName, photoSize, timeLabel } from '../../lib/chatFormat';
+import { durationLabel } from '../../lib/photos';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
@@ -12,6 +13,8 @@ export type ChatItem = Message & {
   status?: 'sending' | 'failed';
   /** Local photo URI shown until the uploaded one is available. */
   localUri?: string;
+  /** An optimistic video (no poster until it's uploaded). */
+  localVideo?: boolean;
 };
 
 type Props = {
@@ -57,7 +60,8 @@ function MessageRow({
   onRetry,
 }: Props) {
   const deleted = !!item.deleted_at;
-  const hasPhoto = !deleted && (!!item.image_path || !!item.localUri);
+  const isVideo = !deleted && (!!item.video_path || !!item.localVideo);
+  const hasPhoto = !deleted && (!!item.image_path || !!item.localUri || isVideo);
   const hasText = !deleted && !!item.body;
   const photo = hasPhoto ? photoSize(item.image_width, item.image_height, maxWidth, 320) : null;
 
@@ -82,7 +86,7 @@ function MessageRow({
 
   const a11y = deleted
     ? `${senderName}: message deleted`
-    : `${mine ? 'You' : senderName}${hasPhoto ? ', photo' : ''}${hasText ? `: ${item.body}` : ''}, ${timeLabel(item.created_at)}`;
+    : `${mine ? 'You' : senderName}${isVideo ? ', video' : hasPhoto ? ', photo' : ''}${hasText ? `: ${item.body}` : ''}, ${timeLabel(item.created_at)}${item.edited_at ? ', edited' : ''}`;
 
   return (
     <View>
@@ -144,7 +148,12 @@ function MessageRow({
             ) : null}
 
             {hasPhoto && photo ? (
-              <Pressable accessibilityRole="button" onPress={() => onPressPhoto(item)} onLongPress={() => onLongPress(item)} accessibilityLabel="Open photo">
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => onPressPhoto(item)}
+                onLongPress={() => onLongPress(item)}
+                accessibilityLabel={isVideo ? `Play video, ${durationLabel(item.video_duration_ms)}` : 'Open photo'}
+              >
                 {photoUrl || item.localUri ? (
                   <Image
                     source={{ uri: photoUrl ?? item.localUri }}
@@ -154,6 +163,14 @@ function MessageRow({
                 ) : (
                   <View style={[styles.photo, styles.photoLoading, { width: photo.width, height: photo.height }]} />
                 )}
+                {isVideo ? (
+                  <View style={styles.videoBadge} pointerEvents="none">
+                    <View style={styles.play}>
+                      <Ionicons name="play" size={26} color={c.onMedia} />
+                    </View>
+                    {item.video_duration_ms ? <Text style={styles.videoTime}>{durationLabel(item.video_duration_ms)}</Text> : null}
+                  </View>
+                ) : null}
               </Pressable>
             ) : null}
 
@@ -204,7 +221,10 @@ function MessageRow({
               ) : item.status === 'sending' ? (
                 <Text style={[styles.metaText, { color: c.inkTertiary }]}>Sending…</Text>
               ) : (
-                <Text style={[styles.metaText, { color: c.inkTertiary }]}>{timeLabel(item.created_at)}</Text>
+                <Text style={[styles.metaText, { color: c.inkTertiary }]}>
+                  {timeLabel(item.created_at)}
+                  {item.edited_at && !deleted ? ' · Edited' : ''}
+                </Text>
               )}
             </View>
           ) : null}
@@ -299,6 +319,33 @@ const styles = StyleSheet.create({
   },
   photoLoading: {
     backgroundColor: c.skeleton,
+  },
+  videoBadge: {
+    ...StyleSheet.absoluteFill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  play: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: c.mediaBadge,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 3,
+  },
+  videoTime: {
+    position: 'absolute',
+    right: 10,
+    bottom: 8,
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
+    color: c.onMedia,
+    backgroundColor: c.mediaBadge,
+    borderRadius: 9,
+    overflow: 'hidden',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
   text: {
     ...type.body,

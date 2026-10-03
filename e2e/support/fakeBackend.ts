@@ -7,6 +7,8 @@ import type { Page, Request } from '@playwright/test';
 // aborted. Nothing reaches the live database and no test account exists.
 
 export const USER_ID = '00000000-0000-4000-8000-000000000001';
+/** A well-formed P-256 public key (65 bytes, base64url) for push subscription tests. */
+export const FAKE_VAPID_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
 
 export type FakeBackend = {
   inserts: { table: string; body: Record<string, unknown> }[];
@@ -89,8 +91,11 @@ export async function signInWithFakeBackend(
     const fn = url.pathname.match(/^\/functions\/v1\/(.+)$/);
     if (fn) {
       if (req.method() === 'OPTIONS') return route.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
-      backend.functions.push({ name: fn[1], body: req.postDataJSON() });
-      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ sent: 0 }) });
+      const body = req.postDataJSON();
+      backend.functions.push({ name: fn[1], body });
+      // notify-chat's "key" action hands back a (fixed, fake) VAPID public key.
+      const answer = body?.action === 'key' ? { publicKey: FAKE_VAPID_KEY } : body?.action ? { ok: true } : { sent: 0 };
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(answer) });
     }
     // Storage uploads succeed and are recorded.
     const upload = url.pathname.match(/^\/storage\/v1\/object\/([^/]+)\/(.+)$/);
@@ -146,7 +151,16 @@ export async function signInWithFakeBackend(
       return route.fulfill({ status: 201, body: '' });
     }
     if (method === 'DELETE') backend.deletes.push({ table, query: url.search });
-    if (method === 'PATCH') backend.updates.push({ table, query: url.search, body: req.postDataJSON() });
+    if (method === 'PATCH') {
+      const body = req.postDataJSON();
+      backend.updates.push({ table, query: url.search, body });
+      // `.update(...).select()` gets the matching fixture rows back, changed.
+      if ((req.headers()['prefer'] ?? '').includes('return=representation')) {
+        const rows = filterRows(tables[table] ?? [], url.searchParams).map((r) => ({ ...r, ...body }));
+        const single = (req.headers()['accept'] ?? '').includes('vnd.pgrst.object');
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(single ? (rows[0] ?? body) : rows) });
+      }
+    }
     return route.fulfill({ status: 204, body: '' });
   });
 

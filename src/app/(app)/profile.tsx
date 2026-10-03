@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
+import NotificationsRow from '../../components/chat/NotificationsRow';
 import CircleButton from '../../components/CircleButton';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
@@ -101,7 +102,7 @@ export default function ProfileScreen() {
 
   async function signOut() {
     if (!(await confirm('Sign out?', 'You can sign back in with your email and password.', 'Sign out'))) return;
-    await unregisterPush(myId).catch(() => {});
+    await unregisterPush().catch(() => {});
     await clearOfflineCopies();
     await clearLocalDocuments();
     await supabase.auth.signOut();
@@ -222,6 +223,8 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
           </Pressable>
         ) : null}
+
+        <NotificationsRow />
 
         <Pressable
           accessibilityRole="button"

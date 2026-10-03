@@ -1,71 +1,108 @@
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import { supabase } from './supabase';
 
-// Push notifications for the group chat (iPhone/Android builds only — not
-// web, not Expo Go). The phone's Expo push token is stored in
-// `push_tokens`; the sender's app asks the `notify-chat` Edge Function to
-// push each new message to everyone else. Needs an EAS project id in
-// app.json (`extra.eas.projectId`, written by `eas init`) — until then
-// registration quietly does nothing. See CLAUDE.md → Push notifications.
+// Web push for the group chat (the app is a PWA). `public/sw.js` shows the
+// notifications; the notify-chat Edge Function keeps the VAPID keys, saves
+// each browser's subscription and sends a push for every new message to
+// everyone who can see its room (minus mutes). On iPhone, web push only works
+// once Epic Asia is added to the Home Screen (iOS 16.4+). See CLAUDE.md →
+// Group chat → Notifications.
 
-let chatOpen = false;
-/** The chat screen sets this so its own messages don't also pop a banner. */
-export function setChatOpen(open: boolean) {
-  chatOpen = open;
+export type PushState = 'unsupported' | 'install' | 'denied' | 'off' | 'on';
+
+function hasWindow() {
+  return typeof window !== 'undefined' && typeof navigator !== 'undefined';
 }
 
-let currentToken: string | null = null;
+function isIos() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
 
-function projectId(): string | undefined {
+function isStandalone() {
   return (
-    (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas?.projectId ??
-    Constants.easConfig?.projectId
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
 
-/** Foreground behavior: show chat banners unless you're already looking at the chat. */
-export async function configureNotifications() {
-  if (Platform.OS === 'web') return;
-  const Notifications = await import('expo-notifications');
-  Notifications.setNotificationHandler({
-    handleNotification: async (n) => {
-      const isChat = (n.request.content.data as { url?: string } | undefined)?.url === '/chat';
-      const show = !(isChat && chatOpen);
-      return { shouldShowBanner: show, shouldShowList: true, shouldPlaySound: show, shouldSetBadge: false };
-    },
+function supported() {
+  return hasWindow() && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+let registration: Promise<ServiceWorkerRegistration | null> | null = null;
+
+/** Registers the service worker once; `onOpen` gets the url of a tapped notification. */
+export function startServiceWorker(onOpen: (url: string) => void): () => void {
+  if (!hasWindow() || !('serviceWorker' in navigator)) return () => {};
+  registration ??= navigator.serviceWorker.register('/sw.js').catch(() => null);
+  const listener = (e: MessageEvent) => {
+    if (e.data?.type === 'open' && typeof e.data.url === 'string') onOpen(e.data.url);
+  };
+  navigator.serviceWorker.addEventListener('message', listener);
+  return () => navigator.serviceWorker.removeEventListener('message', listener);
+}
+
+async function currentSubscription(): Promise<PushSubscription | null> {
+  if (!supported()) return null;
+  const reg = await (registration ?? navigator.serviceWorker.getRegistration());
+  return (await reg?.pushManager.getSubscription()) ?? null;
+}
+
+export async function pushState(): Promise<PushState> {
+  if (!supported()) return hasWindow() && isIos() && !isStandalone() ? 'install' : 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  if (Notification.permission !== 'granted') return 'off';
+  return (await currentSubscription()) ? 'on' : 'off';
+}
+
+function keyBytes(b64url: string): Uint8Array<ArrayBuffer> {
+  const s = atob(b64url.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64url.length + 3) % 4));
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+async function save(sub: PushSubscription) {
+  const j = sub.toJSON();
+  const { error } = await supabase.functions.invoke('notify-chat', {
+    body: { action: 'subscribe', endpoint: j.endpoint, p256dh: j.keys?.p256dh, auth: j.keys?.auth },
   });
+  if (error) throw error;
 }
 
-/** Asks permission (once) and saves this phone's push token for the signed-in user. */
-export async function registerForPush(userId: string): Promise<void> {
-  if (Platform.OS === 'web') return;
-  const id = projectId();
-  if (!id) return; // no EAS project yet
-  const [Notifications, Device] = await Promise.all([import('expo-notifications'), import('expo-device')]);
-  if (!Device.isDevice) return; // simulators can't receive pushes
-  let { status } = await Notifications.getPermissionsAsync();
-  if (status !== 'granted') status = (await Notifications.requestPermissionsAsync()).status;
-  if (status !== 'granted') return;
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'Group chat',
-      importance: Notifications.AndroidImportance.HIGH,
-    });
+/** Asks permission (call from a tap) and subscribes this browser. */
+export async function enablePush(): Promise<PushState> {
+  if (!supported()) return pushState();
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off';
+  const reg = (await registration) ?? (await navigator.serviceWorker.register('/sw.js'));
+  await navigator.serviceWorker.ready;
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    const { data, error } = await supabase.functions.invoke('notify-chat', { body: { action: 'key' } });
+    if (error || !data?.publicKey) throw error ?? new Error('No push key');
+    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(data.publicKey) });
   }
-  const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
-  currentToken = token;
-  await supabase.from('push_tokens').upsert(
-    { user_id: userId, token, platform: Platform.OS, updated_at: new Date().toISOString() },
-    { onConflict: 'user_id,token' },
-  );
+  await save(sub);
+  return 'on';
 }
 
-/** Stops pushes to this phone for this account (call before signing out). */
-export async function unregisterPush(userId: string): Promise<void> {
-  if (!currentToken) return;
-  await supabase.from('push_tokens').delete().eq('user_id', userId).eq('token', currentToken);
-  currentToken = null;
+/** Turns notifications off for this browser. */
+export async function disablePush(): Promise<void> {
+  const sub = await currentSubscription();
+  if (!sub) return;
+  await supabase.functions.invoke('notify-chat', { body: { action: 'unsubscribe', endpoint: sub.endpoint } });
+  await sub.unsubscribe();
+}
+
+/** After sign-in: a browser that already has a subscription is re-saved for whoever is signed in now. */
+export async function syncPush(): Promise<void> {
+  const sub = await currentSubscription();
+  if (sub && Notification.permission === 'granted') await save(sub);
+}
+
+/** Before signing out: this browser stops getting the account's pushes. */
+export async function unregisterPush(): Promise<void> {
+  await disablePush();
 }
 
 /** Fire-and-forget: ask the server to push a just-sent message to everyone else. */

@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
 type Props = {
   uri: string | null;
+  /** Set for a video message: the viewer plays it (the photo is its poster). */
+  videoUri?: string | null;
   caption: string;
   onClose: () => void;
   onSave: () => void;
@@ -14,27 +16,39 @@ type Props = {
   note: string | null;
 };
 
-// Full-screen photo: dark backdrop so the picture carries the screen, with
-// close at the top and save/share at the bottom (thumb reach).
-export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, saving, note }: Props) {
+// Full-screen photo or video: dark backdrop so the picture carries the
+// screen, with close at the top and download/share at the bottom (thumb reach).
+export default function PhotoViewer({ uri, videoUri, caption, onClose, onSave, onShare, saving, note }: Props) {
+  const kind = videoUri ? 'video' : 'photo';
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
   return (
     <Modal
       visible={!!uri}
-      animationType={Platform.OS === 'web' ? 'none' : 'fade'}
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <StatusBar barStyle="light-content" />
       <View style={styles.root}>
-        {uri ? (
+        {videoUri ? (
+          <video
+            src={videoUri}
+            poster={uri ?? undefined}
+            controls
+            autoPlay
+            playsInline
+            aria-label="Video"
+            data-testid="chat-video"
+            style={{ width, height: height - insets.top - insets.bottom - 150, objectFit: 'contain', background: c.mediaBackground }}
+          />
+        ) : uri ? (
           <Image source={{ uri }} style={{ width, height }} resizeMode="contain" accessibilityLabel="Photo" />
         ) : null}
 
         <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel="Close photo" style={styles.round}>
+          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel={`Close ${kind}`} style={styles.round}>
             <Ionicons name="close" size={22} color={c.onMedia} />
           </Pressable>
         </View>
@@ -51,23 +65,21 @@ export default function PhotoViewer({ uri, caption, onClose, onSave, onShare, sa
               onPress={onSave}
               disabled={saving}
               accessibilityRole="button"
-              accessibilityLabel={Platform.OS === 'web' ? 'Download photo' : 'Save photo to your library'}
+              accessibilityLabel={`Download ${kind}`}
               style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
             >
               <Ionicons name="download-outline" size={19} color={c.onMedia} />
-              <Text style={styles.pillText}>{saving ? 'Saving…' : Platform.OS === 'web' ? 'Download' : 'Save'}</Text>
+              <Text style={styles.pillText}>{saving ? 'Saving…' : 'Download'}</Text>
             </Pressable>
-            {Platform.OS !== 'web' ? (
-              <Pressable
-                onPress={onShare}
-                accessibilityRole="button"
-                accessibilityLabel="Share photo"
-                style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-              >
-                <Ionicons name="share-outline" size={19} color={c.onMedia} />
-                <Text style={styles.pillText}>Share</Text>
-              </Pressable>
-            ) : null}
+            <Pressable
+              onPress={onShare}
+              accessibilityRole="button"
+              accessibilityLabel={`Share ${kind}`}
+              style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            >
+              <Ionicons name="share-outline" size={19} color={c.onMedia} />
+              <Text style={styles.pillText}>Share</Text>
+            </Pressable>
           </View>
         </View>
       </View>

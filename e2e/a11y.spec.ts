@@ -11,6 +11,7 @@ import { signInWithFakeBackend, USER_ID } from './support/fakeBackend';
 // still need a real device (CLAUDE.md → accessibility mode).
 
 const SARAH = '00000000-0000-4000-8000-0000000000aa';
+const EVERYONE = '00000000-0000-4000-8000-000000000001';
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
 
 const DOCS = [
@@ -132,8 +133,14 @@ const DATA = {
       created_at: ago(60),
     },
   ],
+  chat_rooms: [
+    { id: EVERYONE, name: 'Everyone', emoji: '🌏', is_private: false, created_by: null, created_at: ago(5000) },
+    { id: 'r2', name: 'Night owls', emoji: '🍻', is_private: true, created_by: USER_ID, created_at: ago(100) },
+  ],
+  chat_room_members: [{ room_id: 'r2', user_id: SARAH }],
   messages: [
     {
+      room_id: EVERYONE,
       id: 'm2',
       user_id: USER_ID,
       body: 'Welcome to Japan! 🎌',
@@ -145,6 +152,7 @@ const DATA = {
       created_at: ago(2),
     },
     {
+      room_id: EVERYONE,
       id: 'm1',
       user_id: SARAH,
       body: 'Landed at Narita!',
@@ -263,7 +271,10 @@ const SCREENS: [string, string][] = [
   ['lost in translation', '/games/lost-in-translation'],
   ['new find', '/games/lost-in-translation/new'],
   ['godzilla rampage', '/games/rampage'],
-  ['chat', '/chat'],
+  ['chat rooms', '/chat'],
+  ['chat room', `/chat/${EVERYONE}`],
+  ['new chat room', '/chat/new'],
+  ['room info (private, mine)', '/chat/about/r2'],
   ['photos', '/photos'],
   ['journal', '/journal'],
   ['journal entry (mine, editing)', '/journal/j1'],
@@ -366,7 +377,7 @@ test('a11y: godzilla rampage game (the iframe and its controls)', async ({ page 
 
 test('a11y: chat message sheet', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
-  await open(page, '/chat');
+  await open(page, `/chat/${EVERYONE}`);
   const bubble = page.getByLabel('Sarah Lee: Landed at Narita').getByText('Landed at Narita!');
   const box = (await bubble.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

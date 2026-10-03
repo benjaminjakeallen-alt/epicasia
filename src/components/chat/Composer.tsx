@@ -1,10 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
-import type { PickedPhoto } from '../../lib/photos';
+import { durationLabel, isVideo, type PickedPhoto } from '../../lib/photos';
 
 export type { PickedPhoto };
 
@@ -15,6 +15,10 @@ type Props = {
   onClearPhoto: () => void;
   replyTo: { name: string; text: string; color: string } | null;
   onCancelReply: () => void;
+  /** Editing one of your messages: its old text, shown above the box. */
+  editing: string | null;
+  onCancelEdit: () => void;
+  placeholder: string;
   onPickPhoto: () => void;
   onTakePhoto: () => void;
   onSend: () => void;
@@ -28,6 +32,9 @@ export default function Composer({
   onClearPhoto,
   replyTo,
   onCancelReply,
+  editing,
+  onCancelEdit,
+  placeholder,
   onPickPhoto,
   onTakePhoto,
   onSend,
@@ -35,14 +42,29 @@ export default function Composer({
 }: Props) {
   const [contentHeight, setContentHeight] = useState(0);
   // One line when empty; grows with the text up to ~5 lines. RN-web reports
-  // the textarea's scrollHeight (padding included), native reports the text
-  // alone, so only native adds the vertical padding back.
-  const pad = Platform.OS === 'web' ? 0 : 20;
-  const height = value ? Math.min(120, Math.max(44, contentHeight + pad)) : 44;
+  // the textarea's scrollHeight, padding included.
+  const height = value ? Math.min(120, Math.max(44, contentHeight)) : 44;
   const canSend = value.trim().length > 0 || !!photo;
+  const video = photo ? isVideo(photo) : false;
 
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(bottomInset, 10) }]}>
+      {editing !== null ? (
+        <View style={styles.attachRow}>
+          <View style={[styles.replyBar, { borderLeftColor: c.accent }]}>
+            <Text style={[styles.replyName, { color: c.highlight }]} numberOfLines={1}>
+              Editing message
+            </Text>
+            <Text style={styles.replyText} numberOfLines={1}>
+              {editing || 'Add text to your message'}
+            </Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={onCancelEdit} accessibilityLabel="Cancel editing" style={styles.dismiss}>
+            <Ionicons name="close" size={18} color={c.inkSecondary} />
+          </Pressable>
+        </View>
+      ) : null}
+
       {replyTo ? (
         <View style={styles.attachRow}>
           <View style={[styles.replyBar, { borderLeftColor: replyTo.color }]}>
@@ -62,30 +84,44 @@ export default function Composer({
       {photo ? (
         <View style={styles.attachRow}>
           <View>
-            <Image source={{ uri: photo.uri }} style={styles.preview} />
-            <Pressable accessibilityRole="button" onPress={onClearPhoto} hitSlop={8} accessibilityLabel="Remove photo" style={styles.previewClose}>
+            {video ? (
+              <View style={[styles.preview, styles.videoPreview]} accessibilityLabel="Video">
+                <Ionicons name="videocam" size={22} color={c.onMedia} />
+                <Text style={styles.videoTime}>{durationLabel(photo.durationMs)}</Text>
+              </View>
+            ) : (
+              <Image source={{ uri: photo.uri }} style={styles.preview} />
+            )}
+            <Pressable
+              accessibilityRole="button"
+              onPress={onClearPhoto}
+              accessibilityLabel={video ? 'Remove video' : 'Remove photo'}
+              style={styles.previewClose}
+            >
               <Ionicons name="close" size={13} color={c.onMedia} />
             </Pressable>
           </View>
-          <Text style={styles.previewHint}>Photo ready — add a caption or send</Text>
+          <Text style={styles.previewHint}>{video ? 'Video' : 'Photo'} ready — add a caption or send</Text>
         </View>
       ) : null}
 
       <View style={styles.bar}>
-        <Pressable accessibilityRole="button" onPress={onPickPhoto} hitSlop={6} accessibilityLabel="Attach a photo" style={styles.tool}>
-          <Ionicons name="images-outline" size={22} color={c.highlight} />
-        </Pressable>
-        {Platform.OS !== 'web' ? (
-          <Pressable accessibilityRole="button" onPress={onTakePhoto} hitSlop={6} accessibilityLabel="Take a photo" style={styles.tool}>
-            <Ionicons name="camera-outline" size={23} color={c.highlight} />
-          </Pressable>
+        {editing === null ? (
+          <>
+            <Pressable accessibilityRole="button" onPress={onPickPhoto} accessibilityLabel="Attach a photo or video" style={styles.tool}>
+              <Ionicons name="images-outline" size={22} color={c.highlight} />
+            </Pressable>
+            <Pressable accessibilityRole="button" onPress={onTakePhoto} accessibilityLabel="Take a photo or video" style={styles.tool}>
+              <Ionicons name="camera-outline" size={23} color={c.highlight} />
+            </Pressable>
+          </>
         ) : null}
 
         <View style={styles.inputWrap}>
           <TextInput
             value={value}
             onChangeText={onChangeText}
-            placeholder={photo ? 'Add a caption…' : 'Message the group'}
+            placeholder={photo ? 'Add a caption…' : placeholder}
             placeholderTextColor={c.inkTertiary}
             multiline
             onContentSizeChange={(e) => setContentHeight(e.nativeEvent.contentSize.height)}
@@ -100,7 +136,7 @@ export default function Composer({
           onPress={onSend}
           disabled={!canSend}
           accessibilityRole="button"
-          accessibilityLabel="Send"
+          accessibilityLabel={editing !== null ? 'Save edit' : 'Send'}
           accessibilityState={{ disabled: !canSend }}
           testID="chat-send"
           style={({ pressed }) => [
@@ -108,7 +144,7 @@ export default function Composer({
             { backgroundColor: canSend ? c.accent : c.accentDisabled, transform: [{ scale: pressed ? 0.94 : 1 }] },
           ]}
         >
-          <Ionicons name="arrow-up" size={20} color={c.onAccent} />
+          <Ionicons name={editing !== null ? 'checkmark' : 'arrow-up'} size={20} color={c.onAccent} />
         </Pressable>
       </View>
     </View>
@@ -171,6 +207,17 @@ const styles = StyleSheet.create({
     backgroundColor: c.mediaBadge,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  videoPreview: {
+    backgroundColor: c.mediaBackground,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  videoTime: {
+    fontFamily: fontFamily.bodyMedium,
+    fontSize: 11,
+    color: c.onMedia,
   },
   previewHint: {
     ...type.caption,
