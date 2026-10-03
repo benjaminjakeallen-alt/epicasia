@@ -23,6 +23,7 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx eslint .
       - run: node tools/build-rampage.mjs --check
+      - run: node tools/build-yuki-knowledge.mjs --check
 
   e2e:
     name: Playwright (web build, fake backend)

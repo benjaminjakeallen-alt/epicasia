@@ -97,6 +97,10 @@ export async function signInWithFakeBackend(
       const answer =
         fn[1] === 'admin-reset-password'
           ? { password: 'lotus-ferry-4821' }
+          : fn[1] === 'yuki'
+            ? body?.action === 'journal_draft'
+              ? { draft: 'We started the day at the Golden Pavilion…', remaining: 58 }
+              : { reply: 'Today is Tokyo DisneySea! Gates open at 9:00.', remaining: 59 }
           : body?.action === 'key'
             ? { publicKey: FAKE_VAPID_KEY }
             : body?.action

@@ -6,6 +6,7 @@ import Avatar from '../../components/Avatar';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
+import YukiMark from '../../components/YukiMark';
 import { useAuth } from '../../lib/AuthProvider';
 import { useA11yMode } from '../../lib/a11yMode';
 import { fetchUnreadCount, watchNewMessages } from '../../lib/chatUnread';
@@ -82,15 +83,27 @@ export default function Home() {
       <View style={[styles.page, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.topRow}>
           <Wordmark size={24} testID="home-title" />
-          <Pressable
-            onPress={() => router.push('/(app)/profile')}
-            accessibilityRole="button"
-            accessibilityLabel="Your profile"
-            testID="home-avatar"
-            style={[styles.avatar, { backgroundColor: colors.card }]}
-          >
-            <Avatar name={fullName || session?.user.email || '?'} path={avatar} color={colors.accent} size={40} />
-          </Pressable>
+          <View style={styles.topActions}>
+            <Pressable
+              onPress={() => router.push('/(app)/yuki')}
+              accessibilityRole="button"
+              accessibilityLabel="Ask Yuki, your trip assistant"
+              testID="home-yuki"
+              style={[styles.yuki, { backgroundColor: colors.card }]}
+            >
+              <YukiMark size={30} />
+              <Text style={[styles.yukiText, { color: colors.ink }]}>Yuki</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/(app)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Your profile"
+              testID="home-avatar"
+              style={[styles.avatar, { backgroundColor: colors.card }]}
+            >
+              <Avatar name={fullName || session?.user.email || '?'} path={avatar} color={colors.accent} size={40} />
+            </Pressable>
+          </View>
         </View>
 
         {showOffer ? (
@@ -141,6 +154,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  topActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  yuki: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    height: 44,
+    paddingLeft: 7,
+    paddingRight: 14,
+    borderRadius: 22,
+    boxShadow: shadow.card,
+  },
+  yukiText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 15,
   },
   avatar: {
     width: 44,
