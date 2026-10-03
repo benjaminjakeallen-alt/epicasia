@@ -11,21 +11,22 @@ import { useA11yMode } from '../../lib/a11yMode';
 import { fetchUnreadCount, watchNewMessages } from '../../lib/chatUnread';
 import { announce, isScreenReaderOn, watchScreenReader } from '../../lib/speech';
 import { fetchProfile } from '../../lib/profile';
-import { colors as palette, legTextColors, shadow } from '../../theme/colors';
+import { colors as palette, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
 // Ring order = swipe order. Icons are the generated 3D miniatures
-// (tools/menu-icons); `color` tints the selected label. Items without an
+// (tools/menu-icons); `color` tints the selected label — sage green for every
+// item (user, Oct 3 2026: "make them all green"). Items without an
 // href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
-  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.accent, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
-  { key: 'arrivals', label: 'Arrivals', caption: 'Visas, airports and your documents', color: legTextColors.beijing, image: require('../../../assets/images/menu/arrivals.png'), href: '/(app)/arrivals' },
-  { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: legTextColors.hongKong, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
-  { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: legTextColors.kyoto, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
-  { key: 'journal', label: 'Journal', caption: 'Your memories, photos and voice notes', color: legTextColors.tokyo, image: require('../../../assets/images/menu/journal.png'), href: '/(app)/journal' },
-  { key: 'toolkit', label: 'Toolkit', caption: 'Currency, phrases, weather and map pins', color: legTextColors.shanghai, image: require('../../../assets/images/menu/satchel.png'), href: '/(app)/toolkit' },
-  { key: 'games', label: 'Games', caption: 'Lost in Translation and more', color: palette.seal, image: require('../../../assets/images/menu/games.png'), href: '/(app)/games' },
+  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.highlight, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
+  { key: 'arrivals', label: 'Arrivals', caption: 'Visas, airports and your documents', color: palette.highlight, image: require('../../../assets/images/menu/arrivals.png'), href: '/(app)/arrivals' },
+  { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: palette.highlight, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
+  { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: palette.highlight, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },
+  { key: 'journal', label: 'Journal', caption: 'Your memories, photos and voice notes', color: palette.highlight, image: require('../../../assets/images/menu/journal.png'), href: '/(app)/journal' },
+  { key: 'toolkit', label: 'Toolkit', caption: 'Currency, phrases, weather and map pins', color: palette.highlight, image: require('../../../assets/images/menu/satchel.png'), href: '/(app)/toolkit' },
+  { key: 'games', label: 'Games', caption: 'Lost in Translation and more', color: palette.highlight, image: require('../../../assets/images/menu/games.png'), href: '/(app)/games' },
 ];
 
 export default function Home() {

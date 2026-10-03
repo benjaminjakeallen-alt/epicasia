@@ -1030,7 +1030,9 @@ has them).
   `Animated.modulo`; spring-snaps to the nearest item, one extra item max
   for a fast flick); the front hub is selected — tap it or "Open …" to
   navigate, tap a side hub (or ‹ ›) to turn it to the front. No dial or
-  bearing readout (removed at the user's request).
+  bearing readout (removed at the user's request). **Every selected
+  label is sage green** (`highlight`) — they used to take leg colours and the
+  vermilion seal; the user asked for all green (Oct 3 2026).
   - **Hubs** are AI-generated (Higgsfield, Qwen Image 3) hyper-real
     miniature objects, cut out to transparent 360×360 PNGs
     (`assets/images/menu/*.png`): rolled map with sage ribbon + brass
