@@ -94,7 +94,14 @@ export async function signInWithFakeBackend(
       const body = req.postDataJSON();
       backend.functions.push({ name: fn[1], body });
       // notify-chat's "key" action hands back a (fixed, fake) VAPID public key.
-      const answer = body?.action === 'key' ? { publicKey: FAKE_VAPID_KEY } : body?.action ? { ok: true } : { sent: 0 };
+      const answer =
+        fn[1] === 'admin-reset-password'
+          ? { password: 'lotus-ferry-4821' }
+          : body?.action === 'key'
+            ? { publicKey: FAKE_VAPID_KEY }
+            : body?.action
+              ? { ok: true }
+              : { sent: 0 };
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(answer) });
     }
     // Storage uploads succeed and are recorded.

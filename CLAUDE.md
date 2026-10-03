@@ -872,6 +872,14 @@ backend code.
   Password resets still email (rare enough for the quota); a custom SMTP
   server (Authentication → SMTP Settings) would lift the limit.
   `e2e/invites.spec.ts` fails if the app ever calls `/auth/v1/signup`.
+  **Passwords without email:** Profile has "Change password"
+  (`supabase.auth.updateUser`), and organizers get Profile → **Travelers**
+  (`src/app/(app)/travelers.tsx`): "Reset password" calls the
+  **`admin-reset-password` Edge Function** (deployed, `verify_jwt`; checks
+  `profiles.is_admin` as the caller, then sets a readable temporary
+  password like `lotus-ferry-4821` — and confirms the email — with the
+  service role) and shows it once to pass on. For when reset emails land
+  in spam or hit the quota.
   **Sign-up is closed: an invite code is required** (Oct 2 2026, user
   choice "invite code which can be email or QR"; `0010_trip_invites.sql`,
   applied as 0010a/0010b). `trip_invites` (code like `K7QM-2XPA` generated

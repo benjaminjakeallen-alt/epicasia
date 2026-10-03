@@ -72,3 +72,21 @@ export async function removeAvatar(userId: string, previous: string | null): Pro
   if (error) throw error;
   if (previous) await removePhotoFiles('avatars', [previous]).catch(() => {});
 }
+
+/** Sets a new password for the signed-in traveler. */
+export async function changePassword(password: string): Promise<void> {
+  if (password.length < 8) throw new Error('Choose a password of at least 8 characters.');
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw error;
+}
+
+/**
+ * Organizers only: gives a traveler a temporary password (the
+ * admin-reset-password Edge Function) for when a reset email doesn't arrive.
+ * Returns it to show once and pass on.
+ */
+export async function resetTravelerPassword(userId: string): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('admin-reset-password', { body: { user_id: userId } });
+  if (error || typeof data?.password !== 'string') throw new Error('Couldn’t reset that password. Try again.');
+  return data.password;
+}

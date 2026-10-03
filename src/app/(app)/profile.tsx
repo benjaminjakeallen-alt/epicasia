@@ -13,7 +13,7 @@ import { Bone } from '../../components/Skeleton';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import { useAuth } from '../../lib/AuthProvider';
 import { confirm } from '../../lib/confirm';
-import { fetchProfile, removeAvatar, setAvatar, updateDisplayName, type Profile } from '../../lib/profile';
+import { changePassword, fetchProfile, removeAvatar, setAvatar, updateDisplayName, type Profile } from '../../lib/profile';
 import { clearLocalDocuments } from '../../lib/documents';
 import { clearOfflineCopies } from '../../lib/offline';
 import { unregisterPush } from '../../lib/push';
@@ -31,7 +31,8 @@ export default function ProfileScreen() {
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState('');
-  const [busy, setBusy] = useState<'photo' | 'name' | null>(null);
+  const [busy, setBusy] = useState<'photo' | 'name' | 'password' | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -88,6 +89,21 @@ export default function ProfileScreen() {
       setNotice('Name saved');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your name');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function savePassword() {
+    setError(null);
+    setNotice(null);
+    setBusy('password');
+    try {
+      await changePassword(newPassword);
+      setNewPassword('');
+      setNotice('Password changed');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not change your password');
     } finally {
       setBusy(null);
     }
@@ -210,6 +226,34 @@ export default function ProfileScreen() {
           >
             <Ionicons name="person-add-outline" size={22} color={c.highlight} />
             <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Invite travelers</Text>
+            <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
+          </Pressable>
+        ) : null}
+
+        <FormField
+          label="New password"
+          value={newPassword}
+          onChangeText={setNewPassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          textContentType="newPassword"
+          autoComplete="new-password"
+          testID="new-password"
+        />
+        {newPassword ? (
+          <FormButton label="Change password" onPress={savePassword} loading={busy === 'password'} />
+        ) : null}
+
+        {profile?.is_admin ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/(app)/travelers')}
+            testID="open-travelers"
+            style={({ pressed }) => [styles.linkRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
+          >
+            <Ionicons name="people-outline" size={22} color={c.highlight} />
+            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Travelers</Text>
             <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
           </Pressable>
         ) : null}

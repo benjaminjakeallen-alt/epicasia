@@ -282,6 +282,7 @@ const SCREENS: [string, string][] = [
   ['new journal entry', '/journal/new'],
   ['photo book', '/journal/book'],
   ['profile', '/profile'],
+  ['travelers (admin)', '/travelers'],
   ['accessibility settings', '/accessibility'],
 ];
 

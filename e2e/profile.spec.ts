@@ -57,3 +57,37 @@ test('sign out lives on the profile screen and asks first', async ({ page }) => 
   // Dismissed: still signed in, still on the profile.
   await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
 });
+
+test('change your password', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, {
+    profiles: [{ id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: false }],
+  });
+  await open(page, '/profile');
+  await expect(page.getByTestId('open-travelers')).toHaveCount(0); // organizers only
+  await page.getByTestId('new-password').fill('short');
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByText('Choose a password of at least 8 characters.')).toBeVisible();
+  await page.getByTestId('new-password').fill('a much longer one');
+  await page.getByRole('button', { name: 'Change password' }).click();
+  await expect(page.getByText('Password changed')).toBeVisible();
+  expect(backend.authUpdates).toHaveLength(1);
+  expect(backend.authUpdates[0]).toMatchObject({ password: 'a much longer one' });
+});
+
+test('an organizer gives a traveler a temporary password', async ({ page }) => {
+  const EMILY = '00000000-0000-4000-8000-0000000000ee';
+  const backend = await signInWithFakeBackend(page, {
+    profiles: [
+      { id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true },
+      { id: EMILY, display_name: 'Emily Cox', avatar_url: null, is_admin: false },
+    ],
+  });
+  await open(page, '/profile');
+  await page.getByTestId('open-travelers').click();
+  await expect(page.getByTestId('traveler-row')).toHaveCount(2);
+  await expect(page.getByLabel('Reset Test Traveler’s password')).toHaveCount(0); // not yourself
+  page.once('dialog', (d) => d.accept());
+  await page.getByLabel('Reset Emily Cox’s password').click();
+  await expect(page.getByTestId('temp-password')).toContainText('lotus-ferry-4821');
+  expect(backend.functions).toEqual([{ name: 'admin-reset-password', body: { user_id: EMILY } }]);
+});
