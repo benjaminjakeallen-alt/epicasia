@@ -4,6 +4,7 @@ import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
 import { authReturnUrl } from '../../lib/site';
+import { isEmailRateLimit } from '../../lib/invites';
 import { supabase } from '../../lib/supabase';
 
 export default function ForgotPassword() {
@@ -22,7 +23,11 @@ export default function ForgotPassword() {
     setLoading(false);
 
     if (resetError) {
-      setError(resetError.message);
+      setError(
+        isEmailRateLimit(resetError)
+          ? 'Too many emails went out this hour, so the reset link couldn’t be sent. Wait an hour and try again.'
+          : resetError.message,
+      );
       return;
     }
     setSent(true);

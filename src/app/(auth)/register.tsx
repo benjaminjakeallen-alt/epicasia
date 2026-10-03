@@ -3,7 +3,7 @@ import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
 import FormScreen from '../../components/form/FormScreen';
-import { INVITE_PATTERN, isInviteRejection, normalizeInvite } from '../../lib/invites';
+import { INVITE_PATTERN, isEmailRateLimit, isInviteRejection, normalizeInvite } from '../../lib/invites';
 import { PHOTOS } from '../../lib/places';
 import { siteUrl } from '../../lib/site';
 import { supabase } from '../../lib/supabase';
@@ -33,6 +33,14 @@ export default function Register() {
       setError('Enter your name.');
       return;
     }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError('Enter your email address.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Choose a password of at least 8 characters.');
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -40,7 +48,7 @@ export default function Register() {
 
     setLoading(true);
     const { data, error: signUpError } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
         data: { display_name: displayName.trim(), invite_code: code },
@@ -55,7 +63,9 @@ export default function Register() {
       setError(
         isInviteRejection(signUpError.message)
           ? 'That invite code isn’t valid any more. Ask a trip organizer for a current one.'
-          : signUpError.message,
+          : isEmailRateLimit(signUpError)
+            ? 'Too many sign-up emails went out this hour, so yours couldn’t be sent. Wait an hour and try again, or ask a trip organizer.'
+            : signUpError.message,
       );
       return;
     }

@@ -94,6 +94,63 @@ test('a code the server rejects gets a plain explanation', async ({ page }) => {
   await expect(page.getByText(/That invite code isn’t valid any more/)).toBeVisible();
 });
 
+test('the email service being over its limit gets a plain explanation', async ({ page }) => {
+  // What Supabase returns when its email sender is out of quota (seen live, Oct 3 2026).
+  await fakeAuth(page, (route) =>
+    route.fulfill({
+      status: 429,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 429, error_code: 'over_email_send_rate_limit', msg: 'email rate limit exceeded' }),
+    }),
+  );
+  await page.goto('/register?invite=YRJA-DM4F');
+  await skipIntro(page);
+  await fillRegister(page);
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await expect(page.getByText(/Too many sign-up emails went out this hour/)).toBeVisible();
+});
+
+test('a blank email or short password is caught before anything is sent', async ({ page }) => {
+  const bodies = await fakeAuth(page, (route) => route.abort());
+  await page.goto('/register?invite=YRJA-DM4F');
+  await skipIntro(page);
+  await page.getByLabel('Name').fill('Sarah Lee');
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await expect(page.getByText('Enter your email address.')).toBeVisible();
+  await page.getByLabel('Email').fill('sarah@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('short');
+  await page.getByLabel('Confirm Password').fill('short');
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await expect(page.getByText('Choose a password of at least 8 characters.')).toBeVisible();
+  expect(bodies).toHaveLength(0);
+});
+
+test('with email confirmation off, signing up goes straight into the app', async ({ page }) => {
+  await fakeAuth(page, (route) => {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const b64 = (o: object) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const user = { id: USER_ID, aud: 'authenticated', role: 'authenticated', email: 'sarah@example.com', user_metadata: { display_name: 'Sarah Lee' }, app_metadata: {} };
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        access_token: `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: USER_ID, exp, role: 'authenticated' })}.sig`,
+        refresh_token: 'r',
+        token_type: 'bearer',
+        expires_in: 3600,
+        expires_at: exp,
+        user,
+      }),
+    });
+  });
+  await page.goto('/register?invite=YRJA-DM4F');
+  await skipIntro(page);
+  await fillRegister(page);
+  await page.getByRole('button', { name: 'Create Account' }).click();
+  await expect(page.getByText('Check your email')).toHaveCount(0);
+  await expect(page).not.toHaveURL(/register/);
+});
+
 const ADMIN = [{ id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true }];
 
 test('an admin creates a code and gets a QR, share, email and copy', async ({ page }) => {

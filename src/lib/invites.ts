@@ -81,6 +81,11 @@ export function inviteMessage(code: string): string {
 }
 
 /** Supabase hides the trigger's message; a rejected code surfaces as this generic error. */
+/** Supabase's email sender is over its hourly limit (the free plan's is tiny). */
+export function isEmailRateLimit(error: { status?: number; code?: string; message: string }): boolean {
+  return error.code === 'over_email_send_rate_limit' || error.status === 429 || /rate limit/i.test(error.message);
+}
+
 export function isInviteRejection(message: string): boolean {
   return /database error saving new user|invalid_invite_code/i.test(message);
 }
