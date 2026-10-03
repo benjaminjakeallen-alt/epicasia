@@ -284,6 +284,8 @@ const SCREENS: [string, string][] = [
   ['profile', '/profile'],
   ['admin', '/admin'],
   ['trip leaderboard', '/games/leaderboard'],
+  ['konbini review', '/games/konbini'],
+  ['new konbini review', '/games/konbini/new'],
   ['accessibility settings', '/accessibility'],
 ];
 

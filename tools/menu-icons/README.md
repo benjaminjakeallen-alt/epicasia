@@ -59,6 +59,11 @@ options each; the user picked the camera and the arcade cabinet):
 | Godzilla Rampage | A | a cute chunky vinyl toy of an original cartoon green kaiju dinosaur with pale spiky back plates, roaring playfully, standing on a short red steel construction girder beside a small wooden barrel |
 | | **B (picked)** | a small vintage arcade cabinet painted muted sage green with chrome trim, a red joystick and buttons, and a glowing screen showing a tiny green dinosaur climbing red girders |
 | | C | a chunky voxel-style toy figure made of small cubes of a friendly green kaiju dinosaur hugging the top of a tiny pastel voxel skyscraper, with a little cube barrel in its claws |
+| Konbini Review (Oct 3 2026, picked by Claude) | A | a tiny Japanese convenience store shopping basket in muted sage green plastic overflowing with colorful snacks: a rice ball in seaweed, a bright candy box, a canned drink, a pudding cup and a bag of chips |
+| | **B (picked)** | a small vintage muted sage green smartphone on a little tripod filming a colorful mystery snack bag with a question mark on it, beside a melon soda can and a rice ball |
+| | C | a miniature Japanese convenience store building with a muted sage green awning and glowing window full of snacks, with a giant colorful mystery snack bag with a question mark sitting in front |
+
+All `MODEL=qwen`, cut out with `cutout.py <src> <dst> 360`.
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —
 just retry.

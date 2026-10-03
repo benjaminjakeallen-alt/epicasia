@@ -122,8 +122,9 @@ through them. Build it with standard accessibility practice:
   `watchScreenReader()` is always off and the mode speaks for itself.)
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
-points and a leaderboard; **Lost in Translation** and **Godzilla Rampage**
-are built (see below). (Trivia from the reunion app is still not planned.)
+points and a leaderboard; **Lost in Translation**, **Konbini Review** and
+**Godzilla Rampage** are built, plus a **trip leaderboard** across them
+(see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -316,8 +317,8 @@ user picked the **instant camera** (Lost in Translation) and the **sage
 arcade cabinet** (Godzilla Rampage). **Shared scoring for every game** (user: "eventually
 all 5-6 games will have a leaderboard and points"): `game_entries` (a
 `game` key + player) and `game_votes` (one per entry per person, never on
-your own — enforced by RLS); **points = upvotes received**. A combined
-cross-game leaderboard is a sum over the same tables (not built yet).
+your own — enforced by RLS); **points = upvotes received**. The trip
+leaderboard (below) combines every game.
 - **Lost in Translation** (title picked by the user from six; "Engrish"
   avoided on purpose): post a photo of wonky English (library/camera),
   optional caption "What does it say?" (≤ 200, whitespace collapsed), city
@@ -349,6 +350,45 @@ cross-game leaderboard is a sum over the same tables (not built yet).
   New order; leaderboard ranks/points/ties; posting uploads two files to
   `games` and inserts **no** `gallery_photos` row; delete removes row +
   files) + axe audits of the hub, wall, leaderboard and new-find form.
+
+### Games → Konbini Review (built, Oct 3 2026)
+
+Buy a mystery snack or drink, **film your reaction**, rate it 1–5. Screens
+`src/app/(app)/games/konbini/` (`index` wall, `new`), stars in
+`src/components/games/Stars.tsx` (read-only, or a radiogroup of 52pt
+stars). Icon `assets/images/games/konbini-review.png` (a sage phone on a
+tripod filming a mystery snack bag; option B of three, picked by Claude —
+A basket / C konbini building were the others; prompts in
+`tools/menu-icons/README.md`).
+- **Data:** the same `game_entries` / `game_votes` with game
+  `konbini_review` (`0018_konbini_review.sql`: `title` ≤ 80, `rating` 1–5,
+  `video_path`, `video_duration_ms`; a check that konbini rows have all
+  three, and that the video is in the poster's folder). `addReview()` in
+  `games.ts` uploads the clip + browser-made poster + thumbnail to the
+  private **`games` bucket** (now takes mp4/mov/webm, 50 MB) via
+  `uploadVideo('games', …)` — **never the gallery**; a failed insert
+  removes all three; delete removes row + three files.
+- **Wall tabs:** Top (upvotes, then newest) / New / **Snacks** (every snack
+  tried, best→worst by rating, then upvotes, then newest —
+  `bySnackRating()`; "Best" / "Worst" tags on the ends) / Points.
+  **Points = upvotes received** for the reaction (bravery/fun), the same
+  daily-winner badge as Lost in Translation. Tapping the poster plays the
+  video in the chat `PhotoViewer` (Download / Share).
+- Tests: `e2e/konbini.spec.ts` (hub, Top order + stars + winner + vote
+  body + play, Snacks order + tags + Points, post → exact insert + three
+  `games` uploads + no gallery row, delete) + axe on the wall and form.
+
+### Games → trip leaderboard (built, Oct 3 2026)
+
+`src/lib/leaderboard.ts` + `src/app/(app)/games/leaderboard.tsx` (the 🏆
+button on the Games hub). Each game ranks its players (vote games by
+upvotes received, Rampage by best run) and **the placing earns trip
+points: 10, 8, 6, 5, 4, 3, 2, 1, then 1 for anyone else who played**
+(`PLACE_POINTS`); ties share a rank and its points. Standings sort by
+total, then 1st places, then name. A podium (2nd/1st/3rd) and the full
+list with each player's placing per game. New games join automatically
+via `GAMES` (vote games) — an arcade game needs its own branch in
+`fetchGameResults()`. Tests in `e2e/games.spec.ts` + axe.
 
 ### Games → Godzilla Rampage (built, Oct 3 2026; 3D voxel art Oct 3 2026)
 
@@ -931,7 +971,9 @@ backend code.
   `0016_yuki_and_transcripts.sql` (Yuki's daily cap, voice-note
   transcripts — see Yuki and Journal),
   `0017_last_seen.sql` (`profiles.last_seen_at` + `touch_last_seen()` —
-  see Auth → Admin).
+  see Auth → Admin),
+  `0018_konbini_review.sql` (snack/rating/video on `game_entries`, video
+  in the `games` bucket — see Konbini Review).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

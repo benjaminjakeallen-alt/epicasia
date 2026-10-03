@@ -10,11 +10,11 @@ Every game scores into the shared points / leaderboards (`game_entries`,
 **Built**
 - **Lost in Translation:** photos of wonky English, upvotes, daily winner.
 - **Godzilla Rampage:** 3D voxel arcade platformer (Chris & Emily, Shea & Heather).
+- **Konbini Review:** film your reaction to a mystery snack, rate it 1–5;
+  upvotes for the reaction, "Snacks" board of best → worst.
+- **Trip leaderboard** across every game (placings → trip points).
 
 **Chosen — to build (Oct 3 2026)**
-- **Konbini Review:** buy a mystery snack or drink and **record a video of your
-  reaction**, rate it 1–5. Points for bravery; "best and worst snack of the
-  trip" board.
 - **Shinkansen Dash:** endless runner on top of a bullet train (duck tunnels,
   grab onigiri). Arcade style, same 3D voxel look and score board as Rampage.
 - **Sushi Conveyor:** catch and match plates as the belt speeds up. Short
@@ -38,7 +38,6 @@ Every game scores into the shared points / leaderboards (`game_entries`,
   rain?"), settled by an organizer at night.
 - **Panda Pong (Beijing) / Dim Sum Stack (Hong Kong):** small city-themed
   arcade games, one per leg.
-- **Combined leaderboard** across every game (a sum over the same tables).
 - Trivia from the reunion app — not planned.
 
 ## AI

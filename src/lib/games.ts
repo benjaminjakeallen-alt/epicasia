@@ -1,7 +1,7 @@
 import type { Href } from 'expo-router';
 import { newId } from './chat';
 import { cached } from './offline';
-import { removePhotoFiles, uploadPhoto, type PickedPhoto } from './photos';
+import { removePhotoFiles, uploadPhoto, uploadVideo, type PickedPhoto } from './photos';
 import { supabase } from './supabase';
 import type { CityKey } from './weather';
 
@@ -10,7 +10,7 @@ import type { CityKey } from './weather';
 // the upvotes their entries received. A combined leaderboard across games
 // is the same sum over every game's entries.
 
-export type GameKey = 'lost_in_translation';
+export type GameKey = 'lost_in_translation' | 'konbini_review';
 
 // `image`: the game's 3D icon (assets/images/games, generated like the menu
 // icons — see tools/menu-icons/README.md).
@@ -29,6 +29,14 @@ export const GAMES: {
     icon: 'language-outline',
     image: require('../../assets/images/games/lost-in-translation.png'),
     href: '/(app)/games/lost-in-translation',
+  },
+  {
+    key: 'konbini_review',
+    title: 'Konbini Review',
+    line: 'Film yourself trying a mystery snack and rate it. Bravest reactions win.',
+    icon: 'fast-food-outline',
+    image: require('../../assets/images/games/konbini-review.png'),
+    href: '/(app)/games/konbini',
   },
   {
     // Arcade: scores itself (src/lib/rampage.ts, game_scores), not upvotes.
@@ -52,14 +60,22 @@ export type Entry = {
   caption: string | null;
   city: CityKey | null;
   created_at: string;
+  /** Konbini Review: the snack, its 1–5 rating and the reaction video. */
+  title?: string | null;
+  rating?: number | null;
+  video_path?: string | null;
+  video_duration_ms?: number | null;
 };
+
+const ENTRY_COLUMNS =
+  'id, game, created_by, storage_path, thumb_path, width, height, caption, city, created_at, title, rating, video_path, video_duration_ms';
 
 export type Vote = { entry_id: string; user_id: string };
 
 async function fetchEntriesLive(game: GameKey): Promise<Entry[]> {
   const { data, error } = await supabase
     .from('game_entries')
-    .select('id, game, created_by, storage_path, thumb_path, width, height, caption, city, created_at')
+    .select(ENTRY_COLUMNS)
     .eq('game', game)
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -106,7 +122,7 @@ export async function addEntry(
       caption: clean || null,
       city,
     })
-    .select('id, game, created_by, storage_path, thumb_path, width, height, caption, city, created_at')
+    .select(ENTRY_COLUMNS)
     .single();
   if (error) {
     await removePhotoFiles('games', [path, thumbPath]).catch(() => {});
@@ -115,11 +131,59 @@ export async function addEntry(
   return data as Entry;
 }
 
+/**
+ * Konbini Review: uploads the reaction video and its poster (made in the
+ * browser) to the private `games` bucket, then saves the review.
+ */
+export async function addReview(
+  userId: string,
+  video: PickedPhoto,
+  review: { snack: string; rating: number; caption: string; city: CityKey | null },
+): Promise<Entry> {
+  const id = newId();
+  const up = await uploadVideo('games', `${userId}/${id}`, video);
+  const clean = (t: string, n: number) => t.trim().replace(/\s+/g, ' ').slice(0, n);
+  const { data, error } = await supabase
+    .from('game_entries')
+    .insert({
+      id,
+      game: 'konbini_review',
+      created_by: userId,
+      storage_path: up.path,
+      thumb_path: up.thumbPath,
+      width: Math.round(up.width) || null,
+      height: Math.round(up.height) || null,
+      title: clean(review.snack, 80),
+      rating: Math.min(5, Math.max(1, Math.round(review.rating))),
+      caption: clean(review.caption, 200) || null,
+      city: review.city,
+      video_path: up.videoPath,
+      video_duration_ms: up.durationMs ? Math.round(up.durationMs) : null,
+    })
+    .select(ENTRY_COLUMNS)
+    .single();
+  if (error) {
+    await removePhotoFiles('games', [up.videoPath, up.path, up.thumbPath]).catch(() => {});
+    throw error;
+  }
+  return data as Entry;
+}
+
+/** Konbini Review's snack list: best rated first (ties: more upvotes, then newest). */
+export function bySnackRating(entries: Entry[], counts: Map<string, number>): Entry[] {
+  return [...entries].sort(
+    (a, b) =>
+      (b.rating ?? 0) - (a.rating ?? 0) ||
+      (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) ||
+      (a.created_at < b.created_at ? 1 : -1),
+  );
+}
+
 /** Removes an entry (its votes go with it) and its photo files. */
 export async function deleteEntry(entry: Entry): Promise<void> {
   const { error } = await supabase.from('game_entries').delete().eq('id', entry.id);
   if (error) throw error;
-  await removePhotoFiles('games', [entry.storage_path, entry.thumb_path]).catch(() => {});
+  await removePhotoFiles('games', [entry.storage_path, entry.thumb_path, entry.video_path]).catch(() => {});
 }
 
 export async function setVote(entryId: string, userId: string, on: boolean): Promise<void> {
