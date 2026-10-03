@@ -14,7 +14,7 @@ export type IntroMode = 'full' | 'short' | 'none';
 const SEEN_VERSION = 'epicasia.introSeenVersion';
 const TRIP_DAY_SEEN = 'epicasia.introTripDaySeen';
 const SKIP = 'epicasia.introSkip';
-const TRIP_FIRST_DAY = '2027-06-05';
+const TRIP_FIRST_DAY = '2027-06-06';
 
 function appVersion(): string {
   return Constants.expoConfig?.version ?? '0';

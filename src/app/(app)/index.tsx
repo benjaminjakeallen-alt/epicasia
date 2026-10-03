@@ -23,7 +23,7 @@ import { useTheme } from '../../theme/useTheme';
 // item (user, Oct 3 2026: "make them all green"). Items without an
 // href are on the ring but show "Coming soon" until their screen exists.
 const MENU: OrbitMenuItem[] = [
-  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 6 – 19', color: palette.highlight, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
+  { key: 'itinerary', label: 'Itinerary', caption: 'Day by day · Jun 7 – 20', color: palette.highlight, image: require('../../../assets/images/menu/itinerary.png'), href: '/(app)/itinerary' },
   { key: 'arrivals', label: 'Arrivals', caption: 'Visas, airports and your documents', color: palette.highlight, image: require('../../../assets/images/menu/arrivals.png'), href: '/(app)/arrivals' },
   { key: 'photos', label: 'Photos', caption: 'Everyone’s trip photos', color: palette.highlight, image: require('../../../assets/images/menu/photos.png'), href: '/(app)/photos' },
   { key: 'chat', label: 'Group Chat', caption: 'Everyone on the trip', color: palette.highlight, image: require('../../../assets/images/menu/chat.png'), href: '/(app)/chat' },

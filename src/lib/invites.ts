@@ -74,7 +74,7 @@ export function inviteLink(code: string): string {
 
 export function inviteMessage(code: string): string {
   return (
-    `You're invited to Epic Asia, our trip app for Japan, China and Hong Kong (June 5 – 19, 2027).\n\n` +
+    `You're invited to Epic Asia, our trip app for Japan, China and Hong Kong (June 6 – 20, 2027).\n\n` +
     `Your invite code: ${code}\n` +
     `Join here: ${inviteLink(code)}`
   );

@@ -153,7 +153,10 @@ it and the test account afterward.
 **The real trip plan is seeded (Sept 2026).** The user's 14-day plan from
 their "Asia Disney Adventure" artifact
 (`https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT` — built with Claude;
-Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, June 6–19, 2027) is
+Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, now June 6–20, 2027 —
+moved a day later and Tokyo reordered Oct 3 2026: arrive Jun 7, city day 8,
+DisneySea 9, Disneyland 10, 7am bullet train to Kyoto Jun 11 for one night,
+fly Kansai → Beijing Jun 12) is
 in `itinerary_items` as **unowned plan rows** (`created_by` null), via
 `supabase/seed/asia-disney-adventure.sql` (idempotent — skips existing
 day+title pairs; source data in the `.json` beside it). Migration 0004 made
@@ -701,7 +704,7 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   (0007a/b/c)** — one `apply_migration` call with the whole file timed out
   twice (nothing applied); smaller parts went through. The repo keeps the
   single file.
-- **Editor:** trip-day chips (Jun 5–19 + today; the city follows the
+- **Editor:** trip-day chips (Jun 6–20 + today; the city follows the
   day's leg via `stopForDay()` in `places.ts` until you type your own),
   where, serif title, story, photos (library/camera, thumbnails made on
   device like the gallery), voice notes, and a "Share with the group" row

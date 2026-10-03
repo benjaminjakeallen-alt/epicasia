@@ -112,14 +112,14 @@ test('photos sort by when they were taken, with an album per trip city', async (
     gallery_photos: [
       // Added just now, but taken on the trip's second Tokyo day.
       photo('t1', SARAH, 0.1, { taken_at: '2027-06-07T03:00:00.000Z', caption: 'Shibuya' }),
-      photo('t2', USER_ID, 0.2, { taken_at: '2027-06-10T02:00:00.000Z', caption: 'Fushimi Inari' }),
+      photo('t2', USER_ID, 0.2, { taken_at: '2027-06-11T02:00:00.000Z', caption: 'Fushimi Inari' }),
       photo('t3', USER_ID, 0.3, { taken_at: at(0.3) }),
     ],
     photo_favorites: [],
   });
   await open(page, '/photos');
   await expect(page.getByTestId('gallery-cell')).toHaveCount(3);
-  // Newest *taken* first (the trip is in 2027): Kyoto (Jun 10), Tokyo (Jun 7),
+  // Newest *taken* first (the trip is in 2027): Kyoto (Jun 11), Tokyo (Jun 7),
   // then the one taken today, though Shibuya was added most recently.
   const labels = await page.getByTestId('gallery-cell').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
   expect(labels[0]).toContain('Fushimi Inari');

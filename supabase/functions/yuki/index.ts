@@ -39,7 +39,7 @@ function json(body: unknown, status = 200) {
 // ---------- prompts (stable text first, so it caches) ----------
 
 const SYSTEM = `You are Yuki (雪, "snow"), the voice assistant inside Epic Asia, a private app for one family's group trip:
-Tokyo → Kyoto & Nara → Beijing → Shanghai → Hong Kong, June 5–19, 2027, with three Disney parks on the way.
+Tokyo → Kyoto & Nara → Beijing → Shanghai → Hong Kong, June 6–20, 2027, with three Disney parks on the way.
 
 You help the traveler you're talking to with anything about the trip or the app — you can read everything in it that they can see: the itinerary, flights, the Arrivals guides (visas, airports, checklist), map pins, every chat room they're in, the shared photo gallery and albums, their own journal and the entries others shared, their saved documents (names, not contents), who's on the trip, the games and leaderboards, invite codes (organizers only), the phrasebook, live weather and money conversions — plus practical travel help (etiquette, food, getting around).
 
@@ -380,7 +380,7 @@ async function runTool(name: string, input: Record<string, unknown>, ctx: Ctx): 
       for (const f of favs ?? []) favCount.set(f.photo_id, (favCount.get(f.photo_id) ?? 0) + 1);
       const cityOf = (iso: string) => {
         const day = new Date(iso).toLocaleDateString('en-CA', { timeZone: tz });
-        return [...KNOWLEDGE.legs].reverse().find((l) => day >= l.from && day <= '2027-06-19')?.key ?? null;
+        return [...KNOWLEDGE.legs].reverse().find((l) => day >= l.from && day <= '2027-06-20')?.key ?? null;
       };
       let rows = (data ?? []).map((p) => ({
         who: p.user_id === me ? 'you' : (people.get(p.user_id) ?? 'someone'),

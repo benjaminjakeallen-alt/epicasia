@@ -8,43 +8,43 @@ export const KNOWLEDGE = {
       "key": "tokyo",
       "city": "Tokyo",
       "country": "Japan",
-      "dates": "Jun 6 – 9",
-      "from": "2027-06-05"
+      "dates": "Jun 7 – 11",
+      "from": "2027-06-06"
     },
     {
       "key": "kyoto",
       "city": "Kyoto & Nara",
       "country": "Japan",
-      "dates": "Jun 9 – 11",
-      "from": "2027-06-09"
+      "dates": "Jun 11 – 12",
+      "from": "2027-06-11"
     },
     {
       "key": "beijing",
       "city": "Beijing",
       "country": "China",
-      "dates": "Jun 11 – 14",
-      "from": "2027-06-11"
+      "dates": "Jun 12 – 15",
+      "from": "2027-06-12"
     },
     {
       "key": "shanghai",
       "city": "Shanghai",
       "country": "China",
-      "dates": "Jun 14 – 17",
-      "from": "2027-06-14"
+      "dates": "Jun 15 – 18",
+      "from": "2027-06-15"
     },
     {
       "key": "hongKong",
       "city": "Hong Kong",
       "country": "China",
-      "dates": "Jun 17 – 19",
-      "from": "2027-06-17"
+      "dates": "Jun 18 – 20",
+      "from": "2027-06-18"
     }
   ],
   "countries": [
     {
       "key": "japan",
       "name": "Japan",
-      "dates": "Jun 5 – 11",
+      "dates": "Jun 6 – 12",
       "entry": "No visa needed for a tourist stay of up to 90 days.",
       "visa": [
         "US passport holders can visit visa-free for up to 90 days as tourists.",
@@ -80,7 +80,7 @@ export const KNOWLEDGE = {
     {
       "key": "china",
       "name": "Mainland China",
-      "dates": "Jun 11 – 17",
+      "dates": "Jun 12 – 18",
       "entry": "Visa-free transit may cover this leg; otherwise you need a tourist (L) visa. Decide early.",
       "visa": [
         "Option 1 — 240-hour visa-free transit: available to US citizens flying from one country or region to a different one through China. Japan → China → Hong Kong counts, because Hong Kong is a separate region for this rule. You must hold a confirmed onward ticket out of mainland China within 240 hours (10 days), enter at an eligible port (Beijing and Shanghai airports are), and stay within the permitted areas (Beijing and Shanghai both are).",
@@ -118,7 +118,7 @@ export const KNOWLEDGE = {
     {
       "key": "hongKong",
       "name": "Hong Kong",
-      "dates": "Jun 17 – 19",
+      "dates": "Jun 18 – 20",
       "entry": "No visa needed for a visit of up to 90 days.",
       "visa": [
         "US passport holders can visit visa-free for up to 90 days.",

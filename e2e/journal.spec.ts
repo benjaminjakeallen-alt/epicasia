@@ -24,7 +24,7 @@ const media = (id: string, entry: string, user: string, kind: 'photo' | 'audio',
   duration_ms: kind === 'audio' ? 84_000 : null,
   caption: null,
   position,
-  created_at: '2027-06-10T09:00:00Z',
+  created_at: '2027-06-11T09:00:00Z',
   ...extra,
 });
 
@@ -34,11 +34,11 @@ const ENTRIES = [
     user_id: USER_ID,
     title: 'Golden hour at Kinkaku-ji',
     body: 'The pavilion glowed over the pond.\n\nWe got there just before closing.',
-    day: '2027-06-10',
+    day: '2027-06-11',
     city: 'Kyoto',
     shared_to_group: true,
-    created_at: '2027-06-10T09:00:00Z',
-    updated_at: '2027-06-10T09:00:00Z',
+    created_at: '2027-06-11T09:00:00Z',
+    updated_at: '2027-06-11T09:00:00Z',
     journal_media: [
       media('m1', 'e1', USER_ID, 'photo', 0),
       media('m2', 'e1', USER_ID, 'photo', 1),
@@ -62,11 +62,11 @@ const ENTRIES = [
     user_id: SARAH,
     title: 'Deer in Nara',
     body: 'They bow if you bow first.',
-    day: '2027-06-10',
+    day: '2027-06-11',
     city: 'Nara',
     shared_to_group: true,
-    created_at: '2027-06-10T15:00:00Z',
-    updated_at: '2027-06-10T15:00:00Z',
+    created_at: '2027-06-11T15:00:00Z',
+    updated_at: '2027-06-11T15:00:00Z',
     journal_media: [media('m9', 'e3', SARAH, 'photo', 0)],
   },
 ];
@@ -93,7 +93,7 @@ test('lists my entries by day and the group’s shared ones', async ({ page }) =
   const cards = page.getByTestId('journal-entry');
   await expect(cards).toHaveCount(2);
   await expect(page.getByText('Golden hour at Kinkaku-ji')).toBeVisible();
-  await expect(page.getByText('Thu, Jun 10')).toBeVisible();
+  await expect(page.getByText('Fri, Jun 11')).toBeVisible();
   await expect(page.getByText('Sun, Jun 6')).toBeVisible();
   await expect(page.getByText('Shared', { exact: true })).toBeVisible();
   await page.waitForTimeout(400);
@@ -119,7 +119,7 @@ test('writing an entry saves the exact row', async ({ page }) => {
   await page.getByTestId('journal-save').click();
   await expect(page.getByText(/Write something, or add a photo/)).toBeVisible();
 
-  await page.getByRole('button', { name: /Jun 11/ }).click();
+  await page.getByRole('button', { name: /Jun 13/ }).click();
   await page.getByTestId('journal-title').fill('Great Wall at Mutianyu');
   await page.getByTestId('journal-body').fill('Took the toboggan down.');
   await page.getByTestId('journal-share').click();
@@ -133,7 +133,7 @@ test('writing an entry saves the exact row', async ({ page }) => {
     user_id: USER_ID,
     title: 'Great Wall at Mutianyu',
     body: 'Took the toboggan down.',
-    day: '2027-06-11',
+    day: '2027-06-13',
     city: 'Beijing', // follows the picked day's leg
     shared_to_group: true,
   });
@@ -174,7 +174,7 @@ test('the photo book lays out a cover, a page per city, entries and voice-note Q
   const popup = context.waitForEvent('page');
   await page.getByTestId('make-book').click();
   const book = await popup;
-  // Cover, Tokyo, (Jun 6 entry), Kyoto & Nara, (Jun 10 entry), closing page.
+  // Cover, Tokyo, (Jun 6 entry), Kyoto & Nara, (Jun 11 entry), closing page.
   await expect(book.locator('section')).toHaveCount(6, { timeout: 20_000 });
   await expect(book.locator('.leg-city')).toHaveText(['Tokyo', 'Kyoto & Nara']);
   await expect(book.locator('h2')).toHaveText(['First night in Tokyo', 'Golden hour at Kinkaku-ji']);

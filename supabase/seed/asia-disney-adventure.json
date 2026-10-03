@@ -1,87 +1,87 @@
 {
   "source": "https://claude.ai/artifact/Cpu7mN9wmq6c3LbjQh1NcT",
-  "note": "Day-by-day plan extracted from the 'Asia Disney Adventure' trip-plan artifact. Loaded into itinerary_items as unowned plan rows by asia-disney-adventure.sql (applied Sept 2026) — see CLAUDE.md.",
+  "note": "Day-by-day plan extracted from the 'Asia Disney Adventure' trip-plan artifact. Loaded into itinerary_items as unowned plan rows by asia-disney-adventure.sql (applied Sept 2026; dates moved to Jun 7–20 and Tokyo reordered Oct 3 2026) — see CLAUDE.md.",
   "items": [
     {
-      "day": "2027-06-06",
+      "day": "2027-06-07",
       "city": "Tokyo",
       "title": "Arrive & check in",
       "description": "Land, transfer, settle into the Tokyo Disney Resort hotel. Realistic check-in is 5–8pm once you factor immigration and baggage for 13 people. Dinner: Toraji at Ikspiari — grill-your-own yakiniku, ~¥5,000/person; call ahead for a table for 13."
     },
     {
-      "day": "2027-06-07",
+      "day": "2027-06-08",
+      "city": "Tokyo",
+      "title": "Tokyo day — vote needed",
+      "description": "A city day between arrival and the two park days — out from the Disney hotel in the morning, back for the night. Options: Sightseeing (Meiji Shrine → Round1 Stadium, Odaiba), Shopping (Takeshita St → Omotesando → Shibuya → Don Quijote), or Foodie (Mitsukoshi depachika → Tsukiji Outer Market → ramen → Harajuku crepes)."
+    },
+    {
+      "day": "2027-06-09",
       "city": "Tokyo",
       "title": "Tokyo DisneySea",
       "description": "Full park day — the first of four Disney days on this trip."
     },
     {
-      "day": "2027-06-08",
+      "day": "2027-06-10",
       "city": "Tokyo",
       "title": "Tokyo Disneyland",
-      "description": "Full park day."
-    },
-    {
-      "day": "2027-06-09",
-      "city": "Tokyo",
-      "title": "Tokyo day — vote needed",
-      "description": "Check out of the Disney hotel, luggage to the Sagawa Express counter at Tokyo Station, evening Shinkansen to Kyoto. Options: Sightseeing (Meiji Shrine → Round1 Stadium, Odaiba), Shopping (Takeshita St → Omotesando → Shibuya → Don Quijote), or Foodie (Mitsukoshi depachika → Tsukiji Outer Market → ramen → Harajuku crepes)."
-    },
-    {
-      "day": "2027-06-10",
-      "city": "Kyoto & Nara",
-      "title": "Kinkaku-ji → Arashiyama → Nara",
-      "description": "Morning: the Golden Pavilion, then the Arashiyama bamboo grove. Afternoon: Nara's deer park and Todai-ji's Great Buddha Hall, 35–45 min by train. Back to Kyoto that night. Self-guided."
+      "description": "Full park day, then one last night at the Disney hotel."
     },
     {
       "day": "2027-06-11",
+      "city": "Kyoto & Nara",
+      "title": "Bullet train to Kyoto, then Kinkaku-ji → Arashiyama → Nara",
+      "description": "Early start: booked ride from the Disney hotel to Tokyo Station, ~7am Nozomi, in Kyoto ~9:15am — drop bags at the Kyoto hotel. Then the Golden Pavilion and the Arashiyama bamboo grove; afternoon: Nara's deer park and Todai-ji's Great Buddha Hall, 35–45 min by train. Back to Kyoto that night (one night). Self-guided."
+    },
+    {
+      "day": "2027-06-12",
       "city": "Kyoto → Beijing",
       "title": "Fly Kansai → Beijing",
       "description": "Departing from Kansai (KIX) rather than Tokyo, since Kyoto is the last Japan stop."
     },
     {
-      "day": "2027-06-12",
+      "day": "2027-06-13",
       "city": "Beijing",
       "title": "Great Wall at Mutianyu",
       "description": "Full day — ~1.5hr each way, 2–3+ hours on the wall, cable car up and toboggan down. Evening: Peking duck, then a Kung Fu or acrobatics show."
     },
     {
-      "day": "2027-06-13",
+      "day": "2027-06-14",
       "city": "Beijing",
       "title": "Tiananmen Square & Forbidden City",
       "description": "The two sit directly across from each other, same subway stop. Afternoon: Temple of Heaven (Summer Palace and Olympic Park are still possible swaps)."
     },
     {
-      "day": "2027-06-14",
+      "day": "2027-06-15",
       "city": "Beijing → Shanghai",
       "title": "High-speed train to Shanghai",
       "description": "~4.5–6hr ride. A morning departure lands by early afternoon — walk the Bund once the lights come on (~6pm), dinner nearby."
     },
     {
-      "day": "2027-06-15",
+      "day": "2027-06-16",
       "city": "Shanghai",
       "title": "Shanghai Disneyland",
       "description": "Full park day."
     },
     {
-      "day": "2027-06-16",
+      "day": "2027-06-17",
       "city": "Shanghai",
       "title": "Half day Disney, then Pearl Tower & night cruise",
       "description": "Oriental Pearl Tower + Huangpu River night cruise as one combo ticket (~$37–47/person). Night departures start ~6:30pm."
     },
     {
-      "day": "2027-06-17",
+      "day": "2027-06-18",
       "city": "Shanghai → Hong Kong",
       "title": "Fly to Hong Kong",
       "description": "~3hr flight, no time zone change. Evening: Temple Street Night Market — street food, shopping, fortune-tellers."
     },
     {
-      "day": "2027-06-18",
+      "day": "2027-06-19",
       "city": "Hong Kong",
       "title": "Hong Kong Disneyland",
       "description": "The one Hong Kong park day."
     },
     {
-      "day": "2027-06-19",
+      "day": "2027-06-20",
       "city": "Hong Kong",
       "title": "Big Buddha, then home",
       "description": "If the flight time allows: Ngong Ping 360 cable car + the Big Buddha on Lantau, ~10 min from the airport. Then fly home."

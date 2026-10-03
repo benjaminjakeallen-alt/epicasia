@@ -46,7 +46,7 @@ export const COUNTRIES: Country[] = [
     key: 'japan',
     name: 'Japan',
     legs: ['tokyo', 'kyoto'],
-    dates: 'Jun 5 – 11',
+    dates: 'Jun 6 – 12',
     entry: 'No visa needed for a tourist stay of up to 90 days.',
     visa: [
       'US passport holders can visit visa-free for up to 90 days as tourists.',
@@ -71,7 +71,7 @@ export const COUNTRIES: Country[] = [
     key: 'china',
     name: 'Mainland China',
     legs: ['beijing', 'shanghai'],
-    dates: 'Jun 11 – 17',
+    dates: 'Jun 12 – 18',
     entry: 'Visa-free transit may cover this leg; otherwise you need a tourist (L) visa. Decide early.',
     visa: [
       'Option 1 — 240-hour visa-free transit: available to US citizens flying from one country or region to a different one through China. Japan → China → Hong Kong counts, because Hong Kong is a separate region for this rule. You must hold a confirmed onward ticket out of mainland China within 240 hours (10 days), enter at an eligible port (Beijing and Shanghai airports are), and stay within the permitted areas (Beijing and Shanghai both are).',
@@ -98,7 +98,7 @@ export const COUNTRIES: Country[] = [
     key: 'hongKong',
     name: 'Hong Kong',
     legs: ['hongKong'],
-    dates: 'Jun 17 – 19',
+    dates: 'Jun 18 – 20',
     entry: 'No visa needed for a visit of up to 90 days.',
     visa: [
       'US passport holders can visit visa-free for up to 90 days.',

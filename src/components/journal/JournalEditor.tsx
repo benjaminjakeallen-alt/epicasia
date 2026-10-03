@@ -30,7 +30,7 @@ import VoiceRecorder from './VoiceRecorder';
 // Write or edit one journal entry: the day (trip-day chips), where, a
 // title, the story, photos, voice notes, and whether the group sees it.
 
-const TRIP_DAYS = Array.from({ length: 15 }, (_, i) => addDays('2027-06-05', i));
+const TRIP_DAYS = Array.from({ length: 15 }, (_, i) => addDays('2027-06-06', i));
 const PHOTO = 92;
 
 function legText(day: string): string | null {

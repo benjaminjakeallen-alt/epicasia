@@ -41,7 +41,7 @@ test('home menu opens Arrivals with the countries, checklist and flights', async
   await signInWithFakeBackend(page, { flights: [FLIGHT] });
   await open(page, '/arrivals');
   await expect(page.getByTestId('country-card')).toHaveCount(3);
-  await expect(page.getByRole('button', { name: /^Mainland China, Jun 11 – 17/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Mainland China, Jun 12 – 18/ })).toBeVisible();
   await expect(page.getByTestId('boarding-pass')).toHaveCount(1);
   await expect(page.getByText('ABC123')).toBeVisible();
   await page.screenshot({ path: 'test-results/arrivals.png', fullPage: true });
