@@ -14,7 +14,13 @@ export default defineConfig({
       // smoke test for the web build, not a Safari-fidelity check. Verify
       // real iOS behavior in Expo Go or the simulator.
       name: 'iphone-14-viewport',
-      use: { ...devices['iPhone 14'], defaultBrowserType: 'chromium' },
+      use: {
+        ...devices['iPhone 14'],
+        defaultBrowserType: 'chromium',
+        // Software WebGL for the 3D game (Godzilla Rampage); headless Chromium
+        // only allows SwiftShader with this flag.
+        launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
+      },
     },
   ],
   webServer: {

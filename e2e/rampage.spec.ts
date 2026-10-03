@@ -87,10 +87,13 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   expect((await state(f)).hi).toBe(8200);
   await page.screenshot({ path: 'test-results/rampage-select.png' });
 
+  // It draws in 3D (WebGL), not only the HUD fallback.
+  expect(await f.evaluate(() => (window as any).__rampage.gl)).toBe(true);
+
   // Pick Shea by tapping her card, then start the level.
   const box = (await page.getByTestId('game-frame').boundingBox())!;
-  const canvas = (await ui.locator('canvas').boundingBox())!;
-  await page.mouse.click(canvas.x + canvas.width / 2, canvas.y + canvas.height * (212 / 288));
+  const pt = await f.evaluate(() => (window as any).__rampage.screenPoint(96, 212));
+  await page.mouse.click(box.x + pt.x, box.y + pt.y);
   await expect.poll(async () => (await state(f)).hero).toBe('shea');
   await expect.poll(async () => (await state(f)).mode).toBe('intro');
   await ui.getByRole('button', { name: 'Jump' }).click();
@@ -134,7 +137,7 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   // ✕ leaves the game; this phone's best is now 4,321.
   await ui.getByRole('button', { name: 'Leave the game' }).click();
   await expect(page.getByTestId('game-frame')).toHaveCount(0);
-  await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321');
+  await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 15000 });
   expect(errors).toEqual([]);
 });
 
@@ -158,7 +161,8 @@ test('a run finished offline is saved on the next visit', async ({ page }) => {
 
   offline = false;
   await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Leave the game' }).click();
-  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBe(1);
+  // (generous: the 3D game renders in software here, which is slow when tests run in parallel)
+  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length, { timeout: 15000 }).toBe(1);
   expect(backend.inserts.find((i) => i.table === 'game_scores')!.body).toEqual([
     { game: 'godzilla_rampage', user_id: USER_ID, score: 2500, level: 1, round: 1, hero: 'chris' },
   ]);

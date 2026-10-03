@@ -47,8 +47,10 @@
     "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.56.1",
     "@types/react": "~19.2.2",
+    "esbuild": "^0.28.2",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "three": "^0.169.0",
     "typescript": "~6.0.3"
   },
   "scripts": {

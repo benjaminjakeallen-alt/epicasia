@@ -305,21 +305,45 @@ cross-game leaderboard is a sum over the same tables (not built yet).
   `games` and inserts **no** `gallery_photos` row; delete removes row +
   files) + axe audits of the hub, wall, leaderboard and new-find form.
 
-### Games → Godzilla Rampage (built, Oct 3 2026)
+### Games → Godzilla Rampage (built, Oct 3 2026; 3D voxel art Oct 3 2026)
 
-A retro arcade platformer from the user's brief: climb girders/ladders
-while Godzilla throws barrels, rescue the wife at the top. **Chris**
-(pickaxe, from Price, Utah) rescues **Emily**; **Shea** (giant candy cane)
-rescues **Heather**. Four levels — Godzilla Rampage, Coal Mine Chaos,
-Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
-- **The game is one self-contained HTML file**, `assets/games/rampage.html`
-  (192×288 logical canvas, all pixel art and Web Audio sound drawn/synthesised
-  in code, a DOM touch pad sized from the viewport width via `--u`).
-  **Its pixel palette is game art, the one exception to the colour-token
-  rule** — it never leaves the file. `tools/build-rampage.mjs` syntax-checks
-  the inline script and writes `src/games/rampage/html.ts` (the file as a
-  string): **edit the .html, then `npm run build:rampage`**; CI runs it with
-  `--check` and fails if html.ts is stale.
+An arcade platformer from the user's brief: climb girders/ladders while
+Godzilla throws barrels, rescue the wife at the top. **Chris** (pickaxe,
+from Price, Utah) rescues **Emily**; **Shea** (giant candy cane) rescues
+**Heather**. Four levels — Godzilla Rampage (daytime Tokyo), Coal Mine
+Chaos, Christmas Chaos (candy-cane girders, snow), Kaiju Showdown (burning
+city) — then they loop harder (`1.15^round`).
+- **Art direction (user, Oct 3 2026): NOT 8-bit.** "A 2D platformer but
+  a more updated 3D art style, like a high-detail Crossy Road." Gameplay
+  stays 2D side-on; everything is drawn as a **lit voxel diorama in
+  three.js** — chunky voxel models with baked ambient occlusion
+  (`voxel.js` mesher), soft shadows, themed scenery pushed back into fog, a
+  camera tilted ~10° down. The first pixel-art version is in git history;
+  don't go back to it.
+- **Source** `assets/games/rampage/`: `index.html` (page, CSS, DOM touch
+  pad sized from the viewport via `--u`, TRY AGAIN/CHANGE HERO buttons),
+  `game.js` (all game logic in a 192×288 logical playfield, y down; a fixed
+  60 Hz step so slow devices don't slow the game), `render3d.js` (scene,
+  camera framing — the playfield fills the screen exactly and scenery
+  bleeds past it —, lights, per-level looks `LOOK3D`, girders/ladders,
+  syncing models to state, particles/weather as instanced cubes),
+  `models.js` (characters as jointed part hierarchies, Godzilla with jaw/
+  arms/legs/tail/eyes that track you, hazards, tools, crown, hearts), `hud.js`
+  (HUD, messages, speech bubbles, select/game-over screens on a 2D canvas
+  over the 3D one, chunky rounded type). **The game's colours are game art,
+  the one exception to the colour-token rule** — they never leave these files.
+- **Build:** `tools/build-rampage.mjs` bundles the modules with **esbuild**
+  (three.js 0.169 tree-shaken in; both are devDependencies, only used here),
+  inlines the bundle into `index.html` and writes `src/games/rampage/html.ts`
+  (~540 KB). **Edit the files in assets/games/rampage, then
+  `npm run build:rampage`**; CI runs it with `--check` and fails if html.ts is
+  stale. Works offline (no CDN).
+- **Software WebGL** (SwiftShader/llvmpipe — CI, some emulators) switches
+  to a low-power mode (no shadows, 0.75 pixel ratio); `RAMPAGE_INIT.quality
+  = 'high'` forces full quality for screenshots. With no WebGL at all the
+  game still runs with only the HUD. `playwright.config.ts` launches
+  Chromium with `--use-angle=swiftshader --enable-unsafe-swiftshader` so the
+  game renders in tests.
 - **Host:** `src/app/(app)/games/rampage/index.tsx` (Play card + high-score
   board: each player's best run, ties share a rank) and `play.tsx` (full
   screen, swipe-back off, light status bar) using
@@ -327,11 +351,11 @@ Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
   SDK's version) natively, a `sandbox="allow-scripts"` iframe `srcDoc` on
   web (null origin: no access to the app's storage/session; it focuses the
   iframe's window on load so keys reach the game). The host swaps
-  `/*INIT*/null` for `{highScore, debug: __DEV__}` (HIGH SCORE = best of the
-  phone's own and the group's saved runs). Messages from the game:
-  `ready`, `score {score, level, round, hero, outcome}` (once per run, on
-  game over or ✕), `haptic {kind}` (`gameHaptic()` in `haptics.ts`),
-  `exit`.
+  `/*INIT*/null` (`window.RAMPAGE_INIT`) for `{highScore, debug: __DEV__}`
+  (HIGH SCORE = best of the phone's own and the group's saved runs).
+  Messages from the game: `ready`, `score {score, level, round, hero,
+  outcome}` (once per run, on game over or ✕), `haptic {kind}`
+  (`gameHaptic()` in `haptics.ts`), `exit`.
 - **Scores:** `0014_game_scores.sql` — `game_scores` (game
   `godzilla_rampage`, user, score 1…9,999,999, level 1–4, round, hero
   chris/shea); members read, insert own, admin deletes. Arcade games score
@@ -339,27 +363,25 @@ Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
   message (`parseRun`), keeps the phone's best (`epicasia.rampage.best`),
   queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
   so a run finished offline goes up on the next save or board visit.
-- `window.__rampage` exposes mode/score/lives/level/hero/hi/player for
-  tests; in development `__rampage.debug` adds giveTool, rescue, die,
-  gameOver(score), spawnBarrelAt, pause, setLevel.
-- **Sprites from the user's photos:** Chris (Oct 3 2026) — shaved head with a
-  shine, blue eyes, stubble, periwinkle tee, grey jeans, and the **gold crown**
-  from one of his photos when he rescues Emily (`crown: true`); his own `head`/
-  `back` rows sit on the shared body frames (`heroFrames()`). Emily — big
-  wavy red hair, silver necklace, the blue ball gown with
-  black florals (her own full `frames`, `wifeFrames()`). Shea — dark curls
-  swept back, high forehead,
-  hazel eyes, stubble, a smirk, royal-blue tee, tan pants, white sneakers.
-  Heather — blonde chin-length bob, pearls, the white gown with pink
-  peonies and green leaves. A wife's wave frame is generated from her
-  standing map (`princessFrames()`). **User (Oct 3 2026): no sunglasses,
-  and outfits don't need to match the photos** — likeness is face and hair.
+- `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
+  `screenPoint(x, y)` (logical → client px) for tests; in development
+  `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
+  spawnBarrelAt, pause, setLevel, setGodzilla(state).
+- **Characters from the user's photos** (`LOOKS` in models.js; likeness is
+  face and hair — **user: no sunglasses, outfits needn't match**): Chris —
+  shaved head with a shine, blue eyes, stubble, and the **gold crown** from
+  one of his photos when he rescues Emily; Emily — big wavy red hair, the
+  blue ball gown with black florals; Shea — dark curls swept back from a
+  high forehead, hazel eyes, stubble; Heather — blonde chin-length bob with
+  a side part, the white gown with pink peonies.
 - Tests: `e2e/rampage.spec.ts` (board ranks; play through the iframe —
-  pick Shea by tapping, pad + keyboard move, power-up lights SWING, game
-  over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕ back to the
-  board with the new best, no page errors; offline run saved on the next
-  visit) + axe audits of the board and the game (inside the frame, all
-  buttons ≥ 44). The fake backend's session init script now skips iframes.
+  WebGL on, pick Shea by tapping, pad + keyboard move, power-up lights
+  SWING, game over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕
+  back to the board with the new best, no page errors; offline run saved
+  on the next visit — generous timeouts, since software 3D is slow when
+  specs run in parallel) + axe audits of the board and the game (inside the
+  frame, all buttons ≥ 44). The fake backend's session init script skips
+  iframes.
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 

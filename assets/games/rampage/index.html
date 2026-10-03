@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Godzilla Rampage</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0820; overflow: hidden; }
+  body {
+    display: flex; flex-direction: column; box-sizing: border-box;
+    padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    font-family: ui-monospace, Menlo, Consolas, monospace; color: #fff;
+  }
+  #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+  canvas { display: block; position: absolute; }
+  #pad {
+    /* --u: one d-pad key. Sized from the width so the whole pad fits a 375pt phone up to a foldable. */
+    --u: clamp(44px, calc((100vw - 104px) / 6), 60px);
+    flex: 0 0 auto; box-sizing: border-box; padding: 8px 8px 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    background: linear-gradient(#241a52, #0e0a24); border-top: 1px solid rgba(255,255,255,0.12);
+  }
+  .dpad { display: grid; grid-template-columns: repeat(3, var(--u)); grid-template-rows: repeat(3, calc(var(--u) * 0.94)); gap: 4px; }
+  .btn {
+    border: 0; border-radius: 16px; background: linear-gradient(#5b4ccf, #3a2d99); color: #fff;
+    font: 800 15px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif;
+    display: flex; align-items: center; justify-content: center; touch-action: none; padding: 0; letter-spacing: 0.5px;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,0.28), 0 4px 0 #1c1550, 0 6px 12px rgba(0,0,0,0.35);
+  }
+  .btn.on { background: linear-gradient(#7464e6, #4a3cb8); transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 2px 0 #1c1550; }
+  .btn:focus-visible { outline: 3px solid #ffd43b; }
+  .u { grid-column: 2; grid-row: 1; } .l { grid-column: 1; grid-row: 2; } .r { grid-column: 3; grid-row: 2; } .d { grid-column: 2; grid-row: 3; }
+  .mid { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .small { width: 44px; height: 44px; border-radius: 22px; font-size: 18px; background: linear-gradient(#3b3170, #282056); }
+  .acts { display: grid; grid-template-columns: calc(var(--u) * 1.35) calc(var(--u) * 1.65); grid-template-rows: calc(var(--u) * 1.35) calc(var(--u) * 1.6); gap: 4px; align-items: center; justify-items: center; }
+  .jump { grid-column: 2; grid-row: 2; width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); border-radius: 50%; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 14px rgba(0,0,0,0.4); font-size: 17px; }
+  .jump.on { background: linear-gradient(#ff7aa0, #e64980); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 2px 0 #7a1238; }
+  .atk { grid-column: 1; grid-row: 1; width: calc(var(--u) * 1.3); height: calc(var(--u) * 1.3); border-radius: 50%; background: linear-gradient(#4a4280, #332c63); color: #b9b3d9; box-shadow: inset 0 2px 0 rgba(255,255,255,0.15), 0 4px 0 #1a1440; font-size: 13px; }
+  .atk.ready { background: linear-gradient(#ffc04d, #f08c00); color: #3b2200; box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 4px 0 #8a5000, 0 0 16px rgba(255,170,40,0.7); }
+  .atk.ready.on { background: linear-gradient(#ffd27a, #ffa94d); }
+  #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 14%; gap: 12px; }
+  #over.show { display: flex; }
+  #over button { font: 900 16px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #fff; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 18px rgba(0,0,0,0.45); }
+  #over button.alt { background: linear-gradient(#5b4ccf, #3a2d99); box-shadow: inset 0 3px 0 rgba(255,255,255,0.28), 0 5px 0 #1c1550, 0 8px 18px rgba(0,0,0,0.45); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="hud" role="img" aria-label="Godzilla Rampage"></canvas>
+  <div id="over">
+    <button id="again" type="button">TRY AGAIN</button>
+    <button id="change" class="alt" type="button">CHANGE HERO</button>
+  </div>
+</div>
+<div id="pad">
+  <div class="dpad">
+    <button class="btn u" data-k="U" aria-label="Climb up" type="button">▲</button>
+    <button class="btn l" data-k="L" aria-label="Move left" type="button">◀</button>
+    <button class="btn r" data-k="R" aria-label="Move right" type="button">▶</button>
+    <button class="btn d" data-k="D" aria-label="Climb down" type="button">▼</button>
+  </div>
+  <div class="mid">
+    <button class="btn small" id="exit" aria-label="Leave the game" type="button">✕</button>
+    <button class="btn small" id="mute" aria-label="Sound on" type="button">♪</button>
+  </div>
+  <div class="acts">
+    <button class="btn atk" id="atk" data-k="A" aria-label="Swing your power-up" type="button">SWING</button>
+    <button class="btn jump" data-k="J" aria-label="Jump" type="button">JUMP</button>
+  </div>
+</div>
+<script>window.RAMPAGE_INIT = /*INIT*/null;</script>
+<script>/*GAME*/</script>
+</body>
+</html>
