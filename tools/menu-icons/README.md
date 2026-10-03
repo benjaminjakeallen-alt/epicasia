@@ -114,3 +114,15 @@ centered subject, no text, no letters, no border, no rounded corners, no
 people." (Qwen still drew rounded corners; crop 4.5% per side.) Saved as
 `assets/pwa-icon.png`; the sizes in `public/` are made from it (see
 CLAUDE.md → Web app icon).
+
+## Yuki's cherry blossom (Oct 3 2026)
+
+`assets/images/yuki/blossom.png` (512², the voice assistant's glowing
+blossom and the small `YukiMark`; user: "the blossom could be higher
+quality in the style of the icons"). `VIEW="seen straight on, face-on from
+the front" MODEL=qwen ./generate-hf.sh blossomA "a single cherry blossom
+flower with five soft translucent pale pink notched petals deepening to rose
+at the centre, delicate golden stamens, and two tiny muted sage green leaves
+behind it"` → `cutout.py <src> blossom.png 720 center 1.06`, resized to
+512. Picked over a porcelain blossom with one leaf and one on a stem (a stem
+looks wrong when the blossom turns). Face-on so it can rotate in place.

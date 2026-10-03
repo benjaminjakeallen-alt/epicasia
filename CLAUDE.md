@@ -408,6 +408,14 @@ city) — then they loop harder (`1.15^round`).
   Escape/P): Resume, Sound, Leave game. The pad is only two clusters (user:
   "controls are still spaced a bit odd"): a d-pad disc on the left, Swing +
   Jump in an arc on the right; sound lives in the pause menu.
+  **Controls can never stick** (user, Oct 3 2026: on level 4 "my
+  character was stuck walking against side" — a thumb sliding off the
+  screen edge lost its pointerup and the pad then ignored every new touch):
+  a new touch on the pad always takes over, a release anywhere counts,
+  lifting every finger (`touchend` with no touches), blur and hiding the
+  page release everything (`releaseAll`), and against the side wall the
+  hero stands instead of walking on the spot. Tested in `rampage.spec.ts`
+  ("the d-pad never sticks").
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
   `screenPoint(x, y)` (logical → client px) and `menu` for tests; in
   development `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
@@ -787,15 +795,17 @@ She can read **everything in the app the traveler can see**.
   toggle explains, a tap says so aloud.
 - **UI:** `src/components/yuki/YukiVoice.tsx`, mounted once in
   `(app)/_layout.tsx` over every screen: a paper veil (`yukiVeil`
-  token) with the big **`Blossom`** (`src/components/yuki/Blossom.tsx`,
-  react-native-svg: five notched sakura petals, rose base, gold-tipped
-  stamens; a pink halo that breathes while listening, turns while
+  token) with the big **`Blossom`** (`src/components/yuki/Blossom.tsx`:
+  a generated 3D-miniature sakura in the menu icons' style,
+  `assets/images/yuki/blossom.png` — face-on, two sage leaves; prompt in
+  `tools/menu-icons/README.md`; the user asked for it over the first SVG
+  drawing — over a pink halo that breathes while listening, turns while
   thinking, and flares on each spoken word; still under Reduce Motion),
   the status ("I'm listening" / "Listening…" / "Thinking…" / "Anything
   else?"), "what you said" and her reply as large text (live region),
   ✕ Stop. Home has the "Yuki" pill (her blossom, `YukiMark`) as
   tap-to-talk, with a green dot while she's listening for her name.
-  Colour tokens `blossom*`, `yukiVeil`, `shadow.blossom`.
+  Colour tokens `blossomGlow`, `yukiVeil`, `shadow.blossom`.
 - **Not verified on a phone yet:** wake-word reliability in iPhone Safari
   / the Home Screen app (Safari's recognizer stops after pauses and needs
   restarts; iOS may re-ask for the mic per session), voice quality.
@@ -902,7 +912,9 @@ backend code.
   `0015_chat_rooms_media_push.sql` (chat rooms/edits/mutes/video, web push,
   gallery taken_at/video/albums — see Group chat and Photos),
   `0016_yuki_and_transcripts.sql` (Yuki's daily cap, voice-note
-  transcripts — see Yuki and Journal).
+  transcripts — see Yuki and Journal),
+  `0017_last_seen.sql` (`profiles.last_seen_at` + `touch_last_seen()` —
+  see Auth → Admin).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -957,8 +969,18 @@ backend code.
   server (Authentication → SMTP Settings) would lift the limit.
   `e2e/invites.spec.ts` fails if the app ever calls `/auth/v1/signup`.
   **Passwords without email:** Profile has "Change password"
-  (`supabase.auth.updateUser`), and organizers get Profile → **Travelers**
-  (`src/app/(app)/travelers.tsx`): "Reset password" calls the
+  (`supabase.auth.updateUser`), and organizers get Profile → **Admin**
+  (`src/app/(app)/admin.tsx`, Oct 3 2026; was "Travelers"; user: "an admin
+  section of settings to see who is logged in and reset passwords"):
+  Invite travelers, then every traveler with email, organizer tag and
+  **activity** — "Active now" (green dot; seen in the last 5 min),
+  "Active 3 h ago", "Signed in Oct 2" or "Hasn't signed in yet", most
+  recent first, refreshed every 30 s. Activity = `profiles.last_seen_at`
+  (`0017_last_seen.sql`), stamped by every open app through the
+  `touch_last_seen()` RPC (security invoker, own row) on open, on coming
+  back to the front and every 2 min (`src/lib/admin.ts`, `(app)/_layout`);
+  emails and sign-in times come from auth via `admin-reset-password`'s
+  `{action:'list'}` (deployed v2, organizers only). "Reset password" calls the
   **`admin-reset-password` Edge Function** (deployed, `verify_jwt`; checks
   `profiles.is_admin` as the caller, then sets a readable temporary
   password like `lotus-ferry-4821` — and confirms the email — with the

@@ -14,6 +14,7 @@ export type FakeBackend = {
   inserts: { table: string; body: Record<string, unknown> }[];
   deletes: { table: string; query: string }[];
   updates: { table: string; query: string; body: Record<string, unknown> }[];
+  rpcs: { name: string; body: unknown }[];
   authUpdates: Record<string, unknown>[];
   uploads: { bucket: string; path: string }[];
   /** Storage files removed: `{ bucket, paths }`. */
@@ -59,7 +60,7 @@ export async function signInWithFakeBackend(
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );
 
-  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], removals: [], functions: [] };
+  const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], removals: [], functions: [], rpcs: [] };
   // Realtime (websocket) is never let through: close it so tests stay offline.
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
   // Exchange rates and weather (Toolkit) never come from the real services in tests:
@@ -96,7 +97,9 @@ export async function signInWithFakeBackend(
       // notify-chat's "key" action hands back a (fixed, fake) VAPID public key.
       const answer =
         fn[1] === 'admin-reset-password'
-          ? { password: 'lotus-ferry-4821' }
+          ? body?.action === 'list'
+            ? { accounts: (tables.auth_accounts ?? []) as unknown[] }
+            : { password: 'lotus-ferry-4821' }
           : fn[1] === 'yuki'
             ? body?.action === 'journal_draft'
               ? { draft: 'We started the day at the Golden Pavilion…', remaining: 58 }
@@ -120,6 +123,12 @@ export async function signInWithFakeBackend(
       const paths: string[] = req.postDataJSON()?.prefixes ?? [];
       backend.removals.push({ bucket: removal[1], paths });
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(paths.map((name) => ({ name }))) });
+    }
+    // RPCs (e.g. touch_last_seen) are recorded apart from table writes.
+    const rpc = url.pathname.match(/^\/rest\/v1\/rpc\/(\w+)/);
+    if (rpc) {
+      backend.rpcs.push({ name: rpc[1], body: req.postDataJSON() ?? null });
+      return route.fulfill({ status: 204, body: '' });
     }
     const match = url.pathname.match(/^\/rest\/v1\/(\w+)/);
     if (!match) return route.abort();

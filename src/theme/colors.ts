@@ -96,15 +96,9 @@ export const colors = {
   // Games hub stage: the soft shadow under the floating hero icon.
   stageShadow: 'rgba(30,39,33,0.09)',
   halo: 'rgba(255,255,255,0.55)',
-  // Yuki, the voice assistant: a cherry blossom that glows while she
-  // listens and speaks (illustration only — her words are ink text). Pale
-  // petals deepening to rose at the base, a dark rose heart, gold pollen.
-  blossomPetal: '#fbd3de',
-  blossomPetalDeep: '#ec8fab',
-  blossomVein: 'rgba(196,79,115,0.35)',
-  blossomHeart: '#b8456a',
-  blossomPollen: '#f2c14e',
-  blossomGlow: 'rgba(240,128,160,0.5)',
+  // Yuki, the voice assistant: the pink halo behind her cherry blossom
+  // (the blossom itself is a picture; her words are ink text).
+  blossomGlow: 'rgba(240,128,160,0.6)',
   /** The screen behind Yuki while she listens and talks. */
   yukiVeil: 'rgba(243,241,234,0.96)',
 
@@ -147,7 +141,7 @@ export const shadow = {
   // the soft blur around the Games hub's floor shadow
   stage: '0px 0px 12px 6px rgba(30,39,33,0.09)',
   // the pink halo around Yuki's cherry blossom
-  blossom: '0px 0px 60px 18px rgba(240,128,160,0.5)',
+  blossom: '0px 0px 70px 26px rgba(240,128,160,0.6)',
 };
 
 // One color per leg, in trip order — kept stable so a city always reads as

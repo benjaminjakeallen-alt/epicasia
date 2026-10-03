@@ -188,9 +188,16 @@ test('every level can be climbed: a safe ladder up from each girder, none into G
   await expect.poll(async () => (await state(f)).player.g, { timeout: 15000 }).toBe(5);
   await page.keyboard.up('ArrowUp');
   expect((await state(f)).mode).toBe('play'); // not stomped
+  // Walk right toward the ledge ladder (x 118). On a slow runner the hero can
+  // overshoot it before the key is released, so step back if needed.
   await page.keyboard.down('ArrowRight');
   await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(111);
   await page.keyboard.up('ArrowRight');
+  if ((await state(f)).player.x > 125) {
+    await page.keyboard.down('ArrowLeft');
+    await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeLessThan(124);
+    await page.keyboard.up('ArrowLeft');
+  }
   await page.keyboard.down('ArrowUp');
   await expect.poll(async () => (await state(f)).mode, { timeout: 15000 }).toBe('rescue');
   await page.keyboard.up('ArrowUp');
@@ -228,4 +235,38 @@ test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({
   await ui.getByRole('button', { name: 'RESUME' }).click();
   await expect(ui.getByRole('dialog', { name: 'Paused' })).toBeHidden();
   expect((await state(f)).mode).toBe('play');
+});
+
+test('the d-pad never sticks: a lost release is overridden by the next touch', async ({ page }) => {
+  // User, Oct 3 2026: on level 4 "my character was stuck walking against side".
+  // A thumb sliding off the screen edge can lose its pointerup; the pad then
+  // ignored every new touch and kept walking left into the wall.
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  await f.evaluate(() => { const d = (window as any).__rampage.debug; d.setLevel(4); d.calm(); d.place(30, 0); });
+
+  const press = (name: string, id: number) =>
+    f.evaluate(([label, pid]) => {
+      const b = document.querySelector(`[aria-label="${label}"]`)!.getBoundingClientRect();
+      const pad = document.querySelector('.dpad')!;
+      pad.dispatchEvent(new PointerEvent('pointerdown', { pointerId: pid as number, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2, bubbles: true, cancelable: true }));
+    }, [name, id] as const);
+
+  await press('Move left', 7); // ...and its release never arrives
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBe(4);
+  // Against the wall she stands rather than walking on the spot.
+  await expect.poll(async () => (await state(f)).player.vx).toBe(0);
+  // A new touch takes over at once.
+  await press('Move right', 8);
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(12);
+  // Lifting every finger lets go of everything.
+  await f.evaluate(() => document.dispatchEvent(new TouchEvent('touchend', { touches: [], bubbles: true })));
+  const x = (await state(f)).player.x;
+  await page.waitForTimeout(600);
+  expect(Math.abs((await state(f)).player.x - x)).toBeLessThan(3);
 });

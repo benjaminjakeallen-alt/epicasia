@@ -1,46 +1,18 @@
-import { useEffect, useId, useRef } from 'react';
+import { Image } from 'expo-image';
+import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
-import Svg, { Circle, Defs, G, Line, Path, RadialGradient, Stop } from 'react-native-svg';
 import { colors as c, shadow } from '../../theme/colors';
 
 export type BlossomMode = 'still' | 'idle' | 'listening' | 'thinking' | 'speaking';
 
-// One petal pointing up from the centre (50, 50) of a 100×100 box, with the
-// cherry blossom's notch at its tip.
-const PETAL = 'M50 50 C35 43 26 26 36 13 Q43 7 50 15 Q57 7 64 13 C74 26 65 43 50 50 Z';
-const STAMENS = Array.from({ length: 10 }, (_, i) => (i * 36 + 18) * (Math.PI / 180));
+// Yuki's blossom is a generated 3D miniature in the menu icons' style
+// (pale sakura petals, rose heart, gold stamens, two sage leaves; prompt in
+// tools/menu-icons/README.md), seen face-on so it can turn in place.
+const BLOSSOM = require('../../../assets/images/yuki/blossom.png');
 
-/** The cherry-blossom drawing itself (no animation). */
+/** The cherry blossom picture itself (no animation). */
 export function BlossomArt({ size }: { size: number }) {
-  const id = useId().replace(/:/g, '');
-  return (
-    <Svg width={size} height={size} viewBox="0 0 100 100">
-      <Defs>
-        <RadialGradient id={`p${id}`} cx="50" cy="50" r="42" gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={c.blossomPetalDeep} />
-          <Stop offset="0.45" stopColor={c.blossomPetal} />
-          <Stop offset="1" stopColor={c.blossomPetal} />
-        </RadialGradient>
-      </Defs>
-      {[0, 72, 144, 216, 288].map((a) => (
-        <G key={a} transform={`rotate(${a} 50 50)`}>
-          <Path d={PETAL} fill={`url(#p${id})`} />
-          <Path d="M50 46 L50 22" stroke={c.blossomVein} strokeWidth={1} strokeLinecap="round" />
-        </G>
-      ))}
-      {STAMENS.map((a) => {
-        const x = 50 + Math.cos(a) * 13;
-        const y = 50 + Math.sin(a) * 13;
-        return (
-          <G key={a}>
-            <Line x1={50} y1={50} x2={x} y2={y} stroke={c.blossomHeart} strokeWidth={0.9} />
-            <Circle cx={x} cy={y} r={1.7} fill={c.blossomPollen} />
-          </G>
-        );
-      })}
-      <Circle cx={50} cy={50} r={5.5} fill={c.blossomHeart} />
-    </Svg>
-  );
+  return <Image source={BLOSSOM} style={{ width: size, height: size }} contentFit="contain" accessibilityLabel="" />;
 }
 
 /**

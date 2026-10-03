@@ -63,7 +63,7 @@ test('change your password', async ({ page }) => {
     profiles: [{ id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: false }],
   });
   await open(page, '/profile');
-  await expect(page.getByTestId('open-travelers')).toHaveCount(0); // organizers only
+  await expect(page.getByTestId('open-admin')).toHaveCount(0); // organizers only
   await page.getByTestId('new-password').fill('short');
   await page.getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText('Choose a password of at least 8 characters.')).toBeVisible();
@@ -74,20 +74,37 @@ test('change your password', async ({ page }) => {
   expect(backend.authUpdates[0]).toMatchObject({ password: 'a much longer one' });
 });
 
-test('an organizer gives a traveler a temporary password', async ({ page }) => {
+test('Admin: who is active, when people signed in, and a temporary password', async ({ page }) => {
   const EMILY = '00000000-0000-4000-8000-0000000000ee';
+  const BEN = '00000000-0000-4000-8000-0000000000bb';
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
   const backend = await signInWithFakeBackend(page, {
     profiles: [
-      { id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true },
-      { id: EMILY, display_name: 'Emily Cox', avatar_url: null, is_admin: false },
+      { id: USER_ID, display_name: 'Test Traveler', avatar_url: null, is_admin: true, last_seen_at: ago(1) },
+      { id: EMILY, display_name: 'Emily Cox', avatar_url: null, is_admin: false, last_seen_at: ago(180) },
+      { id: BEN, display_name: 'Bennett Cox', avatar_url: null, is_admin: false, last_seen_at: null },
+    ],
+    auth_accounts: [
+      { id: USER_ID, email: 'test@example.com', last_sign_in_at: ago(60), created_at: ago(9000) },
+      { id: EMILY, email: 'emily@example.com', last_sign_in_at: ago(200), created_at: ago(9000) },
+      { id: BEN, email: 'ben@example.com', last_sign_in_at: null, created_at: ago(30) },
     ],
   });
   await open(page, '/profile');
-  await page.getByTestId('open-travelers').click();
-  await expect(page.getByTestId('traveler-row')).toHaveCount(2);
+  await page.getByTestId('open-admin').click();
+  await expect(page.getByRole('heading', { name: 'Admin' })).toBeVisible();
+  await expect(page.getByTestId('traveler-row')).toHaveCount(3);
+  await expect(page.getByText('Travelers · 1 active now')).toBeVisible();
+  // Most recently active first, never-signed-in last.
+  await expect(page.getByTestId('traveler-activity')).toHaveText(['Active now', 'Active 3 h ago', 'Hasn’t signed in yet']);
+  await expect(page.getByText('emily@example.com')).toBeVisible();
+  expect(backend.rpcs.some((r) => r.name === 'touch_last_seen')).toBe(true); // the app says "I'm here"
+
   await expect(page.getByLabel('Reset Test Traveler’s password')).toHaveCount(0); // not yourself
   page.once('dialog', (d) => d.accept());
   await page.getByLabel('Reset Emily Cox’s password').click();
   await expect(page.getByTestId('temp-password')).toContainText('lotus-ferry-4821');
-  expect(backend.functions).toEqual([{ name: 'admin-reset-password', body: { user_id: EMILY } }]);
+  expect(backend.functions.filter((f) => f.body && (f.body as { user_id?: string }).user_id)).toEqual([
+    { name: 'admin-reset-password', body: { user_id: EMILY } },
+  ]);
 });

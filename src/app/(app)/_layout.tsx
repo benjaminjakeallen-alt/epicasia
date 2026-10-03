@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import YukiVoice from '../../components/yuki/YukiVoice';
 import { useAuth } from '../../lib/AuthProvider';
+import { HEARTBEAT_MS, touchLastSeen } from '../../lib/admin';
 import { startServiceWorker, syncPush } from '../../lib/push';
 
 export default function AppLayout() {
@@ -21,6 +22,22 @@ export default function AppLayout() {
     syncPush().catch(() => {});
     return stop;
   }, [userId, router]);
+
+  // "Active now" for organizers (Profile → Admin): stamp last_seen_at when
+  // the app opens, comes back to the front, and every couple of minutes.
+  useEffect(() => {
+    if (!userId) return;
+    touchLastSeen();
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') touchLastSeen();
+    }, HEARTBEAT_MS);
+    const onVisible = () => document.visibilityState === 'visible' && touchLastSeen();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [userId]);
 
   if (initializing) return null;
   if (!session) return <Redirect href="/(auth)/login" />;

@@ -235,7 +235,9 @@ function dpadRead(e) {
 }
 dpad.addEventListener('pointerdown', function (e) {
   e.preventDefault();
-  if (dpadId !== null) return;
+  // A new thumb on the pad always takes over: if the last touch's "up" got
+  // lost (a thumb sliding off the screen edge, a system gesture), the pad
+  // must never stay stuck holding a direction.
   dpadId = e.pointerId;
   try { dpad.setPointerCapture(e.pointerId); } catch { /* ok */ }
   dpadSet(dpadRead(e));
@@ -252,6 +254,21 @@ Array.prototype.forEach.call(document.querySelectorAll('.acts [data-k]'), functi
   let up = function (e) { if (ptrKey[e.pointerId] === k) { delete ptrKey[e.pointerId]; release(k); b.classList.remove('on'); } };
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
 });
+// Belt and braces against stuck controls: a release anywhere counts, and
+// when no finger is left on the screen (or the game loses focus) every
+// control lets go.
+window.addEventListener('pointerup', dpadUp, true);
+window.addEventListener('pointercancel', dpadUp, true);
+function releaseAll() {
+  dpadId = null; dpadSet({});
+  Object.keys(ptrKey).forEach(function (id) { release(ptrKey[id]); delete ptrKey[id]; });
+  document.querySelectorAll('.acts [data-k].on').forEach(function (b) { b.classList.remove('on'); });
+  Object.keys(held).forEach(release);
+}
+['touchend', 'touchcancel'].forEach(function (t) {
+  document.addEventListener(t, function (e) { if (!e.touches.length) releaseAll(); }, true);
+});
+window.addEventListener('blur', releaseAll);
 // Pause menu (the ❚❚ button or Escape): resume, sound, or leave — leaving
 // is never one accidental tap next to the d-pad.
 const pauseEl = document.getElementById('pause');
@@ -394,7 +411,9 @@ function updatePlayer(dt) {
     if (L.icy.indexOf(p.g) >= 0) p.vx += (target - p.vx) * Math.min(1, dt * 2.6);
     else p.vx = target;
     if (target) p.face = target > 0 ? 1 : -1;
-    p.x = Math.max(4, Math.min(W - 4, p.x + p.vx * dt));
+    let nx = Math.max(4, Math.min(W - 4, p.x + p.vx * dt));
+    if (nx === p.x) p.vx = 0; // against the edge: stand, don't walk on the spot
+    p.x = nx;
     if (p.vx) p.anim += dt * 9;
     if (p.jbuf > 0) { jump(p); return; }
     if (solidAt(p.g, p.x)) p.y = surf(p.g, p.x);
@@ -655,13 +674,13 @@ function frame(ts) {
   if (atk.classList.contains('ready') !== !!ready) atk.classList.toggle('ready', !!ready);
   requestAnimationFrame(frame);
 }
-document.addEventListener('visibilitychange', function () { S.paused = document.hidden; last = 0; });
+document.addEventListener('visibilitychange', function () { S.paused = document.hidden; last = 0; if (document.hidden) releaseAll(); });
 
 // Testing / debugging hooks (the host only enables cheats in development).
 window.__rampage = {
   get mode() { return S.mode; }, get score() { return S.score; }, get lives() { return S.lives; }, get level() { return S.level + 1; },
   get hero() { return S.hero; }, get hi() { return S.hi; },
-  get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, tool: S.player.tool }; },
+  get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, vx: S.player.vx, tool: S.player.tool }; },
   get hazards() { return S.hz.length; },
   get menu() { return !!S.menu; },
   routeProblems: routeProblems,

@@ -218,18 +218,6 @@ export default function ProfileScreen() {
           </Text>
         </View>
 
-        {profile?.is_admin ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/(app)/invites')}
-            testID="open-invites"
-            style={({ pressed }) => [styles.linkRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
-          >
-            <Ionicons name="person-add-outline" size={22} color={c.highlight} />
-            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Invite travelers</Text>
-            <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
-          </Pressable>
-        ) : null}
 
         <FormField
           label="New password"
@@ -249,12 +237,12 @@ export default function ProfileScreen() {
         {profile?.is_admin ? (
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push('/(app)/travelers')}
-            testID="open-travelers"
+            onPress={() => router.push('/(app)/admin')}
+            testID="open-admin"
             style={({ pressed }) => [styles.linkRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
           >
-            <Ionicons name="people-outline" size={22} color={c.highlight} />
-            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Travelers</Text>
+            <Ionicons name="shield-checkmark-outline" size={22} color={c.highlight} />
+            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Admin</Text>
             <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
           </Pressable>
         ) : null}

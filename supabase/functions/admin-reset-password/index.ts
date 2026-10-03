@@ -3,6 +3,9 @@
 // slow, rate-limited and often lands in spam).
 //
 // POST { user_id } with an admin's JWT → { password }
+// POST { action: 'list' } → { accounts: [{ id, email, last_sign_in_at, created_at, confirmed }] }
+//   (Profile → Admin: who has signed in and when — only the service role
+//   can read auth.users, so organizers get it through here.)
 // The caller must be signed in and have profiles.is_admin (read as the
 // caller, so RLS applies). The new password is made here, set with the
 // service role (inside the function only) and shown once to the organizer,
@@ -45,17 +48,34 @@ Deno.serve(async (req) => {
   const { data: profile } = await asCaller.from('profiles').select('is_admin').eq('id', me.user.id).maybeSingle();
   if (!profile?.is_admin) return json({ error: 'Organizers only' }, 403);
 
-  let userId: unknown;
+  let body: Record<string, unknown> = {};
   try {
-    userId = (await req.json())?.user_id;
+    body = (await req.json()) ?? {};
   } catch {
     // fall through
   }
-  if (typeof userId !== 'string' || !/^[0-9a-f-]{36}$/.test(userId)) return json({ error: 'user_id required' }, 400);
 
   const admin = createClient(url, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  if (body.action === 'list') {
+    const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) return json({ error: 'Could not list accounts' }, 500);
+    return json({
+      accounts: data.users.map((u) => ({
+        id: u.id,
+        email: u.email ?? null,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+        created_at: u.created_at,
+        confirmed: !!u.email_confirmed_at,
+      })),
+    });
+  }
+
+  const userId = body.user_id;
+  if (typeof userId !== 'string' || !/^[0-9a-f-]{36}$/.test(userId)) return json({ error: 'user_id required' }, 400);
+
   const password = tempPassword();
   // Confirm the email too: someone stuck on an unconfirmed account gets in.
   const { error } = await admin.auth.admin.updateUserById(userId, { password, email_confirm: true });

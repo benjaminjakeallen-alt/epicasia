@@ -152,6 +152,7 @@ test('an admin creates a code and gets a QR, share, email and copy', async ({ pa
 
   await page.goto('/profile');
   await skipIntro(page);
+  await page.getByTestId('open-admin').click();
   await page.getByTestId('open-invites').click();
   await expect(page.getByRole('heading', { name: 'Invites' })).toBeVisible();
   // The used-up code is listed as no longer active.
@@ -196,5 +197,5 @@ test('travelers who are not admins never see invites', async ({ page }) => {
   await page.goto('/profile');
   await skipIntro(page);
   await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
-  await expect(page.getByTestId('open-invites')).toHaveCount(0);
+  await expect(page.getByTestId('open-admin')).toHaveCount(0);
 });
