@@ -30,8 +30,8 @@ Personal (per-user, not shared):
 - **Journal — built** (Oct 2 2026, see below).
 
 Utilities (client-side/API only, no backend needed):
-- **Toolkit — built (Oct 3 2026): currency converter + phrasebook** (see
-  below); weather and shared map pins still to come (pins need a table).
+- **Toolkit — built (Oct 3 2026): currency converter, phrasebook, weather
+  and shared map pins** (see below).
 
 **Accessibility mode for low vision — phase 1 built (Oct 2 2026),
 phase 2 planned.** Built: "Large & spoken mode" (`src/lib/a11yMode.tsx`
@@ -198,7 +198,7 @@ checklist persists, China guide with PEK/PVG + the NRT→PEK pass, add a PDF
 removed; the fake backend now records storage `removals`) and axe audits
 of all four screens + the viewer.
 
-### Toolkit (built, Oct 3 2026) — currency converter + phrasebook
+### Toolkit (built, Oct 3 2026) — currency, phrasebook, weather, map pins
 
 On the ring as **"Toolkit"** (user's name, 6th of 7, before Games), icon
 `assets/images/menu/satchel.png` — an open sage leather messenger bag with
@@ -206,7 +206,8 @@ a phrasebook, banknotes, coins and a red map pin spilling out (the user's
 idea; "Satchel 2" of three; prompt in `tools/menu-icons/README.md`). The
 ring went 6 → 7 items, so VoiceOver/spoken labels read "… of 7".
 Screens `src/app/(app)/toolkit/`: `index` (tool cards), `currency`,
-`phrases`. Both tools work offline.
+`phrases`, `weather`, `pins`, `new-pin`. All work offline (weather and
+pins from the last saved copy).
 - **Currency** (`src/lib/currency.ts`): JPY / CNY / HKD against your own
   currency (USD default; GBP, EUR, CAD, AUD, NZD; saved as
   `epicasia.homeCurrency`). Rates: **open.er-api.com** (free, no key,
@@ -231,11 +232,36 @@ Screens `src/app/(app)/toolkit/`: `index` (tool cards), `currency`,
   Spoken Content → Voices). **The web voice list can wait forever** when
   a browser has no voices (expo-speech awaits `onvoiceschanged`) — capped
   at 800ms. **Not yet checked by a native speaker** — worth doing.
+- **Weather** (`src/lib/weather.ts`): **Open-Meteo** (free, no key, CORS),
+  one request for all five cities (comma-separated lat/lng → array):
+  current temp + WMO code, 7 days of code/high/low/rain %. Saved as
+  `epicasia.weather`; offline shows it with "Offline · forecast saved …";
+  nothing saved → a note, and typical June still shows. **Typical June**
+  per city is bundled (approximate climate normals + a one-line note:
+  tsuyu, plum rains, typhoon season). °F default (US group), °C toggle
+  saved as `epicasia.tempUnit`. During the trip today's city is first
+  ("You're here today"). The 7-day strip is a fixed row, not a horizontal
+  ScrollView — axe flags scroll regions with nothing focusable; the
+  credit is a real link for the same reason.
+- **Map pins** (`src/lib/pins.ts`, migration `0012_map_pins.sql`): shared
+  table — name, `address` (meant to be the local-script address, shown
+  full screen "to show a driver"), note, category (hotel / meet / food /
+  sight / shop / other), city (leg key or null = Anywhere), optional
+  lat/lng (both or neither). RLS: members read + insert own; creator or
+  admin update/delete. List grouped by city in route order; each pin
+  opens **Apple Maps / Google Maps** (by coordinates when saved, else
+  name + address search — Google Maps doesn't work in mainland China,
+  Apple Maps does). "Use where I am" = **`expo-location`** (added, ~57.0.20,
+  plugin with a when-in-use permission string only, background location
+  off); web uses browser geolocation. Cached as `pins` for offline.
 - Tests: `e2e/toolkit.spec.ts` (ring shows 7; keypad conversion, swap,
   HKD, GBP remembered; offline saved vs bundled rates; phrase plays with
-  the right `lang`, card, no-Cantonese-voice notice) + axe audits of all
-  three screens and the phrase card. The fake backend now aborts the rate
-  services in every test (specs that need rates answer them).
+  the right `lang`, card, no-Cantonese-voice notice; weather °F/°C, saved
+  offline, none saved; pins grouped, exact Maps URLs, address card, own-
+  only remove, add with Playwright geolocation → exact insert) + axe
+  audits of every Toolkit screen, the phrase card, weather with data and
+  the address card. The fake backend aborts the rate and weather services
+  in every test (specs that need them answer them).
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
@@ -526,7 +552,8 @@ backend code.
   `0008_avatars.sql` (private `avatars` bucket + display-name length — see Profile),
   `0009_chat_unread_push.sql` (`chat_reads`, `push_tokens` — see Group chat),
   `0010_trip_invites.sql` (invite codes required at sign-up — see Auth),
-  `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents).
+  `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents),
+  `0012_map_pins.sql` (shared map pins — see Toolkit).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

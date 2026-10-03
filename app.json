@@ -69,6 +69,16 @@
           "resizeMode": "contain",
           "backgroundColor": "#f3f1ea"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group.",
+          "isIosBackgroundLocationEnabled": false,
+          "isAndroidBackgroundLocationEnabled": false,
+          "locationAlwaysAndWhenInUsePermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group.",
+          "locationAlwaysPermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group."
+        }
       ]
     ]
   }

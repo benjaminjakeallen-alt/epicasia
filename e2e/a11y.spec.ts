@@ -40,8 +40,24 @@ const DOCS = [
   },
 ];
 
+const PINS = [
+  {
+    id: 'pin1',
+    created_by: USER_ID,
+    name: 'Hotel Gracery Shinjuku',
+    address: '東京都新宿区歌舞伎町1-19-1',
+    note: 'Godzilla on the roof',
+    category: 'hotel',
+    city: 'tokyo',
+    lat: null,
+    lng: null,
+    created_at: ago(60),
+  },
+];
+
 const DATA = {
   documents: DOCS,
+  map_pins: PINS,
   profiles: [
     { id: SARAH, display_name: 'Sarah Lee' },
     { id: USER_ID, display_name: 'Test Traveler' },
@@ -208,6 +224,9 @@ const SCREENS: [string, string][] = [
   ['toolkit', '/toolkit'],
   ['currency converter', '/toolkit/currency'],
   ['phrasebook', '/toolkit/phrases'],
+  ['weather (no forecast)', '/toolkit/weather'],
+  ['map pins', '/toolkit/pins'],
+  ['add a map pin', '/toolkit/new-pin'],
   ['chat', '/chat'],
   ['photos', '/photos'],
   ['journal', '/journal'],
@@ -254,6 +273,36 @@ test('a11y: phrase shown large', async ({ page }) => {
   await open(page, '/toolkit/phrases');
   await page.getByRole('button', { name: /^Hello\. konnichiwa/ }).click();
   await expect(page.getByTestId('phrase-card')).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: weather with a forecast', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  const city = {
+    current: { temperature_2m: 22, weather_code: 2 },
+    daily: {
+      time: ['2026-10-03', '2026-10-04'],
+      weather_code: [2, 61],
+      temperature_2m_max: [25, 20],
+      temperature_2m_min: [18, 15],
+      precipitation_probability_max: [10, 80],
+    },
+  };
+  await page.route(/api\.open-meteo\.com/, (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify([city, city, city, city, city]) }),
+  );
+  await open(page, '/toolkit/weather');
+  await expect(page.getByTestId('now-temp').first()).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  expect(await smallTargets(page)).toEqual([]);
+});
+
+test('a11y: pin address shown large', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/toolkit/pins');
+  await page.getByRole('button', { name: /^Show the address of/ }).click();
+  await expect(page.getByTestId('address-card')).toBeVisible();
   expect(await axe(page)).toEqual([]);
   expect(await smallTargets(page)).toEqual([]);
 });

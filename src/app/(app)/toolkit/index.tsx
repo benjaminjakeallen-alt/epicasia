@@ -9,7 +9,7 @@ import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
 // Toolkit: small helpers for out and about — all of them work with no
-// signal. (Weather and shared map pins come next.)
+// signal (weather and pins from what was last saved).
 
 const TOOLS: { key: string; title: string; line: string; icon: keyof typeof Ionicons.glyphMap; href: Href }[] = [
   {
@@ -25,6 +25,20 @@ const TOOLS: { key: string; title: string; line: string; icon: keyof typeof Ioni
     line: 'Japanese, Mandarin and Cantonese, with sound',
     icon: 'chatbubbles-outline',
     href: '/(app)/toolkit/phrases',
+  },
+  {
+    key: 'weather',
+    title: 'Weather',
+    line: 'Every city on the route, plus typical June weather',
+    icon: 'partly-sunny-outline',
+    href: '/(app)/toolkit/weather',
+  },
+  {
+    key: 'pins',
+    title: 'Map pins',
+    line: 'The group’s saved places, opening in Maps',
+    icon: 'map-outline',
+    href: '/(app)/toolkit/pins',
   },
 ];
 

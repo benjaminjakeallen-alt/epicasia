@@ -194,10 +194,10 @@ export function JournalSkeleton() {
   );
 }
 
-/** My documents: rows with a thumbnail. */
-export function DocsSkeleton() {
+/** List rows with a thumbnail (My documents, map pins). */
+export function DocsSkeleton({ label = 'Loading documents' }: { label?: string }) {
   return (
-    <SkeletonRoot label="Loading documents" style={styles.pad}>
+    <SkeletonRoot label={label} style={styles.pad}>
       {[0, 1, 2].map((k) => (
         <View key={k} style={[styles.card, styles.row, styles.mb14]}>
           <Bone width={56} height={56} radius={12} />

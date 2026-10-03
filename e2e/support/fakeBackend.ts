@@ -59,9 +59,9 @@ export async function signInWithFakeBackend(
   const backend: FakeBackend = { inserts: [], deletes: [], updates: [], authUpdates: [], uploads: [], removals: [], functions: [] };
   // Realtime (websocket) is never let through: close it so tests stay offline.
   await page.routeWebSocket(/supabase\.co/, (ws) => ws.close());
-  // Exchange rates (Toolkit) never come from the real service in tests:
+  // Exchange rates and weather (Toolkit) never come from the real services in tests:
   // offline unless a spec answers them itself (later routes win).
-  await page.route(/open\.er-api\.com|api\.frankfurter\.dev/, (route) => route.abort('internetdisconnected'));
+  await page.route(/open\.er-api\.com|api\.frankfurter\.dev|api\.open-meteo\.com/, (route) => route.abort('internetdisconnected'));
   await page.route(/supabase\.co/, async (route) => {
     const req: Request = route.request();
     const url = new URL(req.url());
