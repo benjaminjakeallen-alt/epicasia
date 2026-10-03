@@ -342,9 +342,13 @@ Christmas Chaos, Kaiju Showdown — then they loop harder (`1.15^round`).
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player for
   tests; in development `__rampage.debug` adds giveTool, rescue, die,
   gameOver(score), spawnBarrelAt, pause, setLevel.
-- **Character sprites are placeholders** until the user sends reference
-  photos of Chris, Shea, Emily and Heather (`HEROES`/`WIVES` palettes and
-  `HERO_FRAMES`/`PRINCESS_FRAMES` in the .html).
+- **Sprites from the user's photos:** Chris (Oct 3 2026) — shaved head with a
+  shine, blue eyes, stubble, periwinkle tee, grey jeans, and the **gold crown**
+  from one of his photos when he rescues Emily (`crown: true`); his own `head`/
+  `back` rows sit on the shared body frames (`heroFrames()`). Emily — big
+  wavy red hair, black wayfarers, silver necklace, the blue ball gown with
+  black florals (her own full `frames`, `wifeFrames()`). **Shea and Heather
+  are still placeholders** until their photos arrive.
 - Tests: `e2e/rampage.spec.ts` (board ranks; play through the iframe —
   pick Shea by tapping, pad + keyboard move, power-up lights SWING, game
   over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕ back to the
