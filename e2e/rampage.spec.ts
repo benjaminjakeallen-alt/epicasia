@@ -69,6 +69,8 @@ async function stickPoint(page: Page, dir: string) {
   return { x: b.x + b.width / 2 + (dx / n) * r, y: b.y + b.height / 2 + (dy / n) * r };
 }
 
+const gameUi = (page: Page) => page.frameLocator('[data-testid="game-frame"]');
+
 const state = (f: Frame) =>
   f.evaluate(() => {
     const r = (window as any).__rampage;
@@ -281,4 +283,80 @@ test('the joystick never sticks: a lost release is overridden by the next touch'
   const x = (await state(f)).player.x;
   await page.waitForTimeout(600);
   expect(Math.abs((await state(f)).player.x - x)).toBeLessThan(3);
+});
+
+test('secret: smash the barrel at the start with a power-up → Girl Power; Emily plays for +15%', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  const backend = await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  let f = await game(page);
+  expect(await f.evaluate(() => (window as any).__rampage.girlPower)).toBe(false);
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+
+  // The barrel stands where you start. Swinging at it without a power-up does nothing.
+  expect(await f.evaluate(() => (window as any).__rampage.secret)).toEqual({ x: 30, broken: false });
+  await f.evaluate(() => { const d = (window as any).__rampage.debug; d.calm(); d.place(34, 0); });
+  await page.keyboard.press('x');
+  expect(await f.evaluate(() => (window as any).__rampage.girlPower)).toBe(false);
+  // With one (carried back down to the floor), it breaks open.
+  await f.evaluate(() => (window as any).__rampage.debug.giveTool());
+  await page.keyboard.press('x');
+  await expect.poll(() => f.evaluate(() => (window as any).__rampage.girlPower)).toBe(true);
+  expect(await f.evaluate(() => (window as any).__rampage.secret.broken)).toBe(true);
+  expect((await state(f)).score).toBe(1000);
+
+  // The app remembers it (the game's own storage is off in its sandbox).
+  await gameUi(page).getByRole('button', { name: 'Pause' }).click();
+  await gameUi(page).getByRole('button', { name: 'Leave the game' }).click();
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15000 });
+  await page.getByTestId('rampage-play').click();
+  f = await game(page);
+  expect(await f.evaluate(() => (window as any).__rampage.girlPower)).toBe(true);
+
+  // Four heroes now: tap Emily (bottom-left card).
+  const box = (await page.getByTestId('game-frame').boundingBox())!;
+  const pt = await f.evaluate(() => (window as any).__rampage.screenPoint(48, 200));
+  await page.mouse.click(box.x + pt.x, box.y + pt.y);
+  await expect.poll(async () => (await state(f)).hero).toBe('emily');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  // She rescues Chris, and earns 15% more: the 2,000 rescue is worth 2,300.
+  await f.evaluate(() => (window as any).__rampage.debug.rescue());
+  expect((await state(f)).score).toBe(2300);
+  // (after the rescue, the bonus tally and on to level 2)
+  await expect.poll(async () => (await state(f)).level, { timeout: 30000 }).toBe(2);
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+
+  await f.evaluate(() => (window as any).__rampage.debug.gameOver(3000));
+  await expect.poll(async () => (await state(f)).mode, { timeout: 8000 }).toBe('gameover');
+  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBeGreaterThan(0);
+  const rows = backend.inserts.filter((i) => i.table === 'game_scores').flatMap((i) => i.body as unknown as Record<string, unknown>[]);
+  expect(rows.at(-1)).toMatchObject({ hero: 'emily', score: 3000 });
+  expect(errors).toEqual([]);
+});
+
+test('level 5 finale: Godzilla falls off the tower, fireworks, then the dance', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  await page.keyboard.press('Enter');
+  await f.evaluate(() => (window as any).__rampage.debug.setLevel(5));
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  expect((await state(f)).level).toBe(5);
+  await f.evaluate(() => { const d = (window as any).__rampage.debug; d.calm(); d.rescue(); });
+  expect(await f.evaluate(() => (window as any).__rampage.finale)).toBe(true);
+  // He hits the ground…
+  await expect.poll(() => f.evaluate(() => (window as any).__rampage.landed), { timeout: 20000 }).toBe(true);
+  // …fireworks go up, and after the rescue and bonus it's the win screen.
+  await expect.poll(async () => (await state(f)).mode, { timeout: 60000 }).toBe('win');
+  expect(errors).toEqual([]);
 });

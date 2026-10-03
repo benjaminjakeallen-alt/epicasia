@@ -395,9 +395,38 @@ via `GAMES` (vote games) — an arcade game needs its own branch in
 An arcade platformer from the user's brief: climb girders/ladders while
 Godzilla throws barrels, rescue the wife at the top. **Chris** (pickaxe,
 from Price, Utah) rescues **Emily**; **Shea** (giant candy cane) rescues
-**Heather**. Four levels — Godzilla Rampage (daytime Tokyo), Coal Mine
+**Heather**. Five levels — Godzilla Rampage (daytime Tokyo), Coal Mine
 Chaos, Christmas Chaos (candy-cane girders, snow), Kaiju Showdown (burning
-city) — then they loop harder (`1.15^round`).
+city), **Tokyo Tower Terror** (Oct 3 2026, night, neon girders, Tokyo
+Tower behind) — then they loop harder (`1.15^round`).
+- **Level 5 is much harder** (user asked): one ladder up per girder at the
+  far end (a full zig-zag every floor), four gaps to jump, an icy girder,
+  one power-up, barrels faster and often in pairs (`double`), more drops
+  and atomic fire, a bigger bonus. **The finale** (`final: true`): on the
+  rescue Godzilla teeters ("WHOA!"), topples off the tower and crashes at
+  the bottom (`S.fallT`, `FALL_EDGE` 0.9 s / `FALL_LAND` 2.25 s); the
+  camera then glides in 2.4× on the ledge (`camTarget()` in render3d),
+  fireworks burst around it (glowing instanced cubes, `fwMesh`) and the
+  hero dances with the one they rescued — moonwalk across the front, a
+  spin with arms up, disco-pointing back behind while the partner twirls
+  (`dance()`, a 6 s loop) — through the rescue (7.5 s), bonus and win
+  screens. `debug.finaleAt(t)` freezes it at a moment for screenshots.
+- **Girl Power — the secret** (user's design, Oct 3 2026): a barrel stands
+  on end where you start (`S.secret`, x 30, girder 0, a white glint every
+  few seconds). Carry a power-up back down to the floor and swing at it →
+  "GIRL POWER UNLOCKED!", +1000, and **Emily and Heather become playable**
+  (`HEROES[k].partner` — they rescue Chris / Shea, the roles reversed):
+  Emily swings a big red **book**, Heather has a **hairbrush** and **whips
+  her perfect hair** (a double spin that hits both sides, sparkles). The
+  girls **score 15% more** (`GIRL_BONUS` in `addScore`, every point incl.
+  the bonus; the HUD says "SCORE +15%"). The select screen becomes a 2 × 2
+  grid with "+15%" tags. Playable girls are `makeHeroine()` (the hero rig
+  with the gown's bodice and a knee-length skirt); on the ledge Chris /
+  Shea wait as their hero models. The iframe's own storage is off (null
+  origin), so the game posts `{type: 'unlock', key: 'girlPower'}` and the
+  app keeps `epicasia.rampage.girlPower` (per phone) and passes
+  `INIT.girlPower`. Once found, the barrel is gone. Don't reveal it in the
+  app's copy (the Games line still says "rescue Emily and Heather").
 - **Art direction (user, Oct 3 2026): NOT 8-bit.** "A 2D platformer but
   a more updated 3D art style, like a high-detail Crossy Road." Gameplay
   stays 2D side-on; everything is drawn as a **lit voxel diorama in
@@ -442,8 +471,8 @@ city) — then they loop harder (`1.15^round`).
   outcome}` (once per run, on game over or ✕), `haptic {kind}`
   (a `selectionTick()` — browsers have one kind of haptic), `exit`.
 - **Scores:** `0014_game_scores.sql` — `game_scores` (game
-  `godzilla_rampage`, user, score 1…9,999,999, level 1–4, round, hero
-  chris/shea); members read, insert own, admin deletes. Arcade games score
+  `godzilla_rampage`, user, score 1…9,999,999, level 1–5, round, hero
+  chris/shea/emily/heather — widened by 0019); members read, insert own, admin deletes. Arcade games score
   themselves; photo games use upvotes. `src/lib/rampage.ts` validates the
   message (`parseRun`), keeps the phone's best (`epicasia.rampage.best`),
   queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
@@ -973,7 +1002,9 @@ backend code.
   `0017_last_seen.sql` (`profiles.last_seen_at` + `touch_last_seen()` —
   see Auth → Admin),
   `0018_konbini_review.sql` (snack/rating/video on `game_entries`, video
-  in the `games` bucket — see Konbini Review).
+  in the `games` bucket — see Konbini Review),
+  `0019_rampage_level5_girl_power.sql` (`game_scores` level 1–5, heroes
+  chris/shea/emily/heather — see Godzilla Rampage).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

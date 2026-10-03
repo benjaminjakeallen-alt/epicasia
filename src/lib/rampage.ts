@@ -9,13 +9,29 @@ import { supabase } from './supabase';
 // or the next visit to the board.
 
 const RAMPAGE = 'godzilla_rampage' as const;
-export type Hero = 'chris' | 'shea';
+export const HEROES = ['chris', 'shea', 'emily', 'heather'] as const;
+export type Hero = (typeof HEROES)[number];
 
 export type Run = { score: number; level: number; round: number; hero: Hero };
 export type ScoreRow = Run & { id: string; user_id: string; created_at: string };
 
 const BEST_KEY = 'epicasia.rampage.best';
 const PENDING_KEY = 'epicasia.rampage.pending';
+const GIRL_POWER_KEY = 'epicasia.rampage.girlPower';
+
+/** Whether this phone has found the secret barrel ("Girl Power" mode). */
+export async function girlPowerUnlocked(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(GIRL_POWER_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** The game found the secret: Emily and Heather stay playable on this phone. */
+export async function unlockGirlPower(): Promise<void> {
+  await AsyncStorage.setItem(GIRL_POWER_KEY, '1').catch(() => {});
+}
 
 /** This phone's best score (shown as HIGH SCORE in the game). */
 export async function localBest(): Promise<number> {
@@ -42,9 +58,9 @@ export function parseRun(msg: unknown): Run | null {
   const n = (v: unknown, lo: number, hi: number) =>
     typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi ? v : null;
   const score = n(m.score, 1, 9_999_999);
-  const level = n(m.level, 1, 4);
+  const level = n(m.level, 1, 5);
   const round = n(m.round, 1, 999);
-  const hero = m.hero === 'chris' || m.hero === 'shea' ? m.hero : null;
+  const hero = HEROES.find((h) => h === m.hero) ?? null;
   return score && level && round && hero ? { score, level, round, hero } : null;
 }
 

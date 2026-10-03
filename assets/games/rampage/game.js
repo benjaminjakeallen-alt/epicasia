@@ -1,6 +1,11 @@
 // GODZILLA RAMPAGE — an original comedic arcade platformer for Epic Asia.
 // Climb the girders, dodge what Godzilla throws, grab your power-up
 // (Chris: PICKAXE, Shea: CANDY CANE), rescue Emily / Heather at the top.
+// Five levels; on the last (Tokyo Tower) Godzilla falls off the tower, the
+// sky fills with fireworks and the hero moonwalks with their rescued love.
+// Secret: carry a power-up back down to the floor and smash the barrel
+// where you started → "Girl Power": Emily (BOOK) and Heather (HAIRBRUSH,
+// she whips her hair) become playable, rescue Chris / Shea, +15% points.
 //
 // The game logic below works in a 2D logical playfield (192 x 288, y down,
 // HUD band at the top); render3d.js draws it as a lit voxel diorama with
@@ -25,18 +30,25 @@ function post(msg) {
 
 // ---- cast -------------------------------------------------------------------
 // Looks (voxel models) live in models.js, keyed by the same names.
+// `partner` is who they rescue; the girls (Girl Power mode) score 15% more.
 let HEROES = {
-  chris: { name: 'CHRIS', wife: 'emily', power: 'PICKAXE', powerMsg: 'PICKAXE POWER!', crown: true },
-  shea: { name: 'SHEA', wife: 'heather', power: 'CANDY CANE', powerMsg: 'CANDY CANE POWER!' }
+  chris: { name: 'CHRIS', partner: 'emily', power: 'PICKAXE', powerMsg: 'PICKAXE POWER!', crown: true },
+  shea: { name: 'SHEA', partner: 'heather', power: 'CANDY CANE', powerMsg: 'CANDY CANE POWER!' },
+  emily: { name: 'EMILY', partner: 'chris', power: 'BOOK', powerMsg: 'BOOK SMASH!', girl: true },
+  heather: { name: 'HEATHER', partner: 'shea', power: 'HAIRBRUSH', powerMsg: 'HAIR WHIP!', girl: true, whip: true }
 };
-let WIVES = { emily: { name: 'EMILY' }, heather: { name: 'HEATHER' } };
+const GIRL_BONUS = 1.15;
+function partnerName(h) { return HEROES[HEROES[h].partner].name; }
+/** Heroes on the select screen, in grid order. */
+function roster() { return S.girlPower ? ['chris', 'shea', 'emily', 'heather'] : ['chris', 'shea']; }
 
 // ---- themes & levels ---------------------------------------------------------
 let THEMES = [
   { name: 'GODZILLA RAMPAGE', sky: ['#120d2e', '#3a2470'], girder: '#e0457b', dark: '#8f1f4a', rivet: '#ffd1e0', ladder: '#5ad1e8', deco: 'city', barrel: 'barrel', cart: 'barrel', drop: 'coal' },
   { name: 'COAL MINE CHAOS', sky: ['#0d0a07', '#33241a'], girder: '#a8713f', dark: '#5a3a1e', rivet: '#e6c28f', ladder: '#d1a865', deco: 'mine', barrel: 'barrel', cart: 'cart', drop: 'coal' },
   { name: 'CHRISTMAS CHAOS', sky: ['#06213d', '#13597e'], girder: '#e8f4ff', dark: '#7fa6c9', rivet: '#ff4d4d', ladder: '#4dd17a', deco: 'xmas', barrel: 'present', cart: 'snowball', drop: 'ornament' },
-  { name: 'KAIJU SHOWDOWN', sky: ['#2a0606', '#8a2410'], girder: '#ff8a1f', dark: '#8a3b00', rivet: '#ffe08a', ladder: '#ffd23f', deco: 'fire', barrel: 'firebarrel', cart: 'boulder', drop: 'rock' }
+  { name: 'KAIJU SHOWDOWN', sky: ['#2a0606', '#8a2410'], girder: '#ff8a1f', dark: '#8a3b00', rivet: '#ffe08a', ladder: '#ffd23f', deco: 'fire', barrel: 'firebarrel', cart: 'boulder', drop: 'rock' },
+  { name: 'TOKYO TOWER TERROR', sky: ['#0a0f2e', '#4b2a7b'], girder: '#ff4fd8', dark: '#2b2f45', rivet: '#4dd8ff', ladder: '#4dd8ff', deco: 'neon', barrel: 'neonbarrel', cart: 'boulder', drop: 'rock' }
 ];
 // Girders: x1..x2, top surface y at the left (yL) and right (yR) ends.
 // They alternate their slope, so barrels zig-zag down; index 6 is the
@@ -59,7 +71,12 @@ let LEVELS = [
   { ladders: [[0, 100], [0, 30, 1], [1, 160], [2, 60], [2, 130, 1], [3, 150], [4, 96], [4, 120, 1]],
     holes: [[3, 90, 100]], tools: [[1, 40], [4, 90]], icy: [1, 3], throwEvery: 2.3, speed: 50, ladderChance: 0.33, cartChance: 0.3, dropEvery: 4.6, fire: 0 },
   { ladders: [[0, 160], [1, 20], [1, 120, 1], [2, 170], [3, 30], [3, 90, 1], [4, 140]],
-    holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], icy: [], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 }
+    holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], icy: [], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 },
+  // Level 5, the finale — much harder: one ladder up per girder at the far
+  // end (a full zig-zag every floor), gaps to jump, an icy girder, a single
+  // power-up, faster barrels thrown in pairs, more drops and atomic fire.
+  { ladders: [[0, 170], [0, 90, 1], [1, 22], [1, 130, 1], [2, 170], [2, 100, 1], [3, 24], [3, 120, 1], [4, 140], [4, 80, 1]],
+    holes: [[1, 60, 72], [2, 110, 120], [3, 80, 92], [4, 60, 70]], tools: [[2, 60]], icy: [2], throwEvery: 1.5, speed: 62, ladderChance: 0.45, cartChance: 0.35, dropEvery: 3.2, fire: 3, double: 0.4, final: true }
 ];
 
 let WALK = 56, CLIMB = 52, JUMPV = 128, GRAV = 470, FALL_DEATH = 26, TOOL_TIME = 10;
@@ -72,8 +89,10 @@ let S = {
   lives: 3, extraGiven: false, t: 0, modeT: 0, bonus: 5000, bonusT: 0,
   player: null, hz: [], tools: [], parts: [], pops: [], msgs: [], snow: [],
   gz: { state: 'idle', t: 0, throwT: 2, dropT: 4, roarT: 6, mood: 0, shake: 0, firstThrow: true },
-  holes: [], ladders: [], shakeT: 0, paused: false, sentScore: false
+  holes: [], ladders: [], shakeT: 0, paused: false, sentScore: false,
+  girlPower: !!INIT.girlPower, secret: null, finale: false, fallT: 0, landed: false, danceT: 0, rockets: [], rocketT: 0
 };
+try { if (localStorage.getItem('rampage.girlPower') === '1') S.girlPower = true; } catch { /* storage off (sandboxed) */ }
 
 function lvl() { return LEVELS[S.level]; }
 function theme() { return THEMES[S.level]; }
@@ -135,11 +154,17 @@ let SFX = {
   tick: function () { tone(1200, 0.03, 'square', 0.025); },
   oneup: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, 0.09, 'square', 0.045, 0, i * 0.08); }); },
   rescue: function () { [523, 659, 784, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, 'square', 0.05, 0, i * 0.14); }); },
-  over2: function () { [392, 330, 262, 196].forEach(function (f, i) { tone(f, 0.28, 'triangle', 0.06, 0, i * 0.26); }); }
+  over2: function () { [392, 330, 262, 196].forEach(function (f, i) { tone(f, 0.28, 'triangle', 0.06, 0, i * 0.26); }); },
+  whoosh: function () { tone(500, 1.4, 'sawtooth', 0.05, 60); },
+  boom: function () { noise(1.2, 0.3, 260); tone(60, 1, 'sine', 0.3, 28); },
+  launch: function () { tone(500, 0.45, 'sine', 0.02, 1500); },
+  bang: function () { noise(0.5, 0.16, 1800); tone(180, 0.25, 'triangle', 0.05, 60); },
+  secret: function () { [523, 784, 1047, 1319, 1568, 2093].forEach(function (f, i) { tone(f, 0.12, 'square', 0.045, 0, i * 0.07); }); }
 };
 // A tiny chiptune loop per level while playing (bass + blips).
 let MUSIC = [
-  [55, 0, 55, 65, 73, 0, 65, 55], [49, 0, 49, 58, 49, 0, 44, 0], [65, 82, 98, 82, 73, 87, 110, 87], [55, 55, 82, 55, 52, 52, 78, 52]
+  [55, 0, 55, 65, 73, 0, 65, 55], [49, 0, 49, 58, 49, 0, 44, 0], [65, 82, 98, 82, 73, 87, 110, 87], [55, 55, 82, 55, 52, 52, 78, 52],
+  [55, 82, 110, 82, 58, 87, 116, 87]
 ];
 let musicT = 0, musicStep = 0;
 function music(dt) {
@@ -165,6 +190,7 @@ function burst(x, y, cols, n) {
   }
 }
 function addScore(n, x, y) {
+  if (HEROES[S.hero].girl) n = Math.round(n * GIRL_BONUS);
   S.score += n; if (S.score > S.hi) S.hi = S.score;
   if (x !== undefined) pop('+' + n, x, y);
   if (!S.extraGiven && S.score >= 10000) { S.extraGiven = true; S.lives++; say('1UP!', 1.2, '#69db7c'); SFX.oneup(); }
@@ -186,13 +212,15 @@ function resetRun() {
   S.hz = []; S.parts = []; S.pops = [];
   S.tools = L.tools.map(function (t) { return { g: t[0], x: t[1], y: surf(t[0], t[1]), taken: false }; });
   let gz = S.gz; gz.state = 'idle'; gz.t = 0; gz.throwT = 1.6; gz.dropT = L.dropEvery || 99; gz.roarT = 7; gz.mood = 0; gz.firstThrow = true;
-  S.bonus = 5000 + S.level * 500; S.bonusT = 0;
+  S.bonus = 5000 + S.level * 500 + (L.final ? 2500 : 0); S.bonusT = 0;
+  // The secret barrel stands where you start, until Girl Power is found.
+  S.secret = S.girlPower ? null : { x: 30, y: surf(0, 30), broken: false, glint: 0 };
 }
 function startLevel() {
+  S.finale = false; S.fallT = 0; S.landed = false; S.danceT = 0; S.rockets = [];
   buildLevel(); resetRun();
   setMode('intro');
-  let wife = WIVES[HEROES[S.hero].wife].name;
-  say(wife + ' NEEDS YOU!', 2.2, '#ff8cc6');
+  say(partnerName(S.hero) + ' NEEDS YOU!', 2.2, '#ff8cc6');
   gzSet('roar', 1.1); SFX.roar(); haptic('heavy');
 }
 function setMode(m) { S.mode = m; S.modeT = 0; document.getElementById('over').classList.toggle('show', m === 'gameover'); R.modeChanged(m); }
@@ -302,20 +330,27 @@ hudCanvas.addEventListener('pointerdown', function (e) {
   audio();
   let q = R.toLogical(e.clientX, e.clientY), x = q.x, y = q.y;
   if (S.mode === 'select') {
-    if (y >= 96 && y < 168) startWith('chris');
-    else if (y >= 176 && y < 248) startWith('shea');
+    const h = heroAt(x, y);
+    if (h) startWith(h);
   } else if (S.mode === 'intro') setMode('play');
   else if (S.mode === 'win' && S.modeT > 1.5) nextRound();
-  void x;
 });
+// Which hero card is at a point on the select screen: two wide cards, or a
+// 2 x 2 grid once Girl Power is unlocked (boys on top, girls below).
+function heroAt(x, y) {
+  if (!S.girlPower) return y >= 96 && y < 168 ? 'chris' : y >= 176 && y < 248 ? 'shea' : null;
+  const row = y >= 88 && y < 164 ? 0 : y >= 168 && y < 244 ? 1 : -1;
+  if (row < 0 || x < 8 || x > W - 8) return null;
+  return roster()[row * 2 + (x < W / 2 ? 0 : 1)];
+}
 function menuConfirm() {
   audio();
-  if (S.mode === 'select') startWith(S.sel === 0 ? 'chris' : 'shea');
+  if (S.mode === 'select') startWith(roster()[S.sel] || 'chris');
   else if (S.mode === 'gameover') newGame(S.hero);
   else if (S.mode === 'intro') setMode('play');
   else if (S.mode === 'win' && S.modeT > 1.5) nextRound();
 }
-function startWith(h) { S.sel = h === 'chris' ? 0 : 1; newGame(h); }
+function startWith(h) { S.sel = Math.max(0, roster().indexOf(h)); newGame(h); }
 function newGame(h) {
   S.hero = h; S.level = 0; S.round = 0; S.score = 0; S.lives = 3; S.extraGiven = false; S.sentScore = false;
   startLevel();
@@ -331,6 +366,7 @@ function sendScore(outcome) {
 function gzSet(st, dur) { S.gz.state = st; S.gz.t = dur; }
 function updateGodzilla(dt) {
   let gz = S.gz, L = lvl(), p = S.player;
+  if (gz.state === 'fall') { updateFall(dt); return; }
   gz.mood = Math.min(1, p ? Math.max(0, (p.maxG - 1) / 4) : 0);
   if (gz.shake > 0) gz.shake -= dt;
   if (gz.t > 0) {
@@ -346,7 +382,11 @@ function updateGodzilla(dt) {
   gz.throwT -= dt * (gz.mood > 0.7 ? 1.25 : 1) * hard();
   gz.dropT -= dt * hard();
   gz.roarT -= dt;
-  if (gz.throwT <= 0) { gz.throwT = L.throwEvery * (0.75 + Math.random() * 0.5); gzSet('windup', 0.5); return; }
+  if (gz.throwT <= 0) {
+    gz.throwT = L.throwEvery * (0.75 + Math.random() * 0.5);
+    if (L.double && Math.random() < L.double) gz.throwT = 0.55; // another right behind it
+    gzSet('windup', 0.5); return;
+  }
   if (L.dropEvery && gz.dropT <= 0) {
     gz.dropT = L.dropEvery * (0.8 + Math.random() * 0.4);
     gzSet('stomp', 0.7); SFX.stomp(); haptic('light');
@@ -410,7 +450,10 @@ function updatePlayer(dt) {
     p.tool -= dt;
     if (p.tool <= 0) { p.tool = 0; tone(300, 0.3, 'square', 0.04, 120); }
   }
-  if (edge.A && p.tool > 0 && p.cd <= 0) { p.swing = 0.28; p.cd = 0.38; SFX.swing(); }
+  if (edge.A && p.tool > 0 && p.cd <= 0) {
+    p.swing = 0.28; p.cd = 0.38; SFX.swing();
+    if (HEROES[S.hero].whip) burst(p.x, p.y - 15, ['#ffe066', '#ffffff', '#ffc9de'], 10); // a flash of perfect hair
+  }
   if (edge.J) p.jbuf = JUMP_BUFFER; else if (p.jbuf > 0) p.jbuf -= dt;
   if (p.coyote > 0) p.coyote -= dt;
 
@@ -478,7 +521,11 @@ function updatePlayer(dt) {
   }
   // Swinging: smash what's in reach (ahead and overhead).
   if (p.swing > 0.05 && p.tool > 0) {
-    let x0 = p.face > 0 ? p.x - 4 : p.x - 24, x1 = p.face > 0 ? p.x + 24 : p.x + 4;
+    // Heather's hair whip spins all the way round (both sides, shorter reach).
+    let x0 = HEROES[S.hero].whip ? p.x - 20 : p.face > 0 ? p.x - 4 : p.x - 24;
+    let x1 = HEROES[S.hero].whip ? p.x + 20 : p.face > 0 ? p.x + 24 : p.x + 4;
+    let sb = S.secret;
+    if (sb && !sb.broken && p.g === 0 && sb.x + 5 > x0 && sb.x - 5 < x1) unlockGirlPower(sb);
     for (let j = S.hz.length - 1; j >= 0; j--) {
       let h = S.hz[j];
       if (h.x + h.r > x0 && h.x - h.r < x1 && h.y > p.y - 30 && h.y - h.r < p.y + 2 && !(h.kind === 'drop' && h.warn > 0)) {
@@ -490,6 +537,18 @@ function updatePlayer(dt) {
       }
     }
   }
+}
+// The secret: smashing the barrel at the start with a power-up.
+function unlockGirlPower(sb) {
+  sb.broken = true; S.girlPower = true;
+  try { localStorage.setItem('rampage.girlPower', '1'); } catch { /* sandboxed: the app keeps it */ }
+  post({ type: 'unlock', key: 'girlPower' });
+  burst(sb.x, sb.y - 8, ['#ff8cc6', '#ffe066', '#ffffff', '#b197fc'], 34);
+  addScore(1000, sb.x, sb.y - 20);
+  say('GIRL POWER UNLOCKED!', 3.2, '#ff8cc6');
+  say('EMILY & HEATHER CAN PLAY!', 3.2, '#ffe066');
+  SFX.secret(); haptic('success'); S.shakeT = 0.15;
+  if (S.gz.state === 'idle') gzSet('shocked', 1.2);
 }
 function smashColors(h) {
   let lk = h.look || h.kind;
@@ -516,11 +575,57 @@ function die(why) {
 function rescue() {
   setMode('rescue');
   addScore(2000);
-  let wife = WIVES[HEROES[S.hero].wife].name;
-  say(wife + ' RESCUED!', 2.6, '#ff8cc6');
-  gzSet('tantrum', 3); SFX.rescue(); haptic('success');
+  say(partnerName(S.hero) + ' RESCUED!', 2.6, '#ff8cc6');
+  SFX.rescue(); haptic('success');
   S.hz = [];
+  if (lvl().final) {
+    // The finale: Godzilla loses his footing and falls off the tower.
+    S.finale = true; S.fallT = 0; S.landed = false; S.danceT = 0; S.rocketT = 1.4;
+    gzSet('fall', 99); SFX.whoosh();
+    say('GODZILLA IS FALLING!', 2.4, '#ffe066');
+  } else gzSet('tantrum', 3);
 }
+
+// ---- the finale -------------------------------------------------------------------------
+const FALL_EDGE = 0.9, FALL_LAND = 2.25; // teeter on the edge, then the drop
+function updateFall(dt) {
+  S.fallT += dt;
+  if (!S.landed && S.fallT >= FALL_LAND) {
+    S.landed = true; S.shakeT = 0.7; SFX.boom(); haptic('heavy');
+    burst(10, H - 8, ['#adb5bd', '#868e96', '#ffe066', '#ff922b'], 40);
+    say('KA-BOOM!', 1.6, '#ff922b');
+    say('THE CITY IS SAVED!', 3, '#69db7c');
+  }
+}
+// Fireworks over the city and the couple dancing (rescue → tally → win).
+function updateFinale(dt) {
+  if (!S.finale) return;
+  updateFall(dt);
+  if (S.fallT > 1.0) S.danceT += dt;
+  if (S.fallT < FALL_LAND + 0.5) return; // fireworks once the camera is in on the couple
+  S.rocketT -= dt;
+  if (S.rocketT <= 0) {
+    S.rocketT = 0.3 + Math.random() * 0.45;
+    // around the ledge, where the camera is (see render3d camTarget)
+    S.rockets.push({ x: 66 + Math.random() * 80, y: 112, vy: -(150 + Math.random() * 50), top: -4 + Math.random() * 30, col: FIREWORK[Math.floor(Math.random() * FIREWORK.length)] });
+    SFX.launch();
+  }
+  for (let i = S.rockets.length - 1; i >= 0; i--) {
+    let r = S.rockets[i];
+    r.y += r.vy * dt; r.vy += 70 * dt;
+    if (Math.random() < 0.6) S.parts.push({ x: r.x + (Math.random() - 0.5), y: r.y + 2, z: -8, vx: 0, vy: 15, vz: 0, t: 0.35, col: '#ffe8a3', spin: 0, s: 0.5, g: 0.2, glow: 1 });
+    if (r.y <= r.top || r.vy > -30) {
+      S.rockets.splice(i, 1);
+      let n = 44, cols = [r.col, r.col, '#ffffff'];
+      for (let k = 0; k < n; k++) {
+        let a = (k / n) * Math.PI * 2 + Math.random() * 0.2, v = 36 + Math.random() * 22;
+        S.parts.push({ x: r.x, y: r.y, z: (Math.random() - 0.5) * 16 - 8, vx: Math.cos(a) * v, vy: Math.sin(a) * v, vz: (Math.random() - 0.5) * 20, t: 1.2 + Math.random() * 0.6, col: cols[k % 3], spin: 0, s: 1.1, g: 0.15, drag: 1.8, glow: 1 });
+      }
+      SFX.bang(); if (Math.random() < 0.5) haptic('light');
+    }
+  }
+}
+const FIREWORK = ['#ff4fd8', '#4dd8ff', '#ffe066', '#69db7c', '#ff6b6b', '#b197fc', '#ffa94d'];
 
 // ---- hazards ----------------------------------------------------------------------------
 function updateHazards(dt) {
@@ -619,35 +724,49 @@ function update(dt) {
   if (S.shakeT > 0) S.shakeT -= dt;
   for (let i = S.msgs.length - 1; i >= 0; i--) { S.msgs[i].t -= dt; if (S.msgs[i].t <= 0) S.msgs.splice(i, 1); }
   for (let j = S.pops.length - 1; j >= 0; j--) { let pp = S.pops[j]; pp.t -= dt; pp.y -= 18 * dt; if (pp.t <= 0) S.pops.splice(j, 1); }
-  for (let k = S.parts.length - 1; k >= 0; k--) { let q = S.parts[k]; q.t -= dt; q.vy += 260 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.spin += dt * 9; if (q.t <= 0) S.parts.splice(k, 1); }
+  for (let k = S.parts.length - 1; k >= 0; k--) {
+    let q = S.parts[k]; q.t -= dt; q.vy += 260 * (q.g === undefined ? 1 : q.g) * dt;
+    if (q.drag) { q.vx *= 1 - q.drag * dt; q.vy *= 1 - q.drag * dt; }
+    q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; q.spin += dt * 9; if (q.t <= 0) S.parts.splice(k, 1); }
   updateWeather(dt);
 
-  if (S.mode === 'select') { if (edge.U || edge.L) S.sel = 0; if (edge.D || edge.R) S.sel = 1; if (edge.J) startWith(S.sel === 0 ? 'chris' : 'shea'); }
+  if (S.mode === 'select') {
+    if (S.girlPower) { // 2 x 2 grid
+      if (edge.L) S.sel &= 2; if (edge.R) S.sel |= 1; if (edge.U) S.sel &= 1; if (edge.D) S.sel |= 2;
+    } else { if (edge.U || edge.L) S.sel = 0; if (edge.D || edge.R) S.sel = 1; }
+    if (edge.J) startWith(roster()[S.sel] || 'chris');
+  }
   else if (S.mode === 'intro') { updateGodzilla(dt); if (S.modeT > 2.4 || edge.J) { setMode('play'); say('GO!', 0.8, '#69db7c'); } }
   else if (S.mode === 'play') {
-    updateGodzilla(dt); updatePlayer(dt); if (S.mode === 'play') updateHazards(dt); music(dt);
+    updateGodzilla(dt); updatePlayer(dt); if (S.mode === 'play') updateHazards(dt); music(dt); updateSecret(dt);
     S.bonusT += dt; if (S.bonusT >= 2) { S.bonusT -= 2; S.bonus = Math.max(0, S.bonus - 100); }
   } else if (S.mode === 'dying') {
     updateGodzilla(dt); S.player.dead -= dt;
     if (S.player.dead <= 0) {
       S.lives--;
       if (S.lives < 0) { S.lives = 0; setMode('gameover'); SFX.over2(); sendScore('gameover'); }
-      else { resetRun(); setMode('intro'); say(WIVES[HEROES[S.hero].wife].name + ' NEEDS YOU!', 1.8, '#ff8cc6'); }
+      else { resetRun(); setMode('intro'); say(partnerName(S.hero) + ' NEEDS YOU!', 1.8, '#ff8cc6'); }
     }
   } else if (S.mode === 'rescue') {
-    updateGodzilla(dt);
-    if (S.modeT > 3.2) { setMode('tally'); say('RESCUE COMPLETE!', 2, '#69db7c'); }
+    if (S.finale) updateFinale(dt); else updateGodzilla(dt);
+    if (S.modeT > (S.finale ? 7.5 : 3.2)) { setMode('tally'); say('RESCUE COMPLETE!', 2, '#69db7c'); }
   } else if (S.mode === 'tally') {
+    updateFinale(dt);
     if (S.bonus > 0) { let d = Math.min(S.bonus, 100); S.bonus -= d; addScore(d); if (Math.floor(S.modeT * 20) % 2 === 0) SFX.tick(); }
     else if (S.modeT > 1.8) {
       if (S.level < LEVELS.length - 1) { S.level++; startLevel(); }
       else { setMode('win'); say('YOU SAVED THE DAY!', 4, '#ffd43b'); SFX.rescue(); }
     }
   } else if (S.mode === 'win') {
-    updateGodzilla(dt);
-    if (S.modeT > 5) nextRound();
+    if (S.finale) updateFinale(dt); else updateGodzilla(dt);
+    if (S.modeT > 8) nextRound();
   }
   edge.J = edge.A = edge.U = edge.D = edge.L = edge.R = 0;
+}
+function updateSecret(dt) {
+  let sb = S.secret; if (!sb || sb.broken) return;
+  sb.glint -= dt;
+  if (sb.glint <= 0) { sb.glint = 3 + Math.random() * 3; S.parts.push({ x: sb.x + 3, y: sb.y - 9, z: 2, vx: 0, vy: 0, vz: 0, t: 0.5, col: '#ffffff', spin: 0, s: 1.1, g: 0, glow: 1 }); }
 }
 function nextRound() { S.round++; S.level = 0; startLevel(); say('ROUND ' + (S.round + 1) + '!', 1.6, '#ffd43b'); }
 
@@ -668,8 +787,8 @@ const R = createRenderer({
   glCanvas: document.getElementById('gl'), hudCanvas: hudCanvas, stage: document.getElementById('stage'),
   game: {
     S: S, G: G, W: W, H: H, HUD: HUD, GZ_X: GZ_X, GZ_W: GZ_W, TOOL_TIME: TOOL_TIME,
-    HEROES: HEROES, WIVES: WIVES, THEMES: THEMES, LEVELS: LEVELS,
-    lvl: lvl, theme: theme, surf: surf, solidAt: solidAt
+    HEROES: HEROES, THEMES: THEMES, LEVELS: LEVELS, FALL_EDGE: FALL_EDGE, FALL_LAND: FALL_LAND,
+    lvl: lvl, theme: theme, surf: surf, solidAt: solidAt, roster: roster, partnerName: partnerName
   }
 });
 window.addEventListener('resize', function () { R.layout(); });
@@ -693,6 +812,8 @@ window.__rampage = {
   get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, vx: S.player.vx, tool: S.player.tool }; },
   get hazards() { return S.hz.length; },
   get menu() { return !!S.menu; },
+  get girlPower() { return S.girlPower; }, get finale() { return S.finale; }, get landed() { return S.landed; }, get fallT() { return S.fallT; }, get gzState() { return S.gz.state; },
+  get secret() { return S.secret && { x: S.secret.x, broken: S.secret.broken }; },
   routeProblems: routeProblems,
   get gl() { return R.hasGL; },
   screenPoint: function (x, y) { return R.fromLogical(x, y); } // logical → client px (tests)
@@ -705,9 +826,10 @@ if (INIT.debug) {
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; S.lives = 0; die('hit'); },
     spawnBarrelAt: function (x) { let p = S.player; S.hz.push({ kind: 'barrel', look: theme().barrel, x: x, y: surf(p.g, x), g: p.g, dir: x > p.x ? -1 : 1, st: 'roll', vy: 0, r: 5, spin: 0, jumped: false, bounced: false, fast: 0.01 }); },
     pause: function (on) { S.paused = !!on; },
-    setLevel: function (n) { S.level = Math.max(0, Math.min(3, n - 1)); startLevel(); },
+    setLevel: function (n) { S.level = Math.max(0, Math.min(LEVELS.length - 1, n - 1)); startLevel(); },
     setGodzilla: function (st, dur) { gzSet(st, dur || 2); },
     place: function (x, g) { const p = S.player; p.x = x; p.g = g; p.y = surf(g, x); p.st = 'ground'; p.vx = 0; },
+    finaleAt: function (t) { S.fallT = t; S.landed = t >= FALL_LAND; S.paused = true; }, // freeze the finale (screenshots)
     calm: function () { S.gz.throwT = 999; S.gz.dropT = 999; S.gz.roarT = 999; S.hz.length = 0; }
   };
 }

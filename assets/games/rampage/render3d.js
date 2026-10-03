@@ -4,7 +4,7 @@
 // frame. The camera frames the playfield exactly; scenery fills any extra
 // screen around it. hud.js draws text, HUD and buttons-on-canvas over this.
 import * as THREE from 'three';
-import { mesh, makeHero, makeWife, makeGodzilla, makeHazard, makePickaxe, makeCandyCane, makeCrown, makeHeart, DEBRIS, shade } from './models.js';
+import { mesh, makeHero, makeHeroine, makeWife, makeGodzilla, makeHazard, makePickaxe, makeCandyCane, makeBook, makeBrush, makeCrown, makeHeart, DEBRIS, shade } from './models.js';
 import { VoxBuilder, hash3 } from './voxel.js';
 import { createHud } from './hud.js';
 
@@ -20,7 +20,8 @@ const LOOK3D = [
   { sky: [0x5fb8ff, 0xd6f0ff], hemi: [0xe6f4ff, 0x8aa37a, 1.7], sun: [0xfff3df, 2.5], girder: 'steel', ladder: 0x56c8e6, ground: 0x8d949c, scenery: 'city' },
   { sky: [0x140d08, 0x3a2618], hemi: [0xffd1a1, 0x3a2416, 1.5], sun: [0xffbf80, 2.2], girder: 'wood', ladder: 0xd1a865, ground: 0x4a3322, scenery: 'mine' },
   { sky: [0x10284f, 0x7aa7d9], hemi: [0xcfe2ff, 0xdfe9f5, 1.4], sun: [0xe2eeff, 1.9], girder: 'ice', ladder: 0x2f9e44, ground: 0xdfe9f5, scenery: 'xmas' },
-  { sky: [0x2b0606, 0xff8a45], hemi: [0xffb592, 0x3b0a0a, 1.25], sun: [0xffcf8f, 2.1], girder: 'lava', ladder: 0xffd23f, ground: 0x2a1410, scenery: 'fire' }
+  { sky: [0x2b0606, 0xff8a45], hemi: [0xffb592, 0x3b0a0a, 1.25], sun: [0xffcf8f, 2.1], girder: 'lava', ladder: 0xffd23f, ground: 0x2a1410, scenery: 'fire' },
+  { sky: [0x070b24, 0x4b2a7b], hemi: [0xd0c4ff, 0x241640, 1.45], sun: [0xdfe4ff, 1.8], girder: 'neon', ladder: 0x4dd8ff, ground: 0x1c1f2b, scenery: 'tower' }
 ];
 
 export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
@@ -62,10 +63,13 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const lamps = [];
 
   // ---- cast & props ---------------------------------------------------------------------
-  const heroes = { chris: makeHero('chris'), shea: makeHero('shea') };
+  // Playable heroes (Emily and Heather only in Girl Power mode) and, on the
+  // ledge, Emily and Heather in their gowns waiting to be rescued. When a
+  // girl plays, the boy she rescues waits on the ledge as his hero model.
+  const heroes = { chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), heather: makeHeroine('heather') };
   const wives = { emily: makeWife('emily'), heather: makeWife('heather') };
-  const toolFor = { chris: makePickaxe, shea: makeCandyCane };
-  const held = { chris: makePickaxe(), shea: makeCandyCane() };
+  const toolFor = { chris: makePickaxe, shea: makeCandyCane, emily: makeBook, heather: makeBrush };
+  const held = { chris: makePickaxe(), shea: makeCandyCane(), emily: makeBook(), heather: makeBrush() };
   Object.keys(heroes).forEach((k) => {
     heroes[k].scale.setScalar(0.92);
     held[k].rotation.x = 1.25;
@@ -81,8 +85,13 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const gzBarrel = new THREE.Group();
   gz.userData.body.add(gzBarrel);
   gzBarrel.position.set(0, 43, 7);
+  // the secret barrel standing on end where you start (Girl Power)
+  const secretBarrel = makeHazard('barrel');
+  secretBarrel.rotation.set(Math.PI / 2, 0, 0.3);
+  secretBarrel.scale.setScalar(0.75);
+  scene.add(secretBarrel);
   const hearts = [0, 1, 2].map(() => { const h = makeHeart(); scene.add(h); return h; });
-  const pedestals = [0, 1].map(() => {
+  const pedestals = [0, 1, 2, 3].map(() => {
     const p = mesh(new VoxBuilder().add(26, 4, 16, (x, y, z) => {
       const cx = x - 12.5, cz = z - 7.5;
       if ((cx * cx) / 169 + (cz * cz) / 64 > 1) return null;
@@ -111,7 +120,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   partMesh.frustumCulled = false;
   const weatherMesh = new THREE.InstancedMesh(DEBRIS, new THREE.MeshBasicMaterial(), 80);
   weatherMesh.frustumCulled = false;
-  scene.add(partMesh, weatherMesh);
+  // glowing particles: fireworks, rocket trails, the secret's glint
+  const fwMesh = new THREE.InstancedMesh(DEBRIS, new THREE.MeshBasicMaterial({ fog: false }), 900);
+  fwMesh.frustumCulled = false;
+  scene.add(partMesh, weatherMesh, fwMesh);
   const steam = [];
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), SC = new THREE.Vector3(), C = new THREE.Color();
 
@@ -146,6 +158,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         }
         return z >= 5 && z <= 8 ? 0x9c1f2a : null;
       }
+      if (style === 'neon') {
+        if (yy < 0 || yy > 6) return null;
+        if (yy >= 5 || yy <= 1) return front && (x === 1 || x === 6) && yy === 5 ? 0xc5c9e8 : yy === 6 ? 0x7a80b8 : 0x585e94;
+        return z >= 5 && z <= 8 ? (x % 4 === 0 ? 0x6a5aa8 : 0x2b2f4a) : null;
+      }
       // lava
       if (yy < 0 || yy > 6) return null;
       if (yy >= 5 || yy <= 1) return rnd < 0.18 ? 0x5a1a00 : yy === 6 ? 0xff9a2e : 0xe8590c;
@@ -167,6 +184,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         const hatches = S.ladders.filter((l) => l.hi === gi && !l.broken).map((l) => l.x);
         b.add(w, 12, 14, girderVox(L.girder, x, top, gi, hatches), { offset: [wx(x), wy(top) - 10, -7] });
         if (L.girder === 'lava') glow.add(w, 1, 1, (xx) => (hash3(x + xx, gi, 7) < 0.3 ? 0xffd43b : null), { offset: [wx(x), wy(top) - 4, 7] });
+        if (L.girder === 'neon') { // pink neon along the top edge, cyan underneath
+          glow.add(w, 1, 1, () => 0xff4fd8, { size: 1, offset: [wx(x), wy(top) - 1.2, 7.05] });
+          glow.add(w, 1, 1, (xx) => ((x + xx) % 4 < 3 ? 0x4dd8ff : null), { size: 1, offset: [wx(x), wy(top) - 7, 7.05] });
+        }
       }
     }
     // ladders, in front of the girders
@@ -279,6 +300,30 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       for (let i = 0; i < 4; i++) cottage(b, glow, -330 + i * 200 + rnd() * 30, floor - 2, -380 - rnd() * 60, rnd);
       snowman(b, -200, floor - 2, -170);
       for (let i = 0; i < 8; i++) cloud(glow, -420 + i * 120 + rnd() * 30, 170 + rnd() * 140, -420, rnd, 0xdbe7f5);
+    } else if (L.scenery === 'tower') {
+      // night Tokyo: dark towers with lit windows, a full moon, and Tokyo Tower lit up behind
+      for (let i = 0; i < 16; i++) {
+        const w = 9 + Math.floor(rnd() * 8), h = 24 + Math.floor(rnd() * 44), d = 9 + Math.floor(rnd() * 4);
+        const x0 = -420 + i * 54 + rnd() * 12, z0 = -250 - rnd() * 170;
+        b.add(w, h, d, (x, y) => (y === h - 1 ? 0x2a2d48 : y % 3 && x % 3 ? 0x1b1d33 : 0x14162a), { size: 5.5, offset: [x0, floor - 2, z0] });
+        glow.add(w, h, 1, (x, y) => (y < h - 2 && y % 3 && x % 3 && hash3(x, y, i) < 0.1 ? (hash3(y, x, i) < 0.7 ? 0x9a8a5c : 0x5d7a9a) : null),
+          { size: 5.5, offset: [x0, floor - 2, z0 + d * 5.5 + 0.2] });
+      }
+      b.add(26, 100, 26, (x, y, z) => {
+        const half = 12.5 * Math.pow(1 - y / 112, 1.6) + 0.6;
+        const cx = Math.abs(x - 12.5), cz = Math.abs(z - 12.5);
+        if (cx > half || cz > half) return null;
+        const edge = cx > half - 1.3 || cz > half - 1.3;
+        const deck = y === 38 || y === 39 || y === 70;
+        if (!edge && !deck && y % 10 !== 0) return null;
+        return Math.floor(y / 10) % 2 ? 0xffffff : 0xff6b1a;
+      }, { size: 4, offset: [130, floor - 2, -470] });
+      glow.add(26, 100, 1, (x, y) => {
+        const half = 12.5 * Math.pow(1 - y / 112, 1.6) + 0.6, cx = Math.abs(x - 12.5);
+        return Math.abs(cx - half) < 0.8 && y % 3 === 0 ? 0xffb347 : (y === 38 || y === 70) && cx < half && x % 2 ? 0xfff3bf : null;
+      }, { size: 4, offset: [130, floor - 2, -470 + 26 * 4 + 1] });
+      glow.add(9, 9, 1, (x, y) => (Math.hypot(x - 4, y - 4) <= 4.4 ? (hash3(x, y, 5) < 0.18 ? 0xe9ecef : 0xfff9db) : null), { size: 6, offset: [220, 300, -560] });
+      for (let i = 0; i < 7; i++) cloud(glow, -420 + i * 130 + rnd() * 30, 190 + rnd() * 120, -470, rnd, 0x3a2f63);
     } else {
       for (let i = 0; i < 15; i++) {
         const w = 9 + Math.floor(rnd() * 8), h = 18 + Math.floor(rnd() * 36), d = 9 + Math.floor(rnd() * 4);
@@ -365,9 +410,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   function camDist() { return (view.ch / 2) / view.s / Math.tan((FOV / 2) * Math.PI / 180); }
   function fitFog() { if (scene.fog) { const D = camDist(); scene.fog.near = D + 90; scene.fog.far = D + 820; } }
-  function placeCamera(dx, dy) {
+  function placeCamera(dx, dy, zoom = 1) {
     // distance at which one world unit on the z=0 plane spans `s` CSS pixels
-    const D = camDist();
+    const D = camDist() / zoom;
     camera.position.set(dx, Math.sin(PITCH) * D + dy - 6, Math.cos(PITCH) * D);
     camera.lookAt(dx, dy - 6, 0);
   }
@@ -433,41 +478,47 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       gz.position.set(wx(150), wy(96) - 18, -70);
       gz.rotation.set(0, -0.5, 0);
       animGodzilla(t, 'idle', 0, 0.2);
-      ['chris', 'shea'].forEach((k, i) => {
-        const on = S.sel === i, base = i === 0 ? 162 : 242;
+      const grid = S.girlPower;
+      game.roster().forEach((k, i) => {
+        const on = S.sel === i;
+        // two wide cards (hero on the left), or a 2 x 2 grid (hero in each card's top half)
+        const hx = grid ? (i % 2 ? W * 0.75 - 1 : W * 0.25 + 1) : 34;
+        const base = grid ? (i < 2 ? 88 : 168) + 44 : i === 0 ? 162 : 242;
         pedestals[i].visible = true;
-        pedestals[i].position.set(wx(34), wy(base), 2);
-        pedestals[i].scale.setScalar(1.3);
+        pedestals[i].position.set(wx(hx), wy(base), 2);
+        pedestals[i].scale.setScalar(grid ? 0.95 : 1.3);
         pedestals[i].rotation.y = t * 0.6;
         const ph = t * 9;
-        placeHero(k, 34, base - 4 - (on ? Math.abs(Math.sin(t * 5)) * 2 : 0), 2, on ? 0.5 + Math.sin(t) * 0.3 : 0.4, on
+        placeHero(k, hx, base - 4 - (on ? Math.abs(Math.sin(t * 5)) * 2 : 0), 2, on ? 0.5 + Math.sin(t) * 0.3 : 0.4, on
           ? { legL: Math.sin(ph) * 0.5, legR: -Math.sin(ph) * 0.5, armL: -Math.sin(ph) * 0.4, armR: -0.6, tool: true, look: Math.sin(t * 2) * 0.3 }
           : { armR: -0.4, tool: true, look: -0.2 });
-        heroes[k].scale.setScalar(2.5);
+        heroes[k].scale.setScalar(grid ? 1.75 : 2.5);
       });
       hideDynamic();
       return;
     }
-    heroes.chris.scale.setScalar(0.92);
-    heroes.shea.scale.setScalar(0.92);
+    Object.values(heroes).forEach((h) => h.scale.setScalar(0.92));
     if (levelGroup) levelGroup.visible = true;
     if (mode !== lastMode) lastMode = mode;
 
-    // Godzilla stands on the top-left girder
+    // Godzilla stands on the top-left girder (and, in the finale, falls off it)
+    const gzs = S.gz;
     gz.visible = true;
     gz.position.set(wx(29), wy(game.surf(5, 30)) - 0.5, -3);
     gz.rotation.set(0, 0.9, 0);
-    const gzs = S.gz;
-    const angry = gzs.mood > 0.6 || gzs.state === 'tantrum';
+    if (S.finale) placeFalling();
+    const angry = !S.finale && (gzs.mood > 0.6 || gzs.state === 'tantrum');
     animGodzilla(t, mode === 'gameover' ? 'laugh' : gzs.state, gzs.t, gzs.mood, angry);
 
-    // the wife on the ledge (and the hero with her after the rescue)
-    const p = S.player, wifeKey = game.HEROES[S.hero].wife, ly = game.surf(6, 100);
+    // the one to rescue on the ledge (and the hero with them after the rescue)
+    const p = S.player, partner = game.HEROES[S.hero].partner, ly = game.surf(6, 100);
     const after = mode === 'rescue' || mode === 'tally' || mode === 'win';
     const hop = after ? Math.abs(Math.sin(S.modeT * 6)) * 3 : 0;
-    wifeIdle(wifeKey, 99, ly, t, !after && Math.floor(t * 0.8) % 2 === 0, hop);
+    const dancing = after && S.finale && S.danceT > 0;
+    if (dancing) dance(partner, ly, t);
+    else captive(partner, 99, ly, t, !after && Math.floor(t * 0.8) % 2 === 0, hop);
     if (after) {
-      placeHero(S.hero, 113, game.surf(6, 112) - hop, 0, -1.0, { armL: -2.6 + Math.sin(t * 10) * 0.3, armR: -2.6 - Math.sin(t * 10) * 0.3, legL: -0.3, legR: 0.2 });
+      if (!dancing) placeHero(S.hero, 113, game.surf(6, 112) - hop, 0, -1.0, { armL: -2.6 + Math.sin(t * 10) * 0.3, armR: -2.6 - Math.sin(t * 10) * 0.3, legL: -0.3, legR: 0.2 });
       if (game.HEROES[S.hero].crown) crown.visible = true;
       hearts.forEach((h, i) => {
         const k = (S.modeT * 0.6 + i / 3) % 1;
@@ -479,6 +530,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     } else if (p) {
       drawPlayer(p, t);
     }
+
+    // the secret barrel (until Girl Power is found)
+    const sb = S.secret;
+    secretBarrel.visible = !!(sb && !sb.broken);
+    if (sb) secretBarrel.position.set(wx(sb.x), wy(sb.y) + 3, -4.5);
 
     // power-ups
     S.tools.forEach((tool, i) => {
@@ -530,6 +586,63 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     syncParticles(dt, angry);
   }
 
+  /** Whoever waits on the ledge: Emily / Heather in their gowns, or Chris / Shea (Girl Power). */
+  function captive(key, x, y, t, waving, hop) {
+    if (wives[key]) { wifeIdle(key, x, y, t, waving, hop); return; }
+    placeHero(key, x, y - hop, 0, 0.35, {
+      armR: waving ? -2.6 + Math.sin(t * 9) * 0.35 : -0.15, armRz: waving ? 0.3 : 0,
+      armL: hop ? -2.5 - Math.sin(t * 9) * 0.3 : -0.1, look: Math.sin(t * 1.3) * 0.15
+    });
+  }
+
+  /**
+   * The finale: Godzilla teeters on the edge of his girder, arms windmilling,
+   * then topples off the tower and plunges out of sight (FALL_LAND = the crash).
+   */
+  function placeFalling() {
+    const f = S.fallT, top = wy(game.surf(5, 30)) - 0.5;
+    if (f < game.FALL_EDGE) {
+      const k = f / game.FALL_EDGE;
+      gz.position.set(wx(29 - k * 14), top, -3);
+      gz.rotation.set(0, 0.9 + Math.sin(f * 14) * 0.15, Math.sin(f * 11) * 0.12 + k * 0.25);
+      return;
+    }
+    const d = f - game.FALL_EDGE, drop = 0.5 * 300 * d * d;
+    if (top - drop < wy(H) - 90) { gz.visible = false; return; }
+    gz.position.set(wx(15 - d * 8), top - drop, -3 + d * 16); // tumbling down and toward you
+    gz.rotation.set(-d * 0.9, 0.9 + d * 1.4, 0.25 + d * 1.7);
+  }
+
+  /**
+   * The couple dances on the ledge: the hero moonwalks across the front,
+   * spins with arms up, then disco-points back behind; the partner twirls.
+   */
+  function dance(partner, ly, t) {
+    const d = S.danceT, cyc = d % 6, ph = d * 10;
+    const tw = d * 3.2, hop = Math.abs(Math.sin(d * 5)) * 1.5;
+    if (wives[partner]) {
+      wifeIdle(partner, 104, ly, t, true, hop);
+      wives[partner].rotation.y = tw;
+    } else {
+      placeHero(partner, 104, ly - hop, 0, tw, { armL: -2.7 + Math.sin(ph) * 0.3, armR: -2.7 - Math.sin(ph) * 0.3, legL: Math.sin(ph) * 0.3, legR: -Math.sin(ph) * 0.3 });
+    }
+    let x, z, yaw, o;
+    if (cyc < 2.6) { // moonwalk: facing right, gliding backwards to the left
+      const k = cyc / 2.6, step = Math.sin(ph * 0.8);
+      x = 124 - k * 34; z = 6; yaw = YAW_R;
+      o = { legL: step > 0 ? -0.55 * step : 0, legR: step < 0 ? 0.55 * step : 0, lean: -0.12, armL: 0.35, armR: -0.35 + Math.sin(ph) * 0.2, bob: Math.abs(step) * 0.5, look: -0.3 };
+    } else if (cyc < 3.8) { // spin with arms up
+      const k = (cyc - 2.6) / 1.2;
+      x = 90; z = 6; yaw = YAW_R + k * Math.PI * 4;
+      o = { armL: -2.9, armR: -2.9, armLz: -0.3, armRz: 0.3, bob: Math.sin(k * Math.PI) * 2.5 };
+    } else { // disco point back across, behind the partner
+      const k = (cyc - 3.8) / 2.2, beat = Math.floor(d * 4) % 2;
+      x = 90 + k * 34; z = -5; yaw = -0.4;
+      o = { armR: beat ? -3.0 : -0.5, armRz: beat ? 0.4 : -0.2, armL: beat ? 0.2 : -0.4, legL: beat ? -0.4 : 0.2, legR: beat ? 0.2 : -0.4, bob: beat * 0.8, lean: 0.06 };
+    }
+    placeHero(S.hero, x, ly, z, yaw, o);
+  }
+
   function drawPlayer(p, t) {
     const key = S.hero, ph = p.anim * Math.PI;
     const hasTool = p.tool > 0 && !(p.tool < 2 && Math.floor(t * 10) % 2);
@@ -546,6 +659,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const yaw = YAW_R * p.face;
     if (p.st === 'air') {
       placeHero(key, p.x, p.y, Z_PLAYER, yaw, { legL: -0.9, legR: 0.35, armL: -2.4, armR: hasTool ? -1.2 : -2.4, armLz: -0.3, armRz: 0.3, tool: hasTool });
+      return;
+    }
+    if (p.swing > 0 && game.HEROES[key].whip) { // Heather whips her hair round (twice)
+      const k = 1 - p.swing / 0.28;
+      placeHero(key, p.x, p.y, Z_PLAYER, yaw + k * Math.PI * 4, { armR: -2.0, armRz: 0.5, armL: -1.2, armLz: -0.6, lean: 0.12, legL: -0.2, legR: 0.2, tool: hasTool });
+      heroes[key].userData.head.rotation.set(0.25, Math.sin(k * Math.PI * 4) * 0.6, Math.sin(k * Math.PI * 2) * 0.4);
       return;
     }
     if (p.swing > 0) {
@@ -577,6 +696,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       case 'roar': headX = -0.45; jaw = 0.85 + Math.sin(t * 40) * 0.05; armL = armR = -1.6; lean = -0.1; break;
       case 'laugh': jaw = 0.25 + Math.abs(Math.sin(t * 16)) * 0.5; headX = -0.25 + Math.sin(t * 16) * 0.06; bodyY = 12 + Math.abs(Math.sin(t * 16)) * 1.2; armL = armR = -0.9; break;
       case 'shocked': eyeS = 1.6; jaw = 0.55; bodyY = 14 + Math.sin(t * 30) * 0.3; armL = armR = -2.2; headX = 0.15; break;
+      case 'fall': armL = -2.6 + Math.sin(t * 22) * 0.9; armR = -2.6 - Math.sin(t * 22) * 0.9; jaw = 0.9; headX = -0.35; eyeS = 1.7; legL = Math.sin(t * 18) * 0.6; legR = -Math.sin(t * 18) * 0.6; break;
       case 'tantrum': { const f = Math.sin(t * 14); bodyY = 12 + Math.abs(f) * 4; armL = -1.5 + f * 1.3; armR = -1.5 - f * 1.3; headY = f * 0.35; jaw = 0.6; legL = f > 0 ? -0.5 : 0; legR = f > 0 ? 0 : -0.5; break; }
       default: armL = -0.35 + breathe * 0.08; armR = -0.35 - breathe * 0.08;
     }
@@ -607,15 +727,27 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     warns.forEach((w) => { w.visible = false; });
     pickups.forEach((m) => { m.visible = false; });
     if (gzBarrel.children[0]) gzBarrel.children[0].visible = false;
+    secretBarrel.visible = false;
     partMesh.count = 0;
+    fwMesh.count = 0;
     weatherMesh.count = 0;
   }
 
   function syncParticles(dt, angry) {
     // steam puffs from an angry Godzilla's head
     if (angry && Math.random() < dt * 9) steam.push({ x: wx(30) + (Math.random() * 12 - 2), y: wy(game.surf(5, 30)) + 52, z: 2, t: 1 });
-    let n = 0;
+    let n = 0, g = 0;
     S.parts.forEach((q) => {
+      if (q.glow) { // fireworks etc.: unlit, so they glow against the night
+        if (g >= 900) return;
+        const s = q.s * Math.min(1, q.t * 2.5);
+        Q.identity(); P.set(wx(q.x), wy(q.y), 3 + q.z); SC.set(s, s, s);
+        M4.compose(P, Q, SC);
+        fwMesh.setMatrixAt(g, M4);
+        fwMesh.setColorAt(g, C.set(q.col));
+        g++;
+        return;
+      }
       if (n >= 300) return;
       const s = q.s * Math.min(1, q.t * 3);
       E.set(q.spin, q.spin * 0.7, 0); Q.setFromEuler(E);
@@ -637,6 +769,17 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       partMesh.setColorAt(n, C.setHex(0xf1f3f5));
       n++;
     }
+    S.rockets.forEach((r) => {
+      if (g >= 900) return;
+      Q.identity(); P.set(wx(r.x), wy(r.y), -5); SC.set(0.9, 1.6, 0.9);
+      M4.compose(P, Q, SC);
+      fwMesh.setMatrixAt(g, M4);
+      fwMesh.setColorAt(g, C.set(r.col));
+      g++;
+    });
+    fwMesh.count = g;
+    fwMesh.instanceMatrix.needsUpdate = true;
+    if (fwMesh.instanceColor) fwMesh.instanceColor.needsUpdate = true;
     partMesh.count = n;
     partMesh.instanceMatrix.needsUpdate = true;
     if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
@@ -663,6 +806,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // Low-power (software WebGL): redraw the 3D at most ~12 times a second so
   // taps and the game loop stay responsive; the HUD still draws every frame.
+  // The camera frames the whole playfield; in the finale, once Godzilla has
+  // crashed, it glides in on the couple dancing on the ledge.
+  const cam = { x: 0, y: 0, zoom: 1 };
+  function camTarget() {
+    const after = S.mode === 'rescue' || S.mode === 'tally' || S.mode === 'win';
+    if (after && S.finale && S.landed) return { x: wx(106), y: wy(50), zoom: 2.4 };
+    return { x: 0, y: 0, zoom: 1 };
+  }
   let glAge = 1;
   function render(dt) {
     glAge += dt;
@@ -672,7 +823,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (drawGL || !renderer) sync(elapsed);
     if (drawGL) {
       const sh = S.shakeT > 0 ? 1.6 : 0;
-      placeCamera((Math.random() * 2 - 1) * sh, (Math.random() * 2 - 1) * sh * 0.7);
+      const ct = camTarget(), k = 1 - Math.exp(-elapsed * 2.2);
+      cam.x += (ct.x - cam.x) * k; cam.y += (ct.y - cam.y) * k; cam.zoom += (ct.zoom - cam.zoom) * k;
+      placeCamera(cam.x + (Math.random() * 2 - 1) * sh, cam.y + (Math.random() * 2 - 1) * sh * 0.7, cam.zoom);
       renderer.render(scene, camera);
     }
     hud.draw(!renderer);

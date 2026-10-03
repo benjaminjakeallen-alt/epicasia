@@ -53,7 +53,7 @@ export const LOOKS = {
   },
   // Emily: big wavy red hair, blue eyes.
   emily: {
-    skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0,
+    skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
     dress: 0x3d7cae, dressPattern: 0x16202c, trim: 0x16202c, hem: 0xf8f9fa, neck: 0xe4ebf2,
     hair: (u, w, d, core) => {
       const n = hash3(u + 7, w * 3, d);
@@ -70,7 +70,7 @@ export const LOOKS = {
   },
   // Heather: blonde chin-length bob with a side part, blue-green eyes.
   heather: {
-    skin: 0xf4cfb4, skinShade: 0xe0b394, eye: 0x3f6f78, brow: 0xb4975c, mouth: 0xc9495c, blush: 0xf2aab0,
+    skin: 0xf4cfb4, skinShade: 0xe0b394, eye: 0x3f6f78, brow: 0xb4975c, mouth: 0xc9495c, blush: 0xf2aab0, shoes: 0xe8579a,
     dress: 0xf7f7f5, dressPattern: 0xe8579a, dressLeaf: 0x5f9e4c, trim: 0xffffff, hem: 0xf7f7f5, neck: 0xfbf6ea,
     hair: (u, w, d, core) => {
       const c = u % 3 === 0 ? 0xf7e6b2 : hash3(u, w, d) < 0.3 ? 0xcfb06a : 0xe9d08e;
@@ -176,6 +176,61 @@ export function makeHero(key) {
   return root;
 }
 
+/**
+ * Emily or Heather as a playable hero ("Girl Power" mode): the same jointed
+ * rig as makeHero (walk, climb, jump, swing), with the gown's bodice and a
+ * knee-length flared skirt so the legs can stride and climb.
+ */
+export function makeHeroine(key) {
+  const look = LOOKS[key];
+  const pattern = (x, y, z) => {
+    const n = hash3(x >> 1, y >> 1, z >> 1);
+    if (n < 0.16) return look.dressPattern;
+    if (look.dressLeaf && n < 0.24) return look.dressLeaf;
+    return look.dress;
+  };
+  const torso = vox(11, 11, 7, (x, y, z) => {
+    if ((x === 0 || x === 10) && (z === 0 || z === 6)) return null;
+    if (y === 10 && z >= 5 && x >= 4 && x <= 6) return look.neck;
+    if (y >= 9 && z === 6) return look.trim;
+    return pattern(x, y, z);
+  }, V, [5.5, 0, 3.5]);
+  // skirt: waist (top, y 6) to hem (y 0), flaring out; pivot at the waist
+  const skirt = vox(17, 7, 12, (x, y, z) => {
+    const f = (6 - y) / 6, hw = 5.6 + f * 2.6, hd = 3.6 + f * 1.8;
+    const cx = x - 8, cz = z - 5.5;
+    if ((cx * cx) / (hw * hw) + (cz * cz) / (hd * hd) > 1) return null;
+    if (y === 0 && look.hem !== look.dress) return look.hem;
+    return pattern(x + 3, y, z);
+  }, V, [8, 7, 5.5]);
+  const arm = vox(3, 10, 4, (x, y) => (y >= 7 ? look.dress : y <= 1 ? look.skinShade : look.skin), V, [1.5, 10, 2]);
+  const leg = vox(3, 10, 4, (x, y, z) => (y <= 1 ? (z === 3 && y === 1 ? shade(look.shoes, 1.4) : look.shoes) : look.skin), V, [1.5, 10, 2]);
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.position.y = 5;
+  root.add(body);
+  body.add(mesh(torso));
+  const skirtM = mesh(skirt);
+  skirtM.position.y = 0.4;
+  body.add(skirtM);
+  const headM = mesh(head(look));
+  headM.position.y = 5.5;
+  body.add(headM);
+  const armL = mesh(arm), armR = mesh(arm);
+  armL.position.set(-3.5, 5.2, 0);
+  armR.position.set(3.5, 5.2, 0);
+  body.add(armL, armR);
+  const hand = new THREE.Group();
+  hand.position.set(0, -4.4, 0.6);
+  armR.add(hand);
+  const legL = mesh(leg), legR = mesh(leg);
+  legL.position.set(-1.2, 5, 0);
+  legR.position.set(1.2, 5, 0);
+  root.add(legL, legR);
+  root.userData = { body, head: headM, armL, armR, legL, legR, hand };
+  return root;
+}
+
 export function makeWife(key) {
   const look = LOOKS[key], p = wifeParts(look);
   const root = new THREE.Group();
@@ -217,6 +272,33 @@ export function makeCandyCane() {
     if (r < 3 || r > 6.2 || cy < 0 || (x < 3 && cy < 1)) return null;
     return stripe(Math.atan2(cy, cx) * 5);
   }, { size: V, offset: [-5.25, 9.7, -0.75] });
+  return mesh(g.geometry());
+}
+
+/** Emily's big hardback book (she swings it); pivot at the grip on the spine. */
+export function makeBook() {
+  const g = new VoxBuilder();
+  g.add(12, 16, 5, (x, y, z) => {
+    const cover = z === 0 || z === 4 || x === 0;
+    if (!cover) return x === 11 || y === 0 || y === 15 ? (y % 2 ? 0xfff4d6 : 0xf1e3bf) : 0xfff4d6; // pages
+    if (x === 0 && (y === 3 || y === 12)) return 0xf2c94c; // spine bands
+    if (z === 4 && y >= 9 && y <= 11 && x >= 3 && x <= 9) return 0xf2c94c; // gold title
+    if (z === 4 && y === 6 && x >= 4 && x <= 8) return 0xf2c94c;
+    return hash3(x, y, z) < 0.12 ? 0x8f1d1d : 0xb02525;
+  }, { size: V, offset: [-0.5, -1, -1.25] });
+  return mesh(g.geometry());
+}
+
+/** Heather's hairbrush (her power-up: she whips her perfect hair); pivot at the grip. */
+export function makeBrush() {
+  const g = new VoxBuilder();
+  g.add(2, 12, 2, (x, y) => (y % 4 === 0 ? 0xf06595 : 0xf783ac), { size: V, offset: [-0.5, -2, -0.5] });
+  g.add(8, 10, 2, (x, y, z) => {
+    const cx = x - 3.5, cy = y - 4.5;
+    if ((cx * cx) / 16 + (cy * cy) / 25 > 1) return null;
+    if (z === 1 && (x + y) % 2 === 0 && (cx * cx) / 9 + (cy * cy) / 16 <= 1) return 0xffffff; // bristles
+    return 0xf783ac;
+  }, { size: V, offset: [-2, 4, -0.5] });
   return mesh(g.geometry());
 }
 
@@ -397,6 +479,7 @@ function barrelGeo(wood, band, ring = 0x2b1a0a) {
 export function makeHazard(look) {
   switch (look) {
     case 'firebarrel': return mesh(barrelGeo(0xd9480f, 0x4a1d07));
+    case 'neonbarrel': return mesh(barrelGeo(0x5f3dc4, 0xff4fd8, 0x1b1046));
     case 'present': return mesh(vox(18, 18, 18, (x, y, z) => {
       if (x === 0 && y === 0) return null;
       if (Math.abs(x - 8.5) < 2 || Math.abs(z - 8.5) < 2) return 0xffd43b;

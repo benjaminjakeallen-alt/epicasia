@@ -54,7 +54,7 @@ export function createHud(canvas, game, view, project) {
     // leaves the top-right corner for the pause button (44 px)
     const RX = W - 4 - 48 / view.s;
     round(2, 2, RX - 2, HUD - 4, 6, 'rgba(20,12,40,0.55)');
-    text('SCORE', 8, 7, 5, '#ffb3c6', { align: 'left', stroke: false });
+    text(game.HEROES[S.hero].girl ? 'SCORE +15%' : 'SCORE', 8, 7, 5, '#ffb3c6', { align: 'left', stroke: false });
     text(pad6(S.score), 8, 14.5, 8.5, '#ffffff', { align: 'left', lineWidth: 2 });
     text('HIGH SCORE', (2 + RX) / 2 + 4, 7, 5, '#ffb3c6', { stroke: false });
     text(pad6(S.hi), (2 + RX) / 2 + 4, 14.5, 8.5, '#ffe066', { lineWidth: 2 });
@@ -73,7 +73,7 @@ export function createHud(canvas, game, view, project) {
   }
 
   function messages() {
-    let y = 128;
+    let y = S.finale && S.landed ? 160 : 128; // below the couple when the camera is in close
     S.msgs.slice(-2).forEach((m) => {
       const age = (m.d || 1.4) - m.t;
       if (m.t < 0.3 && Math.floor(m.t * 20) % 2) return;
@@ -99,7 +99,7 @@ export function createHud(canvas, game, view, project) {
 
   function bubbles() {
     const gz = S.gz;
-    const label = gz.state === 'roar' ? 'ROAR!' : gz.state === 'laugh' || S.mode === 'gameover' ? 'HA! HA! HA!' : gz.state === 'shocked' ? '!?' : gz.state === 'tantrum' ? 'GRRR!!' : null;
+    const label = gz.state === 'fall' ? (S.fallT < game.FALL_EDGE ? 'WHOA!' : null) : gz.state === 'roar' ? 'ROAR!' : gz.state === 'laugh' || S.mode === 'gameover' ? 'HA! HA! HA!' : gz.state === 'shocked' ? '!?' : gz.state === 'tantrum' ? 'GRRR!!' : null;
     if (label) {
       const q = project(66, game.surf(5, 30) - 42, 0);
       bubble(Math.max(q.x, 40), Math.max(q.y, HUD + 14), label, '#2b8a3e');
@@ -124,6 +124,7 @@ export function createHud(canvas, game, view, project) {
 
   function intro() {
     band(66, 58);
+    if (game.lvl().final) text('FINAL LEVEL', W / 2, 62, 8, '#ff8cc6', { lineWidth: 2.4 });
     text('LEVEL ' + (S.level + 1), W / 2, 82, 18, '#ffffff', { depth: 2, depthColor: '#c2255c', lineWidth: 5 });
     text(game.theme().name, W / 2, 101, 8, '#ffe066', { lineWidth: 2.4 });
     if (Math.floor(S.t * 3) % 2) text('TAP OR JUMP TO GO', W / 2, 113, 5.5, '#e9ecef', { lineWidth: 1.6 });
@@ -131,7 +132,7 @@ export function createHud(canvas, game, view, project) {
   function tally() { band(194, 34); text('BONUS ' + S.bonus, W / 2, 211, 13, '#ffe066', { depth: 1.5, lineWidth: 3.4 }); }
   function win() {
     band(186, 54);
-    text('ALL 4 LEVELS CLEARED!', W / 2, 200, 8, '#8ce99a', { lineWidth: 2.4 });
+    text('ALL ' + game.LEVELS.length + ' LEVELS CLEARED!', W / 2, 200, 8, '#8ce99a', { lineWidth: 2.4 });
     text('NEXT: ROUND ' + (S.round + 2), W / 2, 213, 7, '#ffffff', { lineWidth: 2 });
     if (S.modeT > 1.5 && Math.floor(S.t * 3) % 2) text('TAP TO KEEP GOING', W / 2, 226, 5.5, '#e9ecef', { lineWidth: 1.6 });
   }
@@ -139,8 +140,7 @@ export function createHud(canvas, game, view, project) {
     ctx.fillStyle = 'rgba(14,8,30,0.62)'; ctx.fillRect(-view.fx / view.s, HUD, W + (2 * view.fx) / view.s, H - HUD);
     const bob = Math.sin(S.t * 3) * 1.5;
     text('GAME OVER', W / 2, 72 + bob, 26, '#ff6b6b', { depth: 2.5, depthColor: '#5c0f1f', lineWidth: 6 });
-    const hero = game.HEROES[S.hero], wife = game.WIVES[hero.wife];
-    text(hero.name + ' AND ' + wife.name, W / 2, 106, 9, '#ffb3d1', { lineWidth: 2.6 });
+    text(game.HEROES[S.hero].name + ' AND ' + game.partnerName(S.hero), W / 2, 106, 9, '#ffb3d1', { lineWidth: 2.6 });
     text('NEED YOU!', W / 2, 121, 15, '#ff8cc6', { depth: 1.5, lineWidth: 4 });
     text('SCORE ' + S.score, W / 2, 146, 8, '#ffffff', { lineWidth: 2.2 });
     if (S.score >= S.hi && S.score > 0) text('NEW HIGH SCORE!', W / 2, 160, 8, '#ffe066', { lineWidth: 2.2 });
@@ -153,15 +153,36 @@ export function createHud(canvas, game, view, project) {
     const wob = Math.sin(S.t * 2.4) * 1.2;
     text('GODZILLA', W / 2, 26 + wob, 27, '#69db7c', { depth: 3, depthColor: '#145a24', lineWidth: 6 });
     text('RAMPAGE', W / 2, 54 - wob, 27, '#ff6b6b', { depth: 3, depthColor: '#5c0f1f', lineWidth: 6 });
-    if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR HERO', W / 2, 80, 8, '#ffe066', { lineWidth: 2.4 });
-    panel('chris', 96, S.sel === 0);
-    panel('shea', 176, S.sel === 1);
+    if (S.girlPower) {
+      text(Math.floor(S.t * 1.25) % 2 ? 'GIRL POWER!' : 'CHOOSE YOUR HERO', W / 2, 78, 8, Math.floor(S.t * 1.25) % 2 ? '#ff8cc6' : '#ffe066', { lineWidth: 2.4 });
+      game.roster().forEach((k, i) => cell(k, i % 2 ? W / 2 + 2 : 8, i < 2 ? 88 : 168, S.sel === i));
+    } else {
+      if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR HERO', W / 2, 80, 8, '#ffe066', { lineWidth: 2.4 });
+      panel('chris', 96, S.sel === 0);
+      panel('shea', 176, S.sel === 1);
+    }
     round(36, 253, W - 72, 13, 6, 'rgba(20,12,40,0.6)');
     text('HIGH SCORE ' + pad6(S.hi), W / 2, 259.5, 6.5, '#ffffff', { stroke: false });
     text('TAP A HERO TO START', W / 2, 275, 6, '#ffffff', { lineWidth: 2 });
   }
+  // Girl Power: four cards in a 2 x 2 grid; the 3D hero stands in the top
+  // half of each (render3d places them), name and mission below.
+  function cell(key, x, y, on) {
+    const hero = game.HEROES[key], w = W / 2 - 10;
+    const fill = ctx.createLinearGradient(0, y, 0, y + 76);
+    fill.addColorStop(0, 'rgba(20,12,40,0)');
+    fill.addColorStop(0.5, on ? 'rgba(60,40,150,0.5)' : 'rgba(20,12,40,0.4)');
+    fill.addColorStop(1, on ? 'rgba(60,40,150,0.75)' : 'rgba(20,12,40,0.62)');
+    round(x, y, w, 76, 12, fill, on ? (Math.floor(S.t * 4) % 2 ? '#ffe066' : '#ffffff') : 'rgba(255,255,255,0.35)', on ? 2 : 1);
+    text(hero.name, x + w / 2, y + 55, 10, '#ffffff', { depth: 1.2, lineWidth: 3 });
+    text('RESCUE ' + game.partnerName(key), x + w / 2, y + 68, 5.5, '#ffb3d1', { lineWidth: 1.6 });
+    if (hero.girl) {
+      round(x + w - 31, y + 5, 27, 10, 5, '#d6336c');
+      text('+15%', x + w - 17.5, y + 10.3, 5.5, '#ffffff', { stroke: false });
+    }
+  }
   function panel(key, y, on) {
-    const hero = game.HEROES[key], wife = game.WIVES[hero.wife];
+    const hero = game.HEROES[key], wife = { name: game.partnerName(key) };
     // clear on the left where the 3D hero stands, darker behind the text
     const fill = ctx.createLinearGradient(8, 0, W - 8, 0);
     fill.addColorStop(0, 'rgba(20,12,40,0)');

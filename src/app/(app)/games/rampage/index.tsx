@@ -19,7 +19,7 @@ import { useTheme } from '../../../../theme/useTheme';
 // Godzilla Rampage: a Play card and the group's high-score board (each
 // player's best run). The game itself is ./play (full screen).
 
-const HERO = { chris: 'Chris', shea: 'Shea' } as const;
+const HERO = { chris: 'Chris', shea: 'Shea', emily: 'Emily', heather: 'Heather' } as const;
 const fmt = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 export default function Rampage() {
