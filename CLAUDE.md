@@ -382,14 +382,27 @@ city) — then they loop harder (`1.15^round`).
   diagonals count); ladders grab within `LADDER_REACH` 9 of their centre
   and snap on, climb faster (`CLIMB` 52), and you can step off sideways near
   either end; jump buffering (`JUMP_BUFFER` 0.14 s) and coyote time (0.1 s);
-  a little air steering. **Leaving is behind a pause menu** (❚❚ in the pad's
-  middle column, or Escape/P): Resume, Sound, Leave game — never one tap
-  beside the d-pad.
+  a little air steering. **Leaving is behind a pause menu** (❚❚ in the top-
+  right corner of the playfield — the HUD bar leaves room for it — or
+  Escape/P): Resume, Sound, Leave game. The pad is only two clusters (user:
+  "controls are still spaced a bit odd"): a d-pad disc on the left, Swing +
+  Jump in an arc on the right; sound lives in the pause menu.
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
   `screenPoint(x, y)` (logical → client px) and `menu` for tests; in
   development `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
   spawnBarrelAt, pause, setLevel, setGodzilla(state), place(x, girder),
   calm() (no hazards).
+- **Godzilla must read as Godzilla, not a lizard** (user, Oct 3 2026: the
+  first 3D one "looks like an alligator"): upright, charcoal-green, short
+  broad head under a heavy brow, thick neck, three rows of big jagged
+  bone-white back plates that **glow atomic blue** on roar/tantrum/anger
+  (`plateMat.emissive`), long heavy tail; turned ~50° (yaw 0.9) so the
+  plates show in silhouette. Keep the snout short.
+- **Depth lanes** (user: the player "walks behind the ladder and then …
+  appears in front of it"): the player walks and climbs in one plane
+  (`Z_PLAYER`), ladders sit just behind it (`Z_LADDER`), and each ladder
+  comes up through a hatch cut into the front of the girder above
+  (`Z_HATCH`), so nothing swaps in front of/behind anything.
 - **Characters from the user's photos** (`LOOKS` in models.js; likeness is
   face and hair — **user: no sunglasses, outfits needn't match**): Chris —
   shaved head with a shine, blue eyes, stubble, and the **gold crown** from

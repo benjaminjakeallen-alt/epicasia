@@ -109,16 +109,14 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   const rb = (await ui.getByRole('button', { name: 'Move right' }).boundingBox())!;
   await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
   await page.mouse.down();
-  await page.waitForTimeout(500);
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(x0 + 5);
   await page.mouse.up();
-  expect((await state(f)).player.x).toBeGreaterThan(x0 + 5);
 
   // Keyboard works too.
   const x1 = (await state(f)).player.x;
   await page.keyboard.down('ArrowLeft');
-  await page.waitForTimeout(400);
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeLessThan(x1 - 5);
   await page.keyboard.up('ArrowLeft');
-  expect((await state(f)).player.x).toBeLessThan(x1 - 5);
 
   // The candy cane: SWING lights up while it lasts.
   await f.evaluate(() => (window as any).__rampage.debug.giveTool());
@@ -195,9 +193,8 @@ test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({
   // Slide the same finger onto ← without lifting: she walks left.
   const x1 = (await state(f)).player.x;
   await page.mouse.move(left.x + left.width / 2, left.y + left.height / 2, { steps: 4 });
-  await page.waitForTimeout(400);
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeLessThan(x1 - 4);
   await page.mouse.up();
-  expect((await state(f)).player.x).toBeLessThan(x1 - 4);
 
   // Pause freezes the game; Resume carries on.
   await ui.getByRole('button', { name: 'Pause' }).click();

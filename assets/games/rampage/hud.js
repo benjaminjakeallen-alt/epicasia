@@ -51,13 +51,15 @@ export function createHud(canvas, game, view, project) {
   const pad6 = (n) => String(n).padStart(6, '0');
 
   function hudBar() {
-    round(2, 2, W - 4, HUD - 4, 6, 'rgba(20,12,40,0.55)');
+    // leaves the top-right corner for the pause button (44 px)
+    const RX = W - 4 - 48 / view.s;
+    round(2, 2, RX - 2, HUD - 4, 6, 'rgba(20,12,40,0.55)');
     text('SCORE', 8, 7, 5, '#ffb3c6', { align: 'left', stroke: false });
     text(pad6(S.score), 8, 14.5, 8.5, '#ffffff', { align: 'left', lineWidth: 2 });
-    text('HIGH SCORE', W / 2, 7, 5, '#ffb3c6', { stroke: false });
-    text(pad6(S.hi), W / 2, 14.5, 8.5, '#ffe066', { lineWidth: 2 });
-    text('LEVEL ' + (S.level + 1), W - 8, 7, 5, '#a5d8ff', { align: 'right', stroke: false });
-    for (let i = 0; i < Math.min(S.lives, 5); i++) heart(W - 11 - i * 9, 14.5, 3.2, '#ff4d6d');
+    text('HIGH SCORE', (2 + RX) / 2 + 4, 7, 5, '#ffb3c6', { stroke: false });
+    text(pad6(S.hi), (2 + RX) / 2 + 4, 14.5, 8.5, '#ffe066', { lineWidth: 2 });
+    text('LEVEL ' + (S.level + 1), RX - 4, 7, 5, '#a5d8ff', { align: 'right', stroke: false });
+    for (let i = 0; i < Math.min(S.lives, 5); i++) heart(RX - 7 - i * 8, 14.5, 3, '#ff4d6d');
     const p = S.player;
     if (p && p.tool > 0 && (S.mode === 'play' || S.mode === 'dying')) {
       const w = (W - 16) * p.tool / game.TOOL_TIME;

@@ -236,115 +236,146 @@ export function makeHeart() {
 }
 
 // ---- Godzilla ------------------------------------------------------------------------
-// An original chunky cartoon kaiju. Front = +z. Root at the feet.
-const GZ = { body: 0x3a9d4a, speck: 0x338d42, dark: 0x22703a, belly: 0xc5e86c, ridge: 0x9ccc4f, plate: 0xe6fcd5, plateEdge: 0xb2f2bb, claw: 0xf8f9fa, mouth: 0x6a1b2a, tongue: 0xe64980 };
+// An original chunky take on the classic kaiju silhouette: upright, charcoal
+// green, a short broad head under a heavy brow, a thick neck, three rows of
+// big jagged bone-white back plates (they glow atomic blue when he roars or
+// is angry — render3d sets `plateMat.emissive`), a long heavy tail. Front =
+// +z. Root at the feet.
+const GZ = {
+  body: 0x5a7560, speck: 0x4f6955, dark: 0x34473a, belly: 0x86a08a, ridge: 0x728c77,
+  plate: 0xf1ead8, plateBase: 0xb9b19c, claw: 0xf8f9fa, mouth: 0x5c1420, tongue: 0xc2255c
+};
+
+/** A jagged maple-leaf plate: thin in x, base on the spine, sticking out along -z. */
+function plate(b, x, y, z, h, d, tilt = 0) {
+  b.add(2, h + 2, d + 1, (xx, yy, zz) => {
+    const k = d - zz; // distance out from the spine
+    const half = (h / 2) * Math.pow(Math.max(0, 1 - k / (d + 0.5)), 0.65) + (k % 3 === 1 ? 0.9 : 0);
+    const cy = yy - (h + 1) / 2 - k * tilt;
+    if (Math.abs(cy) > half) return null;
+    return k < 2 ? GZ.plateBase : GZ.plate;
+  }, { offset: [x - 1, y - (h + 1) / 2, z - d] });
+}
+
+/** A plate standing straight up (for the tail): thin in x, base at yBase, centred on z. */
+function plateUp(b, x, yBase, z, len, height) {
+  b.add(2, height + 1, len + 2, (xx, k, zz) => {
+    const half = (len / 2) * Math.pow(Math.max(0, 1 - k / (height + 0.5)), 0.65) + (k % 3 === 1 ? 0.8 : 0);
+    if (Math.abs(zz - (len + 1) / 2) > half) return null;
+    return k < 1 ? GZ.plateBase : GZ.plate;
+  }, { offset: [x - 1, yBase, z - (len + 2) / 2] });
+}
 
 export function makeGodzilla() {
   const root = new THREE.Group();
   const body = new THREE.Group();
   body.position.y = 12;
   root.add(body);
-  // torso: a pear-shaped barrel with a ridged belly
-  const torso = mesh(vox(22, 27, 18, (x, y, z) => {
-    const cx = x - 10.5, cz = z - 8.5, t = y / 26;
-    const hw = 9.5 + 2.2 * Math.sin(Math.PI * Math.min(1, t * 1.25)) - (t > 0.75 ? (t - 0.75) * 14 : 0);
-    const hd = 7.8 + 1.4 * Math.sin(Math.PI * t) - (t > 0.8 ? (t - 0.8) * 12 : 0);
+  const plateMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x000000 });
+  // torso: tall pear with a thick neck and a lighter, ridged chest
+  const hwAt = (y) => { const t = y / 29; return 9.5 + 1.6 * Math.sin(Math.PI * Math.min(1, t * 1.3)) - (t > 0.68 ? (t - 0.68) * 15 : 0); };
+  const hdAt = (y) => { const t = y / 29; return 8 - (t > 0.7 ? (t - 0.7) * 9 : 0); };
+  const torso = mesh(vox(24, 30, 18, (x, y, z) => {
+    const cx = x - 11.5, cz = z - 8.5, hw = hwAt(y), hd = hdAt(y);
     if ((cx * cx) / (hw * hw) + (cz * cz) / (hd * hd) > 1) return null;
-    if (cz > 3.5 && Math.abs(cx) < 6 && y > 2 && y < 22) return y % 3 === 0 ? GZ.ridge : GZ.belly;
-    return hash3(x, y, z) < 0.06 ? GZ.speck : GZ.body;
-  }, 1, [10.5, 0, 8.5]));
+    if (cz > hd - 3 && Math.abs(cx) < hw * 0.55 && y > 2 && y < 26) return y % 3 === 0 ? GZ.ridge : GZ.belly;
+    return hash3(x, y, z) < 0.07 ? GZ.speck : GZ.body;
+  }, 1, [11.5, 0, 8.5]));
   body.add(torso);
-  // dorsal plates down the back
-  const plates = new VoxBuilder();
-  [[24, 8], [19, 10], [14, 9], [9, 7]].forEach(([y, h], i) => {
-    plates.add(3, h, 7, (x, yy, z) => {
-      const half = 3.5 * (1 - yy / h);
-      if (Math.abs(z - 3) > half + 0.3) return null;
-      return yy > h - 3 ? GZ.plate : GZ.plateEdge;
-    }, { offset: [-1.5, y - 2, -12 + i * 0.5] });
+  // back plates: a big central row, smaller rows either side
+  const pb = new VoxBuilder();
+  [[5, 8, 7], [9, 11, 9], [13, 13, 10], [17, 15, 11], [21, 14, 10], [25, 11, 9], [28, 8, 6]].forEach(([y, h, d]) => {
+    const back = -hdAt(y) + 1.5;
+    plate(pb, 0, y, back, h, d, 0.15);
+    if (y < 27) { plate(pb, -3.2, y + 2, back + 0.8, h * 0.6, d * 0.65, 0.15); plate(pb, 3.2, y + 2, back + 0.8, h * 0.6, d * 0.65, 0.15); }
   });
-  const platesM = mesh(plates.geometry());
-  platesM.rotation.x = -0.15;
-  body.add(platesM);
-  // head (pivot at the neck) with a long friendly snout
+  const plates = new THREE.Mesh(pb.geometry(), plateMat);
+  plates.castShadow = true;
+  body.add(plates);
+  // head (pivot at the neck): broad cranium, short blunt snout, heavy brow
   const head = new THREE.Group();
-  head.position.set(0, 25, 4);
+  head.position.set(0, 27, 2.5);
   body.add(head);
-  const skull = mesh(vox(16, 13, 22, (x, y, z) => {
+  const skull = mesh(vox(16, 13, 17, (x, y, z) => {
     const cx = x - 7.5;
-    if (z < 11) { // cranium
-      if ((cx * cx) / 64 + ((y - 6) * (y - 6)) / 49 + ((z - 6) * (z - 6)) / 42 > 1) return null;
-    } else { // upper snout
-      if (Math.abs(cx) > 6 - (z - 11) * 0.12 || y < 3 || y > 9 - (z - 11) * 0.2) return null;
-      if (y === 3 && z > 12 && (x + z) % 2 === 0 && Math.abs(cx) > 4) return GZ.claw; // teeth
-      if (z === 21 && y === 7 && Math.abs(cx) === 2.5) return GZ.dark; // nostrils
-    }
-    if (y >= 9 && z >= 7 && z <= 10 && Math.abs(cx) > 3 && Math.abs(cx) < 6.5) return GZ.dark; // brow ridge
-    return hash3(x, y, z) < 0.06 ? GZ.speck : GZ.body;
+    const cranium = (cx * cx) / 56 + ((y - 6.5) * (y - 6.5)) / 42 + ((z - 6) * (z - 6)) / 36 <= 1;
+    const snoutW = 5.6 - Math.max(0, z - 11) * 0.35, snoutTop = 8.2 - (z - 9) * 0.3;
+    const snout = z >= 8 && z <= 16 && Math.abs(cx) <= snoutW && y >= 2 && y <= snoutTop && !(z === 16 && Math.abs(cx) > snoutW - 1.2);
+    const brow = y >= 9 && y <= 10.5 && z >= 7 && z <= 11 && Math.abs(cx) >= 2 && Math.abs(cx) <= 7;
+    if (!cranium && !snout && !brow) return null;
+    if (brow) return GZ.dark;
+    if (snout && y === 2 && z >= 10 && (Math.abs(cx) >= snoutW - 1.2 || z === 16) && (x + z) % 2 === 0) return GZ.claw; // teeth
+    if (snout && z === 16 && y === 7 && Math.abs(Math.abs(cx) - 2) < 0.6) return GZ.dark; // nostrils
+    return hash3(x, y, z) < 0.07 ? GZ.speck : GZ.body;
   }, 1, [7.5, 2, 4]));
   head.add(skull);
-  const headPlates = mesh(vox(3, 6, 6, (x, y, z) => (Math.abs(z - 2.5) > 3 * (1 - y / 6) + 0.3 ? null : GZ.plate), 1, [1.5, 0, 3]));
-  headPlates.position.set(0, 9, -1);
-  head.add(headPlates);
-  // eyes: white blocks with pupils that track the player
-  const eyeWhite = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  // eyes: small, set under the brow, pupils track the player
+  const eyeWhite = new THREE.MeshLambertMaterial({ color: 0xfff4d6 });
   const pupilMat = new THREE.MeshLambertMaterial({ color: 0x111111, emissive: 0x000000 });
   const eyes = [];
   [-1, 1].forEach((side) => {
-    const e = new THREE.Mesh(new THREE.BoxGeometry(1.4, 3.4, 3.6), eyeWhite);
-    e.position.set(side * 6.6, 7.6, 8);
-    const pupil = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.8, 1.8), pupilMat);
-    pupil.position.set(side * 0.55, 0, 0.5);
+    const e = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2, 1.4), eyeWhite);
+    e.position.set(side * 4.6, 6.6, 6.4);
+    e.rotation.y = side * 0.45;
+    const pupil = new THREE.Mesh(new THREE.BoxGeometry(1, 1.2, 0.5), pupilMat);
+    pupil.position.set(0, -0.1, 0.6);
     e.add(pupil);
     head.add(e);
     eyes.push({ white: e, pupil, side });
   });
   // lower jaw (pivot at the hinge)
   const jaw = mesh(vox(12, 4, 12, (x, y, z) => {
-    if (y === 3 && (x === 0 || x === 11 || z === 11) && (x + z) % 2 === 0) return GZ.claw; // lower teeth
-    if (y === 3 && x > 0 && x < 11 && z < 11) return z > 2 ? GZ.tongue : GZ.mouth;
+    const cx = x - 5.5, w = 5.6 - Math.max(0, z - 7) * 0.35;
+    if (Math.abs(cx) > w) return null;
+    if (y === 3 && (Math.abs(cx) >= w - 1.2 || z === 11) && (x + z) % 2 === 0) return GZ.claw;
+    if (y === 3 && z < 11 && Math.abs(cx) < w - 1.2) return z > 2 ? GZ.tongue : GZ.mouth;
     if (y === 3) return null;
-    return GZ.body;
-  }, 1, [6, 3, 0]));
-  jaw.position.set(0, 3, 9);
+    return y === 0 ? GZ.belly : GZ.body;
+  }, 1, [6, 4, 0]));
+  jaw.position.set(0, 0, 4.5);
   head.add(jaw);
-  // arms (pivot at the shoulder)
-  const armGeo = vox(5, 13, 5, (x, y, z) => (y <= 1 && z >= 3 && x % 2 === 0 ? GZ.claw : y < 3 ? GZ.dark : GZ.body), 1, [2.5, 13, 2.5]);
+  // small arms at the chest (pivot at the shoulder)
+  const armGeo = vox(5, 12, 5, (x, y, z) => (y <= 1 && z >= 3 && x % 2 === 0 ? GZ.claw : y < 3 ? GZ.dark : GZ.body), 1, [2.5, 12, 2.5]);
   const armL = mesh(armGeo), armR = mesh(armGeo);
-  armL.position.set(-10.5, 20, 6);
-  armR.position.set(10.5, 20, 6);
+  armL.position.set(-9.5, 21, 5);
+  armR.position.set(9.5, 21, 5);
   body.add(armL, armR);
-  // legs (pivot at the hip)
-  const legGeo = vox(9, 14, 11, (x, y, z) => {
-    if (y <= 1 && z >= 9 && x % 3 === 1) return GZ.claw;
-    if (y <= 1 && z >= 9) return null;
-    return hash3(x, y, z) < 0.06 ? GZ.speck : GZ.body;
-  }, 1, [4.5, 14, 5]);
+  // thick legs (pivot at the hip)
+  const legGeo = vox(10, 14, 12, (x, y, z) => {
+    const cx = x - 4.5, cz = z - 5.5, r = 5 - Math.max(0, y - 10) * -0.3;
+    if (y <= 1) { if (z >= 10 && x % 3 === 1) return GZ.claw; if (z >= 10) return null; return GZ.dark; }
+    if ((cx * cx) / (r * r) + (cz * cz) / 36 > 1) return null;
+    return hash3(x, y, z) < 0.07 ? GZ.speck : GZ.body;
+  }, 1, [4.5, 14, 5.5]);
   const legL = mesh(legGeo), legR = mesh(legGeo);
-  legL.position.set(-6, 13, 0);
-  legR.position.set(6, 13, 0);
+  legL.position.set(-6.5, 13, 0);
+  legR.position.set(6.5, 13, 0);
   root.add(legL, legR);
-  // tail: three tapering segments, each hinged at its front end
+  // long heavy tail: four tapering segments, each hinged at its front end, with plates
   const tail = [];
-  let parent = body, at = new THREE.Vector3(0, 6, -7);
-  [[12, 10, 14], [9, 7, 12], [6, 5, 11]].forEach(([w, h, d], i) => {
+  let parent = body, at = new THREE.Vector3(0, 5, -6);
+  [[14, 12, 14], [11, 9, 13], [8, 7, 12], [5, 5, 11]].forEach(([w, h, d], i) => {
     const seg = new THREE.Group();
     seg.position.copy(at);
     parent.add(seg);
     seg.add(mesh(vox(w, h, d, (x, y, z) => {
-      const cx = x - (w - 1) / 2, cy = y - (h - 1) / 2, k = 1 - (z / d) * 0.35;
+      const cx = x - (w - 1) / 2, cy = y - (h - 1) / 2, k = 1 - (z / d) * 0.3;
       if ((cx * cx) / ((w / 2) * k) ** 2 + (cy * cy) / ((h / 2) * k) ** 2 > 1) return null;
-      return hash3(x, y, z + i * 30) < 0.06 ? GZ.speck : GZ.body;
+      if (cy < -h / 2 + 2 && Math.abs(cx) < w / 4) return GZ.belly;
+      return hash3(x, y, z + i * 30) < 0.07 ? GZ.speck : GZ.body;
     }, 1, [(w - 1) / 2, (h - 1) / 2, d])));
-    const tp = mesh(vox(2, 4, 5, (x, y, z) => (Math.abs(z - 2) > 2.5 * (1 - y / 4) + 0.3 ? null : GZ.plate), 1, [1, 0, 2.5]));
-    tp.position.set(0, h / 2 - 1, -d / 2);
+    const tb = new VoxBuilder();
+    [0.3, 0.7].forEach((f) => plateUp(tb, 0, h / 2 - 1.5, -d * f, Math.max(3, 6 - i), Math.max(3, 6 - i * 1.2)));
+    const tp = new THREE.Mesh(tb.geometry(), plateMat);
+    tp.castShadow = true;
     seg.add(tp);
     tail.push(seg);
     parent = seg;
-    at = new THREE.Vector3(0, -0.5, -d + 1);
+    at = new THREE.Vector3(0, -0.5, -d + 1.5);
   });
-  tail[0].rotation.x = 0.35;
-  root.userData = { body, torso, head, jaw, armL, armR, legL, legR, tail, eyes, pupilMat };
+  tail[0].rotation.x = 0.55;
+  tail[1].rotation.x = 0.25;
+  root.userData = { body, torso, head, jaw, armL, armR, legL, legR, tail, eyes, pupilMat, plateMat };
   return root;
 }
 

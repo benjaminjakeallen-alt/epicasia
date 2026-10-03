@@ -261,15 +261,13 @@ function setMenu(on) {
 }
 document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
 document.getElementById('resume').addEventListener('click', function () { setMenu(false); });
-document.getElementById('psound').addEventListener('click', function () { muteBtn.click(); });
+document.getElementById('psound').addEventListener('click', toggleMute);
 document.getElementById('exit').addEventListener('click', function () { sendScore('quit'); post({ type: 'exit' }); });
-let muteBtn = document.getElementById('mute');
 function syncMute() {
-  muteBtn.textContent = muted ? '×♪' : '♪'; muteBtn.setAttribute('aria-label', muted ? 'Sound off' : 'Sound on');
   document.getElementById('psound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
   if (master) master.gain.value = muted ? 0 : 1;
 }
-muteBtn.addEventListener('click', function () { muted = !muted; try { localStorage.setItem('rampage.muted', muted ? '1' : '0'); } catch { /* ok */ } audio(); syncMute(); });
+function toggleMute() { muted = !muted; try { localStorage.setItem('rampage.muted', muted ? '1' : '0'); } catch { /* ok */ } audio(); syncMute(); }
 syncMute();
 document.getElementById('again').addEventListener('click', function () { newGame(S.hero); });
 document.getElementById('change').addEventListener('click', toSelect);

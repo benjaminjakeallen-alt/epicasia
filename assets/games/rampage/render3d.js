@@ -9,6 +9,10 @@ import { VoxBuilder, hash3 } from './voxel.js';
 import { createHud } from './hud.js';
 
 const FOV = 30, PITCH = 0.17; // radians the camera looks down
+// Depth lanes (world z). The player walks AND climbs in one plane just in
+// front of the ladders; each ladder comes up through a hatch cut into the
+// front of the girder above, so nothing swaps in front of / behind anything.
+const Z_PLAYER = 5.5, Z_LADDER = 2.2, Z_HATCH = 1.5;
 const GLOW = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
 
 // Per level: sky, light, girder and ladder looks, scenery.
@@ -114,9 +118,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- level & scenery ------------------------------------------------------------------
   let levelGroup = null, sceneryGroup = null, builtTheme = -1;
 
-  function girderVox(style, segX, topY, gi) {
-    // returns voxel fn for an 8 x 12 x 14 grid whose y=3 row… top surface at grid y 9
+  function girderVox(style, segX, topY, gi, hatches) {
+    // voxel fn for an 8 x 12 x 14 grid (z -7..7); the beam is rows 3..9
     return (x, y, z) => {
+      if (z - 7 >= Z_HATCH && hatches.some((hx) => Math.abs(segX + x + 0.5 - hx) <= 5)) return null;
       const yy = y - 3; // 0..6 is the beam; above = snow, below = icicles
       const front = z === 13, rnd = hash3(segX + x, y + gi * 31, z);
       if (style === 'steel') {
@@ -159,7 +164,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         const mid = x + 4;
         if (!game.solidAt(gi, mid)) continue;
         const top = game.surf(gi, mid), w = Math.min(8, g.x2 - x);
-        b.add(w, 12, 14, girderVox(L.girder, x, top, gi), { offset: [wx(x), wy(top) - 10, -7] });
+        const hatches = S.ladders.filter((l) => l.hi === gi && !l.broken).map((l) => l.x);
+        b.add(w, 12, 14, girderVox(L.girder, x, top, gi, hatches), { offset: [wx(x), wy(top) - 10, -7] });
         if (L.girder === 'lava') glow.add(w, 1, 1, (xx) => (hash3(x + xx, gi, 7) < 0.3 ? 0xffd43b : null), { offset: [wx(x), wy(top) - 4, 7] });
       }
     }
@@ -170,12 +176,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const col = L.ladder, rung = shade(col, 0.85);
       for (let y = bot; y < top + 1; y += 1) {
         if (l.broken && y < gapA && y > gapB) continue;
-        b.box(wx(l.x) - 4.5, y, 7.5, 1, 1, 1, col, 0.5);
-        b.box(wx(l.x) + 3.5, y, 7.5, 1, 1, 1, col, 0.5);
+        b.box(wx(l.x) - 4.5, y, Z_LADDER - 0.5, 1, 1, 1, col, 0.5);
+        b.box(wx(l.x) + 3.5, y, Z_LADDER - 0.5, 1, 1, 1, col, 0.5);
       }
       for (let y = bot + 2; y < top; y += 4) {
         if (l.broken && y < gapA && y > gapB) continue;
-        b.box(wx(l.x) - 4, y, 7.5, 8, 1, 1, rung, 0.5);
+        b.box(wx(l.x) - 4, y, Z_LADDER - 0.5, 8, 1, 1, rung, 0.5);
       }
     });
     // oil drum at the bottom left
@@ -349,6 +355,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2));
       renderer.setSize(cw, ch, false);
     }
+    // pause button: the top-right corner of the playfield, beside the HUD bar
+    const pb = document.getElementById('pausebtn');
+    if (pb) { pb.style.left = (view.fx + W * s - 46) + 'px'; pb.style.top = (view.fy + 2) + 'px'; }
     camera.aspect = cw / ch;
     camera.updateProjectionMatrix();
     placeCamera(0, 0);
@@ -446,8 +455,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
     // Godzilla stands on the top-left girder
     gz.visible = true;
-    gz.position.set(wx(30), wy(game.surf(5, 30)) - 0.5, -3);
-    gz.rotation.set(0, 1.05, 0);
+    gz.position.set(wx(29), wy(game.surf(5, 30)) - 0.5, -3);
+    gz.rotation.set(0, 0.9, 0);
     const gzs = S.gz;
     const angry = gzs.mood > 0.6 || gzs.state === 'tantrum';
     animGodzilla(t, mode === 'gameover' ? 'laugh' : gzs.state, gzs.t, gzs.mood, angry);
@@ -476,7 +485,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const m = pickups[i];
       if (!m) return;
       m.visible = !tool.taken;
-      m.position.set(wx(tool.x), wy(tool.y - 8 + Math.sin(t * 4) * 1.5), 2);
+      m.position.set(wx(tool.x), wy(tool.y - 8 + Math.sin(t * 4) * 1.5), Z_PLAYER);
       m.rotation.set(0.3, t * 2.4, 0.5);
     });
 
@@ -496,7 +505,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       }
       const look = h.kind === 'drop' ? game.theme().drop : h.kind === 'fire' ? 'fire' : h.look || 'barrel';
       const m = take(look);
-      const z = h.st === 'ladder' ? 9 : 1.5;
+      const z = h.st === 'ladder' ? Z_PLAYER - 0.5 : 2;
       if (h.kind === 'drop') { m.position.set(wx(h.x), wy(h.y), 2); m.rotation.set(t * 3, t * 2, 0); }
       else if (h.kind === 'fire') { m.position.set(wx(h.x), wy(h.y), 2); m.scale.set(1, 1 + Math.sin(t * 14 + h.x) * 0.08, 1); m.rotation.y = h.dir > 0 ? 0.6 : -0.6; }
       else if (look === 'cart') { m.position.set(wx(h.x), wy(h.y) + Math.abs(Math.sin(t * 20)) * 0.6, z); m.rotation.set(0, 0, 0); }
@@ -526,27 +535,27 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const hasTool = p.tool > 0 && !(p.tool < 2 && Math.floor(t * 10) % 2);
     if (S.mode === 'dying') {
       const k = 1.3 - p.dead;
-      placeHero(key, p.x, p.y - Math.sin(Math.min(1, k * 2) * Math.PI) * 10, 4, YAW_R * p.face, { tipZ: -p.face * Math.min(1.6, k * 3), armL: -2.8, armR: -2.8, legL: -0.4, legR: 0.4 });
+      placeHero(key, p.x, p.y - Math.sin(Math.min(1, k * 2) * Math.PI) * 10, Z_PLAYER, YAW_R * p.face, { tipZ: -p.face * Math.min(1.6, k * 3), armL: -2.8, armR: -2.8, legL: -0.4, legR: 0.4 });
       return;
     }
     if (p.st === 'climb') {
       const c = Math.sin(ph);
-      placeHero(key, p.x, p.y, 10, Math.PI, { armL: -2.7 + c * 0.35, armR: -2.7 - c * 0.35, legL: -0.4 - c * 0.35, legR: -0.4 + c * 0.35 });
+      placeHero(key, p.x, p.y, Z_PLAYER, Math.PI, { armL: -2.7 + c * 0.35, armR: -2.7 - c * 0.35, legL: -0.4 - c * 0.35, legR: -0.4 + c * 0.35 });
       return;
     }
     const yaw = YAW_R * p.face;
     if (p.st === 'air') {
-      placeHero(key, p.x, p.y, 2, yaw, { legL: -0.9, legR: 0.35, armL: -2.4, armR: hasTool ? -1.2 : -2.4, armLz: -0.3, armRz: 0.3, tool: hasTool });
+      placeHero(key, p.x, p.y, Z_PLAYER, yaw, { legL: -0.9, legR: 0.35, armL: -2.4, armR: hasTool ? -1.2 : -2.4, armLz: -0.3, armRz: 0.3, tool: hasTool });
       return;
     }
     if (p.swing > 0) {
       const k = 1 - p.swing / 0.28;
-      placeHero(key, p.x, p.y, 2, yaw, { armR: -3.0 + k * 3.6, armL: -0.4, lean: 0.25 * k, legL: -0.3, legR: 0.3, tool: hasTool });
+      placeHero(key, p.x, p.y, Z_PLAYER, yaw, { armR: -3.0 + k * 3.6, armL: -0.4, lean: 0.25 * k, legL: -0.3, legR: 0.3, tool: hasTool });
       return;
     }
     const moving = Math.abs(p.vx) > 4;
     const sw = moving ? Math.sin(ph) : 0;
-    placeHero(key, p.x, p.y, 2, yaw, {
+    placeHero(key, p.x, p.y, Z_PLAYER, yaw, {
       bob: moving ? Math.abs(Math.cos(ph)) * 0.6 : Math.sin(t * 3) * 0.15,
       legL: sw * 0.75, legR: -sw * 0.75, armL: -sw * 0.6, armR: hasTool ? -0.6 : sw * 0.6, tool: hasTool,
       look: moving ? 0 : Math.sin(t * 0.9) * 0.25
@@ -581,12 +590,15 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     u.legR.rotation.x = legR;
     u.tail.forEach((seg, i) => { seg.rotation.y = Math.sin(t * 1.6 - i * 0.7) * (st === 'tantrum' ? 0.5 : 0.22); });
     u.eyes.forEach((e) => {
-      e.white.scale.set(1, eyeS, eyeS);
-      e.pupil.position.z = 0.5 + look * 1.6;
-      e.pupil.position.y = p && p.y > 150 ? -0.5 : 0.2;
+      e.white.scale.set(eyeS, eyeS, 1);
+      e.pupil.position.x = Math.max(-0.55, Math.min(0.55, look * 1.4 - e.side * 0.15));
+      e.pupil.position.y = p && p.y > 150 ? -0.45 : 0.1;
     });
     u.pupilMat.color.setHex(angry ? 0xff2a00 : 0x111111);
     u.pupilMat.emissive.setHex(angry ? 0xaa1100 : 0x000000);
+    // atomic glow up the back plates when he roars or loses his temper
+    const glow = st === 'roar' || st === 'tantrum' ? 0.75 + Math.sin(t * 18) * 0.25 : angry ? 0.35 + Math.sin(t * 6) * 0.15 : 0;
+    u.plateMat.emissive.setRGB(0.25 * glow, 0.75 * glow, 1.3 * glow);
     void mood;
   }
 

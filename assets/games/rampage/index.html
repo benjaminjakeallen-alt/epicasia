@@ -16,13 +16,17 @@
   #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
   canvas { display: block; position: absolute; }
   #pad {
-    /* --u: one d-pad key. Sized from the width so the whole pad fits a 375pt phone up to a foldable. */
-    --u: clamp(44px, calc((100vw - 104px) / 6), 60px);
-    flex: 0 0 auto; box-sizing: border-box; padding: 8px 8px 12px;
-    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    /* Two clusters only: a d-pad disc on the left, Swing + Jump in an arc on
+       the right (pause lives in the screen's top-right corner). --u is one
+       d-pad key, sized from the width: fits a 375pt phone up to a foldable. */
+    --u: clamp(48px, calc((100vw - 60px) / 6.4), 68px);
+    flex: 0 0 auto; box-sizing: border-box; padding: 12px 16px 14px;
+    display: flex; align-items: center; justify-content: space-between;
     background: linear-gradient(#241a52, #0e0a24); border-top: 1px solid rgba(255,255,255,0.12);
   }
-  .dpad { display: grid; grid-template-columns: repeat(3, var(--u)); grid-template-rows: repeat(3, calc(var(--u) * 0.94)); gap: 4px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, var(--u)); grid-template-rows: repeat(3, var(--u)); gap: 2px; padding: 8px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.10) 0 58%, rgba(255,255,255,0.04) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }
+  .dpad .btn { border-radius: 14px; font-size: 18px; }
   .btn {
     border: 0; border-radius: 16px; background: linear-gradient(#5b4ccf, #3a2d99); color: #fff;
     font: 800 15px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -32,10 +36,12 @@
   .btn.on { background: linear-gradient(#7464e6, #4a3cb8); transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 2px 0 #1c1550; }
   .btn:focus-visible { outline: 3px solid #ffd43b; }
   .u { grid-column: 2; grid-row: 1; } .l { grid-column: 1; grid-row: 2; } .r { grid-column: 3; grid-row: 2; } .d { grid-column: 2; grid-row: 3; }
-  .mid { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-  .small { width: 44px; height: 44px; border-radius: 22px; font-size: 18px; background: linear-gradient(#3b3170, #282056); }
-  .acts { display: grid; grid-template-columns: calc(var(--u) * 1.35) calc(var(--u) * 1.65); grid-template-rows: calc(var(--u) * 1.35) calc(var(--u) * 1.6); gap: 4px; align-items: center; justify-items: center; }
-  .jump { grid-column: 2; grid-row: 2; width: calc(var(--u) * 1.6); height: calc(var(--u) * 1.6); border-radius: 50%; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 14px rgba(0,0,0,0.4); font-size: 17px; }
+  #pausebtn { position: absolute; z-index: 4; width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
+    color: #fff; font: 900 15px system-ui, sans-serif; letter-spacing: -1px;
+    background: rgba(20,12,40,0.62); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.35); }
+  #pausebtn:focus-visible { outline: 3px solid #ffd43b; }
+  .acts { display: grid; grid-template-columns: calc(var(--u) * 1.4) calc(var(--u) * 1.7); grid-template-rows: calc(var(--u) * 1.4) calc(var(--u) * 1.7); align-items: center; justify-items: center; }
+  .jump { grid-column: 2; grid-row: 2; width: calc(var(--u) * 1.7); height: calc(var(--u) * 1.7); border-radius: 50%; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 14px rgba(0,0,0,0.4); font-size: 17px; }
   .jump.on { background: linear-gradient(#ff7aa0, #e64980); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 2px 0 #7a1238; }
   .atk { grid-column: 1; grid-row: 1; width: calc(var(--u) * 1.3); height: calc(var(--u) * 1.3); border-radius: 50%; background: linear-gradient(#4a4280, #332c63); color: #b9b3d9; box-shadow: inset 0 2px 0 rgba(255,255,255,0.15), 0 4px 0 #1a1440; font-size: 13px; }
   .atk.ready { background: linear-gradient(#ffc04d, #f08c00); color: #3b2200; box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 4px 0 #8a5000, 0 0 16px rgba(255,170,40,0.7); }
@@ -60,6 +66,7 @@
 <div id="stage">
   <canvas id="gl" aria-hidden="true"></canvas>
   <canvas id="hud" role="img" aria-label="Godzilla Rampage"></canvas>
+  <button id="pausebtn" aria-label="Pause" type="button">❚❚</button>
   <div id="pause" role="dialog" aria-modal="true" aria-label="Paused">
     <div class="card">
       <div class="title">PAUSED</div>
@@ -79,10 +86,6 @@
     <button class="btn l" data-k="L" aria-label="Move left" type="button">◀</button>
     <button class="btn r" data-k="R" aria-label="Move right" type="button">▶</button>
     <button class="btn d" data-k="D" aria-label="Climb down" type="button">▼</button>
-  </div>
-  <div class="mid">
-    <button class="btn small" id="pausebtn" aria-label="Pause" type="button">❚❚</button>
-    <button class="btn small" id="mute" aria-label="Sound on" type="button">♪</button>
   </div>
   <div class="acts">
     <button class="btn atk" id="atk" data-k="A" aria-label="Swing your power-up" type="button">SWING</button>
