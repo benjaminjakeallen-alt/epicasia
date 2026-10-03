@@ -56,7 +56,7 @@ let LEVELS = [
     holes: [], tools: [[2, 120]], icy: [], throwEvery: 3.1, speed: 40, ladderChance: 0.22, cartChance: 0, dropEvery: 0, fire: 0 },
   { ladders: [[0, 40], [0, 140, 1], [1, 150], [1, 90, 1], [2, 30], [2, 120], [3, 160], [3, 60, 1], [4, 100]],
     holes: [[2, 96, 106], [4, 40, 50]], tools: [[1, 100], [3, 120]], icy: [], throwEvery: 2.6, speed: 46, ladderChance: 0.28, cartChance: 0.35, dropEvery: 5.5, fire: 0 },
-  { ladders: [[0, 100], [0, 30, 1], [1, 160], [2, 60], [2, 130, 1], [3, 150], [4, 40], [4, 120, 1]],
+  { ladders: [[0, 100], [0, 30, 1], [1, 160], [2, 60], [2, 130, 1], [3, 150], [4, 96], [4, 120, 1]],
     holes: [[3, 90, 100]], tools: [[1, 40], [4, 90]], icy: [1, 3], throwEvery: 2.3, speed: 50, ladderChance: 0.33, cartChance: 0.3, dropEvery: 4.6, fire: 0 },
   { ladders: [[0, 160], [1, 20], [1, 120, 1], [2, 170], [3, 30], [3, 90, 1], [4, 140]],
     holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], icy: [], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 }
@@ -348,6 +348,22 @@ const LADDER_REACH = 9;
 // Forgiving jumps: a press up to JUMP_BUFFER s before landing still jumps;
 // so does one up to COYOTE s after walking off an edge.
 const JUMP_BUFFER = 0.14, COYOTE = 0.1;
+// Every level must be winnable: each girder 0..4 needs a climbable ladder up,
+// and one onto Godzilla's girder (5) must land clear of his stomp zone with
+// a walk to the ledge ladder. (Level 3 once only had a ladder up into his
+// feet.) Checked by e2e/rampage.spec.ts via __rampage.routeProblems().
+function routeProblems() {
+  const out = [];
+  const stompEdge = GZ_X + GZ_W + 4;
+  LEVELS.forEach(function (L, li) {
+    for (let gi = 0; gi < 5; gi++) {
+      const ups = L.ladders.filter(function (d) { return d[0] === gi && !d[2]; });
+      const safe = gi === 4 ? ups.filter(function (d) { return d[1] - LADDER_REACH > stompEdge; }) : ups;
+      if (!safe.length) out.push('level ' + (li + 1) + ': no safe ladder up from girder ' + gi);
+    }
+  });
+  return out;
+}
 function ladderNear(gi, x, atTop) {
   let best = null;
   for (let i = 0; i < S.ladders.length; i++) {
@@ -648,6 +664,7 @@ window.__rampage = {
   get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, tool: S.player.tool }; },
   get hazards() { return S.hz.length; },
   get menu() { return !!S.menu; },
+  routeProblems: routeProblems,
   get gl() { return R.hasGL; },
   screenPoint: function (x, y) { return R.fromLogical(x, y); } // logical → client px (tests)
 };

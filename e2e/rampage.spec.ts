@@ -171,6 +171,31 @@ test('a run finished offline is saved on the next visit', async ({ page }) => {
   ]);
 });
 
+test('every level can be climbed: a safe ladder up from each girder, none into Godzilla', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  expect(await f.evaluate(() => (window as any).__rampage.routeProblems())).toEqual([]);
+
+  // Level 3 played through from the top girder: up past Godzilla, to the ledge, rescue.
+  await page.keyboard.press('Enter');
+  await f.evaluate(() => (window as any).__rampage.debug.setLevel(3));
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  await f.evaluate(() => { const d = (window as any).__rampage.debug; d.calm(); d.place(96, 4); });
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(async () => (await state(f)).player.g, { timeout: 15000 }).toBe(5);
+  await page.keyboard.up('ArrowUp');
+  expect((await state(f)).mode).toBe('play'); // not stomped
+  await page.keyboard.down('ArrowRight');
+  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(111);
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(async () => (await state(f)).mode, { timeout: 15000 }).toBe('rescue');
+  await page.keyboard.up('ArrowUp');
+});
+
 test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/rampage');

@@ -403,6 +403,14 @@ city) — then they loop harder (`1.15^round`).
   (`Z_PLAYER`), ladders sit just behind it (`Z_LADDER`), and each ladder
   comes up through a hatch cut into the front of the girder above
   (`Z_HATCH`), so nothing swaps in front of/behind anything.
+- **Every level must be winnable** (user, Oct 3 2026: on level 3 "you have
+  to climb a ladder straight into Godzilla's feet"): its only ladder onto
+  girder 5 landed at x 40, inside the stomp zone (x < `GZ_X + GZ_W + 4`); it
+  now lands at x 96. `routeProblems()` (exposed on `__rampage`) checks every
+  level has an unbroken ladder up from each girder and one onto Godzilla's
+  girder clear of the stomp zone (allowing for `LADDER_REACH`); the e2e spec
+  asserts it's empty and plays level 3 from the top girder to the rescue.
+  Check it whenever a level layout changes.
 - **Characters from the user's photos** (`LOOKS` in models.js; likeness is
   face and hair — **user: no sunglasses, outfits needn't match**): Chris —
   shaved head with a shine, blue eyes, stubble, and the **gold crown** from
