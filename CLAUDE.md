@@ -363,10 +363,20 @@ city) — then they loop harder (`1.15^round`).
   message (`parseRun`), keeps the phone's best (`epicasia.rampage.best`),
   queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
   so a run finished offline goes up on the next save or board visit.
+- **Controls (user feedback Oct 3 2026: "a little tough", "easier to climb
+  ladders", the ✕ "too close to the directional button"):** the d-pad is
+  one touch zone (direction from the thumb's position, slide between arrows,
+  diagonals count); ladders grab within `LADDER_REACH` 9 of their centre
+  and snap on, climb faster (`CLIMB` 52), and you can step off sideways near
+  either end; jump buffering (`JUMP_BUFFER` 0.14 s) and coyote time (0.1 s);
+  a little air steering. **Leaving is behind a pause menu** (❚❚ in the pad's
+  middle column, or Escape/P): Resume, Sound, Leave game — never one tap
+  beside the d-pad.
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
-  `screenPoint(x, y)` (logical → client px) for tests; in development
-  `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
-  spawnBarrelAt, pause, setLevel, setGodzilla(state).
+  `screenPoint(x, y)` (logical → client px) and `menu` for tests; in
+  development `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
+  spawnBarrelAt, pause, setLevel, setGodzilla(state), place(x, girder),
+  calm() (no hazards).
 - **Characters from the user's photos** (`LOOKS` in models.js; likeness is
   face and hair — **user: no sunglasses, outfits needn't match**): Chris —
   shaved head with a shine, blue eyes, stubble, and the **gold crown** from
@@ -378,8 +388,9 @@ city) — then they loop harder (`1.15^round`).
   WebGL on, pick Shea by tapping, pad + keyboard move, power-up lights
   SWING, game over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕
   back to the board with the new best, no page errors; offline run saved
-  on the next visit — generous timeouts, since software 3D is slow when
-  specs run in parallel) + axe audits of the board and the game (inside the
+  on the next visit; forgiving ladder grab, sliding across the d-pad, pause
+  menu — run serially with a 2-minute budget and no screenshots, since
+  software 3D is slow on CI runners) + axe audits of the board and the game (inside the
   frame, all buttons ≥ 44). The fake backend's session init script skips
   iframes.
 

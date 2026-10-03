@@ -6,6 +6,10 @@ import { signInWithFakeBackend, USER_ID } from './support/fakeBackend';
 // each player's best. The game exposes window.__rampage (state getters, and
 // cheats in development) for these tests.
 
+// One at a time and with a long budget: the game renders 3D in software
+// here (slow on CI runners), and parallel copies starve each other of CPU.
+test.describe.configure({ mode: 'serial', timeout: 120_000 });
+
 const SARAH = '00000000-0000-4000-8000-0000000000aa';
 const TOM = '00000000-0000-4000-8000-0000000000bb';
 
@@ -71,7 +75,6 @@ test('the board: each player’s best run, ties share a rank', async ({ page }) 
   await expect(rows.nth(1)).toHaveAccessibleName('1. Tom Park, 8,200, as Chris · level 2');
   await expect(rows.nth(2)).toHaveAccessibleName('3. Test Traveler (you), 1,500, as Chris · level 1');
   await expect(page.getByTestId('my-best')).toHaveText('Your best 1,500');
-  await page.screenshot({ path: 'test-results/rampage-board.png' });
 });
 
 test('play: choose a hero, move, power up, lose, save the run, leave', async ({ page }) => {
@@ -85,7 +88,6 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
 
   // HIGH SCORE to beat = the group's best saved run.
   expect((await state(f)).hi).toBe(8200);
-  await page.screenshot({ path: 'test-results/rampage-select.png' });
 
   // It draws in 3D (WebGL), not only the HUD fallback.
   expect(await f.evaluate(() => (window as any).__rampage.gl)).toBe(true);
@@ -100,12 +102,14 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   await expect.poll(async () => (await state(f)).mode).toBe('play');
   expect(box.width).toBeGreaterThan(300);
 
-  // The on-screen pad moves her right.
+  // The on-screen pad moves her right (a real press on the d-pad zone).
+  await f.evaluate(() => (window as any).__rampage.debug.calm());
   const x0 = (await state(f)).player.x;
-  const right = ui.getByRole('button', { name: 'Move right' });
-  await right.dispatchEvent('pointerdown');
+  const rb = (await ui.getByRole('button', { name: 'Move right' }).boundingBox())!;
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
   await page.waitForTimeout(500);
-  await right.dispatchEvent('pointerup');
+  await page.mouse.up();
   expect((await state(f)).player.x).toBeGreaterThan(x0 + 5);
 
   // Keyboard works too.
@@ -118,7 +122,6 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   // The candy cane: SWING lights up while it lasts.
   await f.evaluate(() => (window as any).__rampage.debug.giveTool());
   await expect(ui.locator('#atk')).toHaveClass(/ready/);
-  await page.screenshot({ path: 'test-results/rampage-play.png' });
 
   // Game over → the run is saved → TRY AGAIN / CHANGE HERO.
   await f.evaluate(() => (window as any).__rampage.debug.gameOver(4321));
@@ -128,13 +131,13 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBe(1);
   const saved = backend.inserts.find((i) => i.table === 'game_scores')!.body as unknown as Record<string, unknown>[];
   expect(saved).toEqual([{ game: 'godzilla_rampage', user_id: USER_ID, score: 4321, level: 1, round: 1, hero: 'shea' }]);
-  await page.screenshot({ path: 'test-results/rampage-over.png' });
 
   // CHANGE HERO goes back to the select screen.
   await ui.getByRole('button', { name: 'CHANGE HERO' }).click();
   await expect.poll(async () => (await state(f)).mode).toBe('select');
 
-  // ✕ leaves the game; this phone's best is now 4,321.
+  // Leaving is behind the pause menu (no accidental exits next to the d-pad).
+  await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
   await expect(page.getByTestId('game-frame')).toHaveCount(0);
   await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 15000 });
@@ -160,10 +163,46 @@ test('a run finished offline is saved on the next visit', async ({ page }) => {
   expect(backend.inserts.filter((i) => i.table === 'game_scores')).toHaveLength(0);
 
   offline = false;
+  await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Pause' }).click();
   await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Leave the game' }).click();
   // (generous: the 3D game renders in software here, which is slow when tests run in parallel)
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length, { timeout: 15000 }).toBe(1);
   expect(backend.inserts.find((i) => i.table === 'game_scores')!.body).toEqual([
     { game: 'godzilla_rampage', user_id: USER_ID, score: 2500, level: 1, round: 1, hero: 'chris' },
   ]);
+});
+
+test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  await f.evaluate(() => { const d = (window as any).__rampage.debug; d.calm(); d.place(143, 0); });
+
+  // Up from 7 units beside the ladder (at x 150) grabs it, snaps on and climbs to the next girder.
+  const up = (await ui.getByRole('button', { name: 'Climb up' }).boundingBox())!;
+  const left = (await ui.getByRole('button', { name: 'Move left' }).boundingBox())!;
+  await page.mouse.move(up.x + up.width / 2, up.y + up.height / 2);
+  await page.mouse.down();
+  await expect.poll(async () => (await state(f)).player.st).toBe('climb');
+  expect((await state(f)).player.x).toBe(150);
+  await expect.poll(async () => (await state(f)).player.g, { timeout: 15000 }).toBe(1);
+  // Slide the same finger onto ← without lifting: she walks left.
+  const x1 = (await state(f)).player.x;
+  await page.mouse.move(left.x + left.width / 2, left.y + left.height / 2, { steps: 4 });
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  expect((await state(f)).player.x).toBeLessThan(x1 - 4);
+
+  // Pause freezes the game; Resume carries on.
+  await ui.getByRole('button', { name: 'Pause' }).click();
+  await expect(ui.getByRole('dialog', { name: 'Paused' })).toBeVisible();
+  expect(await f.evaluate(() => (window as any).__rampage.menu)).toBe(true);
+  await ui.getByRole('button', { name: 'RESUME' }).click();
+  await expect(ui.getByRole('dialog', { name: 'Paused' })).toBeHidden();
+  expect((await state(f)).mode).toBe('play');
 });

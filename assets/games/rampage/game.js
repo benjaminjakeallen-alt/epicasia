@@ -62,7 +62,7 @@ let LEVELS = [
     holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], icy: [], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 }
 ];
 
-let WALK = 52, CLIMB = 36, JUMPV = 128, GRAV = 470, FALL_DEATH = 26, TOOL_TIME = 10;
+let WALK = 56, CLIMB = 52, JUMPV = 128, GRAV = 470, FALL_DEATH = 26, TOOL_TIME = 10;
 let GZ_X = 4, GZ_W = 50; // Godzilla stands on girder 5 from x 4 to 54
 
 // ---- state --------------------------------------------------------------------
@@ -182,7 +182,7 @@ function buildLevel() {
 function mkLadder(lo, hi, x, broken) { return { lo: lo, hi: hi, x: x, broken: broken, top: surf(hi, x), bottom: surf(lo, x) }; }
 function resetRun() {
   let L = lvl();
-  S.player = { x: 30, y: surf(0, 30), vx: 0, vy: 0, st: 'ground', g: 0, face: 1, lad: null, anim: 0, tool: 0, swing: 0, cd: 0, fallFrom: 0, maxG: 0, dead: 0 };
+  S.player = { x: 30, y: surf(0, 30), vx: 0, vy: 0, st: 'ground', g: 0, face: 1, lad: null, anim: 0, tool: 0, swing: 0, cd: 0, fallFrom: 0, maxG: 0, dead: 0, jbuf: 0, coyote: 0 };
   S.hz = []; S.parts = []; S.pops = [];
   S.tools = L.tools.map(function (t) { return { g: t[0], x: t[1], y: surf(t[0], t[1]), taken: false }; });
   let gz = S.gz; gz.state = 'idle'; gz.t = 0; gz.throwT = 1.6; gz.dropT = L.dropEvery || 99; gz.roarT = 7; gz.mood = 0; gz.firstThrow = true;
@@ -205,20 +205,70 @@ let KEYMAP = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', 
 window.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { menuConfirm(); e.preventDefault(); return; }
   if (e.key === 'Escape' && S.mode === 'gameover') { toSelect(); return; }
+  if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { setMenu(!S.menu); e.preventDefault(); return; }
+  if (S.menu) return;
   let k = KEYMAP[e.key]; if (!k) return; e.preventDefault();
   if (!e.repeat) press(k);
 });
 window.addEventListener('keyup', function (e) { let k = KEYMAP[e.key]; if (k) release(k); });
+// The d-pad is one touch zone: the direction comes from where the thumb is
+// relative to its centre, so sliding between arrows (and diagonals, e.g.
+// up-right onto a ladder) works without lifting.
+const dpad = document.querySelector('.dpad');
+const dpadBtns = {};
+Array.prototype.forEach.call(dpad.querySelectorAll('[data-k]'), function (b) { dpadBtns[b.getAttribute('data-k')] = b; });
+let dpadId = null;
+function dpadSet(dirs) {
+  ['U', 'D', 'L', 'R'].forEach(function (k) {
+    if (dirs[k]) press(k); else if (held[k]) release(k);
+    dpadBtns[k].classList.toggle('on', !!dirs[k]);
+  });
+}
+function dpadRead(e) {
+  const r = dpad.getBoundingClientRect();
+  const nx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), ny = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
+  const ax = Math.abs(nx), ay = Math.abs(ny);
+  return {
+    L: nx < -0.3 && ax > ay * 0.45, R: nx > 0.3 && ax > ay * 0.45,
+    U: ny < -0.3 && ay > ax * 0.45, D: ny > 0.3 && ay > ax * 0.45
+  };
+}
+dpad.addEventListener('pointerdown', function (e) {
+  e.preventDefault();
+  if (dpadId !== null) return;
+  dpadId = e.pointerId;
+  try { dpad.setPointerCapture(e.pointerId); } catch { /* ok */ }
+  dpadSet(dpadRead(e));
+});
+dpad.addEventListener('pointermove', function (e) { if (e.pointerId === dpadId) dpadSet(dpadRead(e)); });
+function dpadUp(e) { if (e.pointerId === dpadId) { dpadId = null; dpadSet({}); } }
+dpad.addEventListener('pointerup', dpadUp);
+dpad.addEventListener('pointercancel', dpadUp);
+dpad.addEventListener('lostpointercapture', dpadUp);
 let ptrKey = {};
-Array.prototype.forEach.call(document.querySelectorAll('[data-k]'), function (b) {
+Array.prototype.forEach.call(document.querySelectorAll('.acts [data-k]'), function (b) {
   let k = b.getAttribute('data-k');
   b.addEventListener('pointerdown', function (e) { e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch { /* ok */ } ptrKey[e.pointerId] = k; press(k); b.classList.add('on'); });
   let up = function (e) { if (ptrKey[e.pointerId] === k) { delete ptrKey[e.pointerId]; release(k); b.classList.remove('on'); } };
   b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up);
 });
+// Pause menu (the ❚❚ button or Escape): resume, sound, or leave — leaving
+// is never one accidental tap next to the d-pad.
+const pauseEl = document.getElementById('pause');
+function setMenu(on) {
+  S.menu = on; pauseEl.classList.toggle('show', on);
+  if (on) { dpadSet({}); document.getElementById('resume').focus(); }
+}
+document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
+document.getElementById('resume').addEventListener('click', function () { setMenu(false); });
+document.getElementById('psound').addEventListener('click', function () { muteBtn.click(); });
 document.getElementById('exit').addEventListener('click', function () { sendScore('quit'); post({ type: 'exit' }); });
 let muteBtn = document.getElementById('mute');
-function syncMute() { muteBtn.textContent = muted ? '×♪' : '♪'; muteBtn.setAttribute('aria-label', muted ? 'Sound off' : 'Sound on'); if (master) master.gain.value = muted ? 0 : 1; }
+function syncMute() {
+  muteBtn.textContent = muted ? '×♪' : '♪'; muteBtn.setAttribute('aria-label', muted ? 'Sound off' : 'Sound on');
+  document.getElementById('psound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
+  if (master) master.gain.value = muted ? 0 : 1;
+}
 muteBtn.addEventListener('click', function () { muted = !muted; try { localStorage.setItem('rampage.muted', muted ? '1' : '0'); } catch { /* ok */ } audio(); syncMute(); });
 syncMute();
 document.getElementById('again').addEventListener('click', function () { newGame(S.hero); });
@@ -295,14 +345,22 @@ function throwBarrel() {
 }
 
 // ---- player ---------------------------------------------------------------------------
+// Forgiving ladders: grab one within LADDER_REACH of its centre (snaps on).
+const LADDER_REACH = 9;
+// Forgiving jumps: a press up to JUMP_BUFFER s before landing still jumps;
+// so does one up to COYOTE s after walking off an edge.
+const JUMP_BUFFER = 0.14, COYOTE = 0.1;
 function ladderNear(gi, x, atTop) {
+  let best = null;
   for (let i = 0; i < S.ladders.length; i++) {
     let l = S.ladders[i];
-    if (Math.abs(l.x - x) > 5) continue;
-    if (atTop ? (l.hi === gi && !l.broken) : l.lo === gi) return l;
+    if (Math.abs(l.x - x) > LADDER_REACH) continue;
+    if (!(atTop ? (l.hi === gi && !l.broken) : l.lo === gi)) continue;
+    if (!best || Math.abs(l.x - x) < Math.abs(best.x - x)) best = l;
   }
-  return null;
+  return best;
 }
+function jump(p) { p.st = 'air'; p.vy = -JUMPV; p.fallFrom = p.y; p.jbuf = 0; p.coyote = 0; SFX.jump(); }
 function updatePlayer(dt) {
   let p = S.player, L = lvl();
   if (p.cd > 0) p.cd -= dt;
@@ -312,6 +370,8 @@ function updatePlayer(dt) {
     if (p.tool <= 0) { p.tool = 0; tone(300, 0.3, 'square', 0.04, 120); }
   }
   if (edge.A && p.tool > 0 && p.cd <= 0) { p.swing = 0.28; p.cd = 0.38; SFX.swing(); }
+  if (edge.J) p.jbuf = JUMP_BUFFER; else if (p.jbuf > 0) p.jbuf -= dt;
+  if (p.coyote > 0) p.coyote -= dt;
 
   if (p.st === 'ground') {
     if (held.U) { let lu = ladderNear(p.g, p.x, false); if (lu) { p.st = 'climb'; p.lad = lu; p.x = lu.x; p.vx = 0; return; } }
@@ -322,11 +382,15 @@ function updatePlayer(dt) {
     if (target) p.face = target > 0 ? 1 : -1;
     p.x = Math.max(4, Math.min(W - 4, p.x + p.vx * dt));
     if (p.vx) p.anim += dt * 9;
-    if (edge.J) { p.st = 'air'; p.vy = -JUMPV; p.fallFrom = p.y; SFX.jump(); return; }
+    if (p.jbuf > 0) { jump(p); return; }
     if (solidAt(p.g, p.x)) p.y = surf(p.g, p.x);
-    else { p.st = 'air'; p.vy = 0; p.fallFrom = p.y; }
+    else { p.st = 'air'; p.vy = 0; p.fallFrom = p.y; p.coyote = COYOTE; }
     if (p.g === 5 && p.x < GZ_X + GZ_W + 4) die('stomp');
   } else if (p.st === 'air') {
+    if (p.coyote > 0 && p.jbuf > 0) { jump(p); return; } // just walked off an edge
+    // a little steering in the air
+    let want = (held.R - held.L) * WALK;
+    if (want) { p.vx += (want - p.vx) * Math.min(1, dt * 3); p.face = want > 0 ? 1 : -1; }
     let prev = p.y;
     p.vy += GRAV * dt; p.y += p.vy * dt;
     p.x = Math.max(4, Math.min(W - 4, p.x + p.vx * dt));
@@ -338,6 +402,7 @@ function updatePlayer(dt) {
           if (p.y - p.fallFrom > FALL_DEATH) { p.y = s; die('fall'); return; }
           p.y = s; p.st = 'ground'; p.g = gi; p.vy = 0;
           reached(gi);
+          if (p.jbuf > 0 && S.mode === 'play') jump(p); // pressed just before landing
           break;
         }
       }
@@ -353,6 +418,11 @@ function updatePlayer(dt) {
       else { p.y = l.top; p.st = 'ground'; p.g = l.hi; reached(l.hi); }
     }
     if (p.y >= l.bottom) { p.y = l.bottom; p.st = 'ground'; p.g = l.lo; }
+    // step off sideways near either end of the ladder
+    else if (p.st === 'climb' && (held.L || held.R) && !dir) {
+      if (!l.broken && p.y - l.top < 5) { p.y = l.top; p.st = 'ground'; p.g = l.hi; reached(l.hi); }
+      else if (l.bottom - p.y < 5) { p.y = l.bottom; p.st = 'ground'; p.g = l.lo; }
+    }
   }
   // power-up pickup
   for (let i = 0; i < S.tools.length; i++) {
@@ -564,7 +634,7 @@ window.addEventListener('resize', function () { R.layout(); });
 let last = 0, acc = 0, STEP = 1 / 60;
 function frame(ts) {
   let dt = Math.min(0.25, last ? (ts - last) / 1000 : STEP); last = ts;
-  if (!S.paused) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
+  if (!S.paused && !S.menu) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
   R.render(dt);
   let atk = document.getElementById('atk');
   let ready = S.player && S.player.tool > 0 && S.mode === 'play';
@@ -579,6 +649,7 @@ window.__rampage = {
   get hero() { return S.hero; }, get hi() { return S.hi; },
   get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, tool: S.player.tool }; },
   get hazards() { return S.hz.length; },
+  get menu() { return !!S.menu; },
   get gl() { return R.hasGL; },
   screenPoint: function (x, y) { return R.fromLogical(x, y); } // logical → client px (tests)
 };
@@ -591,7 +662,9 @@ if (INIT.debug) {
     spawnBarrelAt: function (x) { let p = S.player; S.hz.push({ kind: 'barrel', look: theme().barrel, x: x, y: surf(p.g, x), g: p.g, dir: x > p.x ? -1 : 1, st: 'roll', vy: 0, r: 5, spin: 0, jumped: false, bounced: false, fast: 0.01 }); },
     pause: function (on) { S.paused = !!on; },
     setLevel: function (n) { S.level = Math.max(0, Math.min(3, n - 1)); startLevel(); },
-    setGodzilla: function (st, dur) { gzSet(st, dur || 2); }
+    setGodzilla: function (st, dur) { gzSet(st, dur || 2); },
+    place: function (x, g) { const p = S.player; p.x = x; p.g = g; p.y = surf(g, x); p.st = 'ground'; p.vx = 0; },
+    calm: function () { S.gz.throwT = 999; S.gz.dropT = 999; S.gz.roarT = 999; S.hz.length = 0; }
   };
 }
 

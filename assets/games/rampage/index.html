@@ -40,6 +40,16 @@
   .atk { grid-column: 1; grid-row: 1; width: calc(var(--u) * 1.3); height: calc(var(--u) * 1.3); border-radius: 50%; background: linear-gradient(#4a4280, #332c63); color: #b9b3d9; box-shadow: inset 0 2px 0 rgba(255,255,255,0.15), 0 4px 0 #1a1440; font-size: 13px; }
   .atk.ready { background: linear-gradient(#ffc04d, #f08c00); color: #3b2200; box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 4px 0 #8a5000, 0 0 16px rgba(255,170,40,0.7); }
   .atk.ready.on { background: linear-gradient(#ffd27a, #ffa94d); }
+  #pause { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(14,8,30,0.55); z-index: 5; }
+  #pause.show { display: flex; }
+  #pause .card { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 220px; padding: 22px 20px; border-radius: 24px;
+    background: linear-gradient(#2e2468, #1b1442); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 12px 30px rgba(0,0,0,0.5); }
+  #pause .title { font: 900 28px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; color: #fff; text-align: center; letter-spacing: 1px; margin-bottom: 4px; text-shadow: 0 3px 0 #c2255c; }
+  #pause button { font: 900 16px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; min-height: 52px; border-radius: 26px; border: 0; color: #fff;
+    background: linear-gradient(#5fd38a, #2f9e44); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #1d6b2d; }
+  #pause button.alt { background: linear-gradient(#5b4ccf, #3a2d99); box-shadow: inset 0 3px 0 rgba(255,255,255,0.28), 0 5px 0 #1c1550; }
+  #pause button.quit { margin-top: 10px; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238; }
+  .dpad { touch-action: none; }
   #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 14%; gap: 12px; }
   #over.show { display: flex; }
   #over button { font: 900 16px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #fff; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 18px rgba(0,0,0,0.45); }
@@ -50,6 +60,14 @@
 <div id="stage">
   <canvas id="gl" aria-hidden="true"></canvas>
   <canvas id="hud" role="img" aria-label="Godzilla Rampage"></canvas>
+  <div id="pause" role="dialog" aria-modal="true" aria-label="Paused">
+    <div class="card">
+      <div class="title">PAUSED</div>
+      <button id="resume" type="button">RESUME</button>
+      <button id="psound" class="alt" type="button">SOUND: ON</button>
+      <button id="exit" class="quit" type="button" aria-label="Leave the game">LEAVE GAME</button>
+    </div>
+  </div>
   <div id="over">
     <button id="again" type="button">TRY AGAIN</button>
     <button id="change" class="alt" type="button">CHANGE HERO</button>
@@ -63,7 +81,7 @@
     <button class="btn d" data-k="D" aria-label="Climb down" type="button">▼</button>
   </div>
   <div class="mid">
-    <button class="btn small" id="exit" aria-label="Leave the game" type="button">✕</button>
+    <button class="btn small" id="pausebtn" aria-label="Pause" type="button">❚❚</button>
     <button class="btn small" id="mute" aria-label="Sound on" type="button">♪</button>
   </div>
   <div class="acts">
