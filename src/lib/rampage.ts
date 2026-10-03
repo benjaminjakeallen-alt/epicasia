@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 // run finished offline waits in AsyncStorage and goes up on the next save
 // or the next visit to the board.
 
-export const RAMPAGE = 'godzilla_rampage' as const;
+const RAMPAGE = 'godzilla_rampage' as const;
 export type Hero = 'chris' | 'shea';
 
 export type Run = { score: number; level: number; round: number; hero: Hero };

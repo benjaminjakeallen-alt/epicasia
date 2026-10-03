@@ -118,7 +118,7 @@ export default function LostInTranslation() {
   }
 
   async function remove(e: Entry) {
-    if (!(await confirm('Delete this find?', 'It and its upvotes will be removed for everyone.', 'Delete', true)))
+    if (!(await confirm('Delete this find?', 'It and its upvotes will be removed for everyone.')))
       return;
     try {
       await deleteEntry(e);

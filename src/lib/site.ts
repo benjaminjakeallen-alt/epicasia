@@ -1,14 +1,10 @@
-import * as Linking from 'expo-linking';
-import { Platform } from 'react-native';
-
 // The public web address of the app. Links we send to people (invites,
 // confirmation and password-reset emails) must point here: anyone can open
 // it, app or not. Vercel's other addresses for the project (per-deployment
 // and team URLs like epicasia-…-allen-trailmarks.vercel.app) sit behind
-// Vercel login, and the native epicasia:// scheme only works with the app
-// installed — links built from either broke for invited travelers.
+// Vercel login — links built from those broke for invited travelers.
 // EXPO_PUBLIC_SITE_URL overrides it (e.g. a custom domain later).
-export const PUBLIC_SITE = (process.env.EXPO_PUBLIC_SITE_URL || 'https://epicasia.vercel.app').replace(/\/+$/, '');
+const PUBLIC_SITE = (process.env.EXPO_PUBLIC_SITE_URL || 'https://epicasia.vercel.app').replace(/\/+$/, '');
 
 /** `path` on the public site, e.g. siteUrl('/register', { invite: 'K7QM-2XPA' }). */
 export function siteUrl(path: string, query?: Record<string, string>): string {
@@ -17,11 +13,10 @@ export function siteUrl(path: string, query?: Record<string, string>): string {
 }
 
 /**
- * Where an auth email should send someone back to: the public site on the
- * web, the app itself on a phone (epicasia://…). Both must be listed in
- * Supabase → Authentication → URL Configuration → Redirect URLs, or
- * Supabase falls back to its Site URL.
+ * Where an auth email should send someone back to: the public site. It must
+ * be listed in Supabase → Authentication → URL Configuration → Redirect
+ * URLs, or Supabase falls back to its Site URL.
  */
 export function authReturnUrl(path: string, query?: Record<string, string>): string {
-  return Platform.OS === 'web' ? siteUrl(path, query) : Linking.createURL(path, { queryParams: query });
+  return siteUrl(path, query);
 }

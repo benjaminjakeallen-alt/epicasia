@@ -1,8 +1,4 @@
-import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
-
-// Haptics that also work in the browser build.
-// - Native: expo-haptics.
+// Haptics in the browser (the app is a PWA).
 // - Android browsers: the Vibration API.
 // - iOS Safari has no Vibration API, but since iOS 18 toggling a native
 //   `<input type="checkbox" switch>` plays the system selection haptic, so
@@ -32,22 +28,10 @@ function webTick() {
 
 /** Light tick: an item clicking into place. */
 export function selectionTick() {
-  if (Platform.OS === 'web') return webTick();
-  Haptics.selectionAsync().catch(() => {});
+  webTick();
 }
 
 /** Firmer tap: confirming an action (opening a section). */
 export function confirmTap() {
-  if (Platform.OS === 'web') return webTick();
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-}
-
-/** Game feedback: a light tick, a heavy thump, or a success/error buzz. */
-export function gameHaptic(kind: unknown) {
-  if (Platform.OS === 'web') return webTick();
-  const done = () => {};
-  if (kind === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(done);
-  else if (kind === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(done);
-  else if (kind === 'heavy') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(done);
-  else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(done);
+  webTick();
 }

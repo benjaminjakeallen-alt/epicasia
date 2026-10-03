@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import OfflineNotice from '../../../components/OfflineNotice';
@@ -29,8 +29,8 @@ import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
 // My documents: your private copies of passport, visa, insurance, QR codes
-// and bookings. Only you can see them. On a phone they're all saved on the
-// device too, so they open at the border with no signal.
+// and bookings. Only you can see them. They're all saved in the browser
+// too, so they open at the border with no signal.
 
 export default function Documents() {
   const insets = useSafeAreaInsets();
@@ -43,7 +43,7 @@ export default function Documents() {
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savedOnPhone, setSavedOnPhone] = useState<number | null>(null);
+  const [savedHere, setSavedHere] = useState<number | null>(null);
   const [viewing, setViewing] = useState<{ doc: TravelDoc; uri: string } | null>(null);
 
   const showThumbs = useCallback(async (list: TravelDoc[]) => {
@@ -70,7 +70,7 @@ export default function Documents() {
       .then((list) => {
         setDocs(list);
         showThumbs(list);
-        if (uid) keepOffline(list, uid).then((n) => setSavedOnPhone(Platform.OS === 'web' ? null : n));
+        if (uid) keepOffline(list, uid).then(setSavedHere);
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
@@ -93,7 +93,7 @@ export default function Documents() {
   }
 
   async function remove(doc: TravelDoc) {
-    const ok = await confirm('Delete this document?', `“${doc.label}” will be removed from your account and this phone.`, 'Delete', true);
+    const ok = await confirm('Delete this document?', `“${doc.label}” will be removed from your account and this phone.`);
     if (!ok) return;
     try {
       await deleteDocument(doc);
@@ -186,13 +186,13 @@ export default function Documents() {
             );
           })}
 
-          {savedOnPhone !== null && docs.length > 0 ? (
+          {savedHere !== null && docs.length > 0 ? (
             <View style={styles.saved} testID="saved-on-phone">
               <Ionicons name="phone-portrait-outline" size={16} color={colors.inkSecondary} />
               <Text style={[type.caption, styles.flex, { color: colors.inkSecondary }]}>
-                {savedOnPhone === docs.length
+                {savedHere === docs.length
                   ? 'All saved on this phone · they open offline'
-                  : `${savedOnPhone} of ${docs.length} saved on this phone · the rest save when you’re online`}
+                  : `${savedHere} of ${docs.length} saved on this phone · the rest save when you’re online`}
               </Text>
             </View>
           ) : null}
@@ -214,8 +214,8 @@ export default function Documents() {
 function DocViewer({ doc, uri, onClose, onDelete }: { doc: TravelDoc; uri: string; onClose: () => void; onDelete: () => void }) {
   const insets = useSafeAreaInsets();
   return (
-    // No fade on web: RN-web's Modal only unmounts after its CSS animationend.
-    <Modal visible animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={onClose} statusBarTranslucent>
+    // No fade: RN-web's Modal only unmounts after its CSS animationend.
+    <Modal visible animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <View style={[styles.viewer, { paddingTop: insets.top + 8, paddingBottom: insets.bottom + 12 }]} testID="document-viewer">
         <View style={styles.viewerBar}>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.viewerBtn}>
@@ -242,16 +242,14 @@ function DocViewer({ doc, uri, onClose, onDelete }: { doc: TravelDoc; uri: strin
           />
         </ScrollView>
         <View style={styles.viewerActions}>
-          {Platform.OS !== 'web' ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => shareDocument(doc).catch(() => {})}
-              style={({ pressed }) => [styles.viewerAction, pressed && { backgroundColor: c.mediaControlPressed }]}
-            >
-              <Ionicons name="share-outline" size={20} color={c.onMedia} />
-              <Text style={styles.viewerActionText}>Share</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => shareDocument(doc).catch(() => {})}
+            style={({ pressed }) => [styles.viewerAction, pressed && { backgroundColor: c.mediaControlPressed }]}
+          >
+            <Ionicons name="share-outline" size={20} color={c.onMedia} />
+            <Text style={styles.viewerActionText}>Share</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             onPress={onDelete}

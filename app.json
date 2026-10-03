@@ -3,29 +3,8 @@
     "name": "Epic Asia",
     "slug": "epicasia",
     "version": "1.0.0",
-    "scheme": "epicasia",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#f3f1ea",
-    "newArchEnabled": true,
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.benjaminjakeallen.epicasia",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "package": "com.benjaminjakeallen.epicasia",
-      "adaptiveIcon": {
-        "backgroundColor": "#f3f1ea",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
-    },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
@@ -35,49 +14,6 @@
         "expo-router",
         {
           "root": "./src/app"
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Epic Asia uses your photos so you can share pictures in the group chat, the trip album and your journal.",
-          "cameraPermission": "Epic Asia uses the camera so you can take photos to share in the group chat.",
-          "microphonePermission": "Epic Asia uses the microphone to record voice notes for your trip journal."
-        }
-      ],
-      [
-        "expo-media-library",
-        {
-          "photosPermission": "Epic Asia uses your photos so you can share pictures in the group chat.",
-          "savePhotosPermission": "Epic Asia saves photos from the group chat to your library when you ask it to."
-        }
-      ],
-      [
-        "expo-audio",
-        {
-          "microphonePermission": "Epic Asia uses the microphone to record voice notes for your trip journal.",
-          "enableBackgroundRecording": false,
-          "enableBackgroundPlayback": false
-        }
-      ],
-      "expo-notifications",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 220,
-          "resizeMode": "contain",
-          "backgroundColor": "#f3f1ea"
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group.",
-          "isIosBackgroundLocationEnabled": false,
-          "isAndroidBackgroundLocationEnabled": false,
-          "locationAlwaysAndWhenInUsePermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group.",
-          "locationAlwaysPermission": "Epic Asia uses your location only when you tap “Use where I am” to save a map pin for the group."
         }
       ]
     ]

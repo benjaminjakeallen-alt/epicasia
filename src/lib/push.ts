@@ -1,3 +1,4 @@
+import { isIos, isStandalone } from './device';
 import { supabase } from './supabase';
 
 // Web push for the group chat (the app is a PWA). `public/sw.js` shows the
@@ -11,17 +12,6 @@ export type PushState = 'unsupported' | 'install' | 'denied' | 'off' | 'on';
 
 function hasWindow() {
   return typeof window !== 'undefined' && typeof navigator !== 'undefined';
-}
-
-function isIos() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function isStandalone() {
-  return (
-    window.matchMedia?.('(display-mode: standalone)').matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
 }
 
 function supported() {

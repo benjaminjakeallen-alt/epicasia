@@ -126,3 +126,21 @@ test('my documents: a photo opens full screen and can be deleted', async ({ page
     { bucket: 'documents', paths: [`${USER_ID}/d1.jpg`, `${USER_ID}/d1.thumb.jpg`] },
   ]);
 });
+
+test('my documents are saved in the browser and open with no connection', async ({ page }) => {
+  await signInWithFakeBackend(page, { documents: [PASSPORT_DOC] });
+  await open(page, '/arrivals/documents');
+  await expect(page.getByTestId('saved-on-phone')).toHaveText(/All saved on this phone · they open offline/);
+  const cached = await page.evaluate(async () => (await (await caches.open('epicasia-documents')).keys()).map((r) => new URL(r.url).pathname));
+  expect(cached).toEqual([`/__offline-documents/${USER_ID}/d1.jpg`]);
+
+  // No connection at all now: the list comes from the saved copy, the file from the cache.
+  await page.unroute(/supabase\.co/);
+  await page.route(/supabase\.co/, (route) => route.abort('internetdisconnected'));
+  await page.reload();
+  await page.getByLabel('Skip intro').click();
+  await page.getByRole('button', { name: /^Passport\./ }).click();
+  const img = page.getByTestId('document-viewer').getByRole('img', { name: 'Passport' });
+  await expect(img).toBeVisible();
+  await expect.poll(() => img.evaluate((el) => (el.querySelector('img') ?? el).getAttribute('src') ?? '')).toMatch(/^blob:/);
+});

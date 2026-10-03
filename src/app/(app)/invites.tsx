@@ -126,8 +126,6 @@ export default function Invites() {
     const ok = await confirm(
       `Turn off ${i.code}?`,
       'Nobody new can join with it. People who already joined keep their accounts.',
-      'Turn off',
-      true,
     );
     if (!ok) return;
     try {

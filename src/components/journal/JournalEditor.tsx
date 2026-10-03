@@ -4,8 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -84,13 +82,6 @@ export default function JournalEditor({
 
   async function addPhotos(fromCamera: boolean) {
     setError(null);
-    if (fromCamera) {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        setError('Camera access is off. Turn it on for Epic Asia in Settings to take photos here.');
-        return;
-      }
-    }
     const res = fromCamera
       ? await ImagePicker.launchCameraAsync({ quality: 0.92 })
       : await ImagePicker.launchImageLibraryAsync({
@@ -139,7 +130,7 @@ export default function JournalEditor({
 
   async function close() {
     if (dirty && hasContent(draft)) {
-      const leave = await confirm('Discard changes?', 'This entry has changes that are not saved.', 'Discard', true);
+      const leave = await confirm('Discard changes?', 'This entry has changes that are not saved.');
       if (!leave) return;
     }
     router.back();
@@ -147,7 +138,7 @@ export default function JournalEditor({
 
   async function remove() {
     if (!previous) return;
-    const ok = await confirm('Delete this entry?', 'Its photos and voice notes are deleted too.', 'Delete', true);
+    const ok = await confirm('Delete this entry?', 'Its photos and voice notes are deleted too.');
     if (!ok) return;
     try {
       await deleteEntry(previous);
@@ -158,7 +149,7 @@ export default function JournalEditor({
   }
 
   return (
-    <KeyboardAvoidingView style={[styles.screen, { backgroundColor: c.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <View style={[styles.screen, { backgroundColor: c.background }]}>
       <SkyBackdrop />
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <CircleButton icon="close" label="Close" onPress={close} />
@@ -294,17 +285,15 @@ export default function JournalEditor({
             <Ionicons name="images-outline" size={24} color={c.highlight} />
             <Text style={[type.caption, { color: c.highlight }]}>Library</Text>
           </Pressable>
-          {Platform.OS !== 'web' ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Take a photo"
-              onPress={() => addPhotos(true)}
-              style={[styles.addTile, { backgroundColor: c.card }]}
-            >
-              <Ionicons name="camera-outline" size={24} color={c.highlight} />
-              <Text style={[type.caption, { color: c.highlight }]}>Camera</Text>
-            </Pressable>
-          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Take a photo"
+            onPress={() => addPhotos(true)}
+            style={[styles.addTile, { backgroundColor: c.card }]}
+          >
+            <Ionicons name="camera-outline" size={24} color={c.highlight} />
+            <Text style={[type.caption, { color: c.highlight }]}>Camera</Text>
+          </Pressable>
         </ScrollView>
 
         <Text style={styles.section} accessibilityRole="header">
@@ -374,7 +363,7 @@ export default function JournalEditor({
           </Pressable>
         ) : null}
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { cached } from './offline';
 import { supabase } from './supabase';
 import type { CityKey } from './weather';
@@ -94,19 +93,21 @@ export function mapLinks(pin: Pick<Pin, 'name' | 'address' | 'lat' | 'lng'>): { 
 }
 
 /**
- * Where the phone is now, for "Use where I am". Returns null when location
- * access is declined. (expo-location; the browser's geolocation on web.)
+ * Where the phone is now, for "Use where I am" (the browser's geolocation).
+ * Returns null when location access is declined or unavailable.
  */
-export async function currentPosition(): Promise<{ lat: number; lng: number; accuracy: number | null } | null> {
-  const Location = await import('expo-location');
-  const perm = await Location.requestForegroundPermissionsAsync();
-  if (!perm.granted) return null;
-  const pos = await Location.getCurrentPositionAsync({
-    accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
+export function currentPosition(): Promise<{ lat: number; lng: number; accuracy: number | null } | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
+          lng: Math.round(pos.coords.longitude * 1e6) / 1e6,
+          accuracy: pos.coords.accuracy ?? null,
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 60_000 },
+    );
   });
-  return {
-    lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
-    lng: Math.round(pos.coords.longitude * 1e6) / 1e6,
-    accuracy: pos.coords.accuracy ?? null,
-  };
 }

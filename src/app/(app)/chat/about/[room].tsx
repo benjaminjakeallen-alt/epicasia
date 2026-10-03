@@ -111,7 +111,7 @@ export default function RoomInfo() {
   };
 
   async function leave() {
-    if (!(await confirm('Leave this room?', 'You won’t see its messages unless someone adds you back.', 'Leave', true))) return;
+    if (!(await confirm('Leave this room?', 'You won’t see its messages unless someone adds you back.'))) return;
     await run(async () => {
       await removeRoomMember(roomId, myId);
       router.dismissTo('/(app)/chat');
@@ -119,7 +119,7 @@ export default function RoomInfo() {
   }
 
   async function remove() {
-    if (!(await confirm('Delete this room?', 'Its messages are deleted for everyone.', 'Delete', true))) return;
+    if (!(await confirm('Delete this room?', 'Its messages are deleted for everyone.'))) return;
     await run(async () => {
       await deleteRoom(roomId);
       router.dismissTo('/(app)/chat');

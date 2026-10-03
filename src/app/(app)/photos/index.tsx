@@ -423,7 +423,7 @@ export default function Photos() {
   const removeAlbum = useCallback(
     async (album: Album) => {
       if (album.created_by !== myId) return;
-      if (!(await confirm(`Delete “${album.name}”?`, 'The photos stay in the gallery.', 'Delete album', true))) return;
+      if (!(await confirm(`Delete “${album.name}”?`, 'The photos stay in the gallery.'))) return;
       try {
         await deleteAlbum(album.id);
         setAlbums((prev) => prev.filter((a) => a.id !== album.id));

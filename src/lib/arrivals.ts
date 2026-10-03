@@ -117,7 +117,7 @@ export const COUNTRIES: Country[] = [
   },
 ];
 
-export const AIRPORTS: Airport[] = [
+const AIRPORTS: Airport[] = [
   {
     code: 'NRT',
     name: 'Narita International',

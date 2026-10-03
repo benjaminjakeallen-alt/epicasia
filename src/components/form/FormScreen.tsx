@@ -1,8 +1,6 @@
 import { type ReactNode } from 'react';
 import {
   Image,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -29,9 +27,8 @@ export default function FormScreen({ title, subtitle, error, children, footer, h
   const insets = useSafeAreaInsets();
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.flex, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {hero ? null : <SkyBackdrop />}
       <ScrollView
@@ -67,7 +64,7 @@ export default function FormScreen({ title, subtitle, error, children, footer, h
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

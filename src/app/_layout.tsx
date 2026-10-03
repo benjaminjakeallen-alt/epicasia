@@ -14,8 +14,6 @@ import {
 } from '@expo-google-fonts/work-sans';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import LaunchSequence from '../components/LaunchSequence';
@@ -23,8 +21,6 @@ import { A11yModeProvider } from '../lib/a11yMode';
 import { introModeForLaunch, markFullIntroSeen, type IntroMode } from '../lib/introPrefs';
 import { AuthProvider } from '../lib/AuthProvider';
 import { colors } from '../theme/colors';
-
-SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -44,12 +40,6 @@ export default function RootLayout() {
     introModeForLaunch().then(setIntroMode);
   }, []);
 
-  useEffect(() => {
-    if (fontsLoaded && introMode) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded, introMode]);
-
   if (!fontsLoaded || !introMode) {
     return null;
   }
@@ -58,7 +48,6 @@ export default function RootLayout() {
     <AuthProvider>
       <A11yModeProvider>
       <SafeAreaProvider>
-        <StatusBar style="dark" />
         <Stack
           screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
         />

@@ -7,7 +7,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { confirmTap } from '../../lib/haptics';
 import { formatDuration } from '../../lib/journal';
 import { colors as c, shadow } from '../../theme/colors';
@@ -85,7 +85,7 @@ export default function VoiceRecorder({
       confirmTap();
       const uri = recorder.uri;
       if (uri && durationMs > 300) {
-        onDone({ uri, durationMs, mimeType: Platform.OS === 'web' ? 'audio/webm' : 'audio/mp4' });
+        onDone({ uri, durationMs, mimeType: 'audio/webm' });
       } else {
         setError('That was too short to keep. Hold on a moment longer.');
       }

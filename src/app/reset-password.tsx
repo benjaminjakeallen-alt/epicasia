@@ -1,6 +1,5 @@
-import * as Linking from 'expo-linking';
-import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import FormButton from '../components/form/FormButton';
 import FormField from '../components/form/FormField';
 import FormScreen from '../components/form/FormScreen';
@@ -8,15 +7,15 @@ import { supabase } from '../lib/supabase';
 
 // Landing screen for the link sent by forgot-password.tsx's
 // resetPasswordForEmail(). NOT end-to-end verified — doing so requires a
-// real device, a real email inbox, and clicking a real link, none of which
-// are available in this dev environment. The client is configured for the
-// PKCE flow (see src/lib/supabase.ts), so Supabase's email link should
-// carry the session as a `?code=` query param, exchanged below via
+// real email inbox and clicking a real link, which this dev environment
+// doesn't have. The client is configured for the PKCE flow (see
+// src/lib/supabase.ts), so Supabase's email link should carry the session
+// as a `?code=` query param on the public site, exchanged below via
 // exchangeCodeForSession. If this doesn't work when actually tested,
-// start by logging the incoming `url` to see its actual shape.
+// start by logging `window.location.href` to see its actual shape.
 export default function ResetPassword() {
   const router = useRouter();
-  const incomingUrl = Linking.useURL();
+  const params = useLocalSearchParams<{ code?: string }>();
   const [exchanging, setExchanging] = useState(true);
   const [exchangeFailure, setExchangeFailure] = useState<string | null>(null);
   const [password, setPassword] = useState('');
@@ -25,11 +24,7 @@ export default function ResetPassword() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const code = useMemo(() => {
-    if (!incomingUrl) return undefined; // URL not known yet
-    const { queryParams } = Linking.parse(incomingUrl);
-    return typeof queryParams?.code === 'string' ? queryParams.code : null;
-  }, [incomingUrl]);
+  const code = typeof params.code === 'string' && params.code ? params.code : null;
   const missingCode = code === null;
   const exchangeError = missingCode
     ? 'This reset link is missing its code — it may be malformed or expired.'

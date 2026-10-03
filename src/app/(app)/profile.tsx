@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import NotificationsRow from '../../components/chat/NotificationsRow';
@@ -48,13 +48,6 @@ export default function ProfileScreen() {
   async function pick(fromCamera: boolean) {
     setError(null);
     setNotice(null);
-    if (fromCamera) {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        setError('Camera access is off. Turn it on for Epic Asia in Settings to take a photo.');
-        return;
-      }
-    }
     const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.9 };
     const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
     if (res.canceled || !res.assets[0] || !profile) return;
@@ -73,7 +66,7 @@ export default function ProfileScreen() {
 
   async function clearPhoto() {
     if (!profile?.avatar_url) return;
-    if (!(await confirm('Remove your photo?', 'Your initials show instead.', 'Remove', true))) return;
+    if (!(await confirm('Remove your photo?', 'Your initials show instead.'))) return;
     setBusy('photo');
     try {
       await removeAvatar(myId, profile.avatar_url);
@@ -101,7 +94,7 @@ export default function ProfileScreen() {
   }
 
   async function signOut() {
-    if (!(await confirm('Sign out?', 'You can sign back in with your email and password.', 'Sign out'))) return;
+    if (!(await confirm('Sign out?', 'You can sign back in with your email and password.'))) return;
     await unregisterPush().catch(() => {});
     await clearOfflineCopies();
     await clearLocalDocuments();
@@ -111,9 +104,8 @@ export default function ProfileScreen() {
   const nameChanged = !!profile && name.trim().replace(/\s+/g, ' ') !== profile.display_name;
 
   return (
-    <KeyboardAvoidingView
+    <View
       style={[styles.screen, { backgroundColor: c.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <SkyBackdrop />
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
@@ -150,17 +142,15 @@ export default function ProfileScreen() {
                 {profile?.avatar_url ? 'Change photo' : 'Add a photo'}
               </Text>
             </Pressable>
-            {Platform.OS !== 'web' ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Take a photo"
-                disabled={!profile || busy === 'photo'}
-                onPress={() => pick(true)}
-                style={({ pressed }) => [styles.pillIcon, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
-              >
-                <Ionicons name="camera-outline" size={20} color={c.highlight} />
-              </Pressable>
-            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Take a photo"
+              disabled={!profile || busy === 'photo'}
+              onPress={() => pick(true)}
+              style={({ pressed }) => [styles.pillIcon, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
+            >
+              <Ionicons name="camera-outline" size={20} color={c.highlight} />
+            </Pressable>
             {profile?.avatar_url ? (
               <Pressable
                 accessibilityRole="button"
@@ -247,7 +237,7 @@ export default function ProfileScreen() {
           <Text style={[type.bodyStrong, { color: c.danger }]}>Sign out</Text>
         </Pressable>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

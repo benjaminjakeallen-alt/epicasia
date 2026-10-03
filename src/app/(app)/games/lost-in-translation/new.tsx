@@ -3,7 +3,7 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import FormButton from '../../../../components/form/FormButton';
 import FormField from '../../../../components/form/FormField';
 import FormScreen from '../../../../components/form/FormScreen';
@@ -32,13 +32,6 @@ export default function NewFind() {
 
   async function pick(fromCamera: boolean) {
     setError(null);
-    if (fromCamera) {
-      const perm = await ImagePicker.requestCameraPermissionsAsync();
-      if (!perm.granted) {
-        setError('Camera access is off. Turn it on for Epic Asia in Settings to take a photo.');
-        return;
-      }
-    }
     const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.9 };
     const res = fromCamera
       ? await ImagePicker.launchCameraAsync(opts)
@@ -85,9 +78,7 @@ export default function NewFind() {
       ) : (
         <View style={styles.sources}>
           <Source icon="images-outline" label="Choose a photo" onPress={() => pick(false)} testID="pick-photo" />
-          {Platform.OS !== 'web' ? (
-            <Source icon="camera-outline" label="Take a photo" onPress={() => pick(true)} />
-          ) : null}
+          <Source icon="camera-outline" label="Take a photo" onPress={() => pick(true)} />
         </View>
       )}
 

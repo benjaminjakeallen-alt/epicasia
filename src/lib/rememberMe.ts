@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 // "Keep me signed in for 30 days". Supabase's refresh token never expires on
 // its own, so the 30-day cap (and the opposite, "sign out when I close the
@@ -17,12 +16,9 @@ const WEB_TAB_MARKER = 'epicasia.browserSession';
 export const REMEMBER_DAYS = 30;
 const REMEMBER_MS = REMEMBER_DAYS * 24 * 60 * 60 * 1000;
 
-// Native: module state resets on every cold start, which is exactly the
-// "app was closed" signal a session-only sign-in needs.
-let signedInThisLaunch = false;
-
+// "Sign out when I close the app": a sessionStorage marker survives a
+// reload but not a closed tab, a new tab or a browser restart.
 function webSession(): Storage | null {
-  if (Platform.OS !== 'web') return null;
   try {
     return window.sessionStorage;
   } catch {
@@ -31,7 +27,6 @@ function webSession(): Storage | null {
 }
 
 export async function recordSignIn(remember: boolean, email: string) {
-  signedInThisLaunch = true;
   webSession()?.setItem(WEB_TAB_MARKER, '1');
   if (remember) {
     await Promise.all([
@@ -55,8 +50,7 @@ export async function sessionExpired(): Promise<boolean> {
     AsyncStorage.getItem(SESSION_ONLY),
   ]);
   if (sessionOnly) {
-    const web = webSession();
-    return web ? web.getItem(WEB_TAB_MARKER) !== '1' : !signedInThisLaunch;
+    return webSession()?.getItem(WEB_TAB_MARKER) !== '1';
   }
   if (until) return Date.now() > Number(until);
   // Signed in before this feature existed: start their 30 days now rather
@@ -67,7 +61,6 @@ export async function sessionExpired(): Promise<boolean> {
 
 /** Clears the sign-in window but keeps the remembered email for next time. */
 export async function clearSignIn() {
-  signedInThisLaunch = false;
   webSession()?.removeItem(WEB_TAB_MARKER);
   await Promise.all([AsyncStorage.removeItem(REMEMBER_UNTIL), AsyncStorage.removeItem(SESSION_ONLY)]);
 }

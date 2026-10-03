@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MORE_REACTIONS, QUICK_REACTIONS } from '../../lib/chat';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
@@ -31,7 +31,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
   return (
     // No fade on web: RN-web's Modal only unmounts after its CSS fade's
     // animationend, and when that never fires the sheet can't reopen.
-    <Modal visible={visible} transparent animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={close}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
       <Pressable accessibilityRole="button" style={styles.scrim} onPress={close} accessibilityLabel="Close" />
       <View style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 14) + 6 }]}>
         <View style={styles.handle} />

@@ -1,4 +1,4 @@
-import { AccessibilityInfo, Platform } from 'react-native';
+import { AccessibilityInfo } from 'react-native';
 
 // Spoken feedback for the accessibility mode. With VoiceOver on, the text
 // goes to VoiceOver (so nothing is read twice, in two voices); otherwise,
@@ -6,29 +6,15 @@ import { AccessibilityInfo, Platform } from 'react-native';
 // announcement cuts off the previous one, so turning the ring quickly
 // only finishes the item it stops on.
 
-// RN-web can't detect a screen reader and reports `true` regardless, so on
-// web we treat it as off (the web build is only a preview anyway).
-let screenReaderOn = false;
-if (Platform.OS !== 'web') {
-  AccessibilityInfo.isScreenReaderEnabled()
-    .then((on) => {
-      screenReaderOn = on;
-    })
-    .catch(() => {});
-  AccessibilityInfo.addEventListener('screenReaderChanged', (on) => {
-    screenReaderOn = on;
-  });
-}
+// The browser can't tell whether a screen reader is running (RN-web reports
+// `true` regardless), so it's treated as off: the mode speaks for itself.
+// VoiceOver users still hear the ring through its adjustable control.
+const screenReaderOn = false;
 
-/** Subscribe to screen-reader changes (always false on web). Returns an unsubscribe. */
+/** Subscribe to screen-reader changes (always false in the browser). Returns an unsubscribe. */
 export function watchScreenReader(cb: (on: boolean) => void): () => void {
-  if (Platform.OS === 'web') {
-    cb(false);
-    return () => {};
-  }
-  AccessibilityInfo.isScreenReaderEnabled().then(cb).catch(() => {});
-  const sub = AccessibilityInfo.addEventListener('screenReaderChanged', cb);
-  return () => sub.remove();
+  cb(false);
+  return () => {};
 }
 
 export function isScreenReaderOn() {

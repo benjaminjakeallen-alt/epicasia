@@ -5,7 +5,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
-  KeyboardAvoidingView,
   Pressable,
   StyleSheet,
   Text,
@@ -612,7 +611,7 @@ export default function ChatRoom() {
       </View>
       <OfflineNotice />
 
-      <KeyboardAvoidingView style={styles.flex}>
+      <View style={styles.flex}>
         {loading ? (
           <ChatSkeleton />
         ) : messages.length === 0 ? (
@@ -686,7 +685,7 @@ export default function ChatRoom() {
           onSend={send}
           bottomInset={insets.bottom}
         />
-      </KeyboardAvoidingView>
+      </View>
 
       <MessageActions
         visible={!!actionFor}

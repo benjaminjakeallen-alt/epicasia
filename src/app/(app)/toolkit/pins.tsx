@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import OfflineNotice from '../../../components/OfflineNotice';
@@ -50,7 +50,7 @@ export default function Pins() {
   );
 
   async function remove(pin: Pin) {
-    if (!(await confirm('Remove this pin?', `“${pin.name}” will be removed for everyone.`, 'Remove', true))) return;
+    if (!(await confirm('Remove this pin?', `“${pin.name}” will be removed for everyone.`))) return;
     try {
       await deletePin(pin.id);
       setPins((prev) => prev.filter((p) => p.id !== pin.id));
@@ -169,7 +169,7 @@ function Action({ label, icon, a11y, onPress }: { label: string; icon: keyof typ
 function AddressCard({ pin, onClose }: { pin: Pin; onClose: () => void }) {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={onClose}>
+    <Modal visible animationType="none" onRequestClose={onClose}>
       <View style={[styles.show, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]} testID="address-card">
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
           <Ionicons name="close" size={28} color={c.ink} />

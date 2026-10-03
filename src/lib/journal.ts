@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { newId } from './chat';
 import { readBytes, removePhotoFiles, uploadPhoto } from './photos';
 import { cached, peek } from './offline';
@@ -151,7 +150,7 @@ export function hasContent(d: Draft): boolean {
 
 function audioType(uri: string, mime?: string | null): { type: string; ext: string } {
   if (mime?.startsWith('audio/')) return { type: mime.split(';')[0], ext: mime.includes('webm') ? 'webm' : 'm4a' };
-  if (uri.endsWith('.webm') || Platform.OS === 'web') return { type: 'audio/webm', ext: 'webm' };
+  if (uri.endsWith('.webm')) return { type: 'audio/webm', ext: 'webm' };
   if (uri.endsWith('.wav')) return { type: 'audio/wav', ext: 'wav' };
   return { type: 'audio/mp4', ext: 'm4a' };
 }

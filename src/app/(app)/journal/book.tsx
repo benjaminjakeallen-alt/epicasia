@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import { Bone } from '../../../components/Skeleton';
@@ -50,7 +50,7 @@ export default function PhotoBook() {
     setError(null);
     setDone(false);
     // On web the book prints from a new tab, which must open during the tap.
-    const win = Platform.OS === 'web' ? window.open('', '_blank') : null;
+    const win = window.open('', '_blank');
     setBusy('Starting…');
     try {
       await exportPhotoBook(entries, author, setBusy, win);
@@ -150,9 +150,7 @@ export default function PhotoBook() {
             ]}
           >
             <Ionicons name="document-outline" size={20} color={c.onAccent} />
-            <Text style={[type.button, { color: c.onAccent }]}>
-              {Platform.OS === 'web' ? 'Open the book to print' : 'Make the PDF'}
-            </Text>
+            <Text style={[type.button, { color: c.onAccent }]}>Open the book to print</Text>
           </Pressable>
         )}
       </ScrollView>

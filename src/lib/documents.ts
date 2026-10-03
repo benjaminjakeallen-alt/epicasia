@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { newId } from './chat';
 import { cached } from './offline';
 import { readBytes, removePhotoFiles, signedUrls, uploadPhoto } from './photos';
@@ -7,9 +6,9 @@ import { supabase } from './supabase';
 // My documents: each traveler's private copies of their passport, visa,
 // insurance, QR codes and bookings (0011_travel_documents.sql). Owner-only
 // rows; files in the private `documents` bucket at "<uid>/<id>.<ext>"
-// (photos also get a "<id>.thumb.jpg"). On a phone every document is also
-// downloaded to the app's own storage, so it opens at a border desk with no
-// signal; signing out deletes those copies.
+// (photos also get a "<id>.thumb.jpg"). Every document is also kept in the
+// browser (Cache Storage), so it opens at a border desk with no signal;
+// signing out deletes those copies.
 
 export type DocKind = 'passport' | 'visa' | 'insurance' | 'vjw' | 'china-arrival' | 'booking' | 'other';
 
@@ -130,13 +129,6 @@ export async function addDocument(
   return data as TravelDoc;
 }
 
-export async function renameDocument(id: string, label: string): Promise<void> {
-  const clean = label.trim().replace(/\s+/g, ' ');
-  if (!clean || clean.length > 80) throw new Error('Give it a name of 1 to 80 characters.');
-  const { error } = await supabase.from('documents').update({ label: clean }).eq('id', id);
-  if (error) throw error;
-}
-
 export async function deleteDocument(doc: TravelDoc): Promise<void> {
   const { error } = await supabase.from('documents').delete().eq('id', doc.id);
   if (error) throw error;
@@ -144,112 +136,125 @@ export async function deleteDocument(doc: TravelDoc): Promise<void> {
   await deleteLocalCopy(doc).catch(() => {});
 }
 
-// ---- Copies on the phone (native) -----------------------------------------
+// ---- Copies kept in the browser (offline) --------------------------------
+// Every document is also kept in the browser's Cache Storage, under a
+// made-up same-origin URL per file, so it opens at a border desk with no
+// signal. Signing out deletes the whole cache.
 
-const LOCAL_DIR = 'travel-documents';
+const CACHE = 'epicasia-documents';
 
-async function localFile(doc: TravelDoc) {
-  const { Directory, File, Paths } = await import('expo-file-system');
-  const dir = new Directory(Paths.document, LOCAL_DIR, doc.user_id);
-  return { dir, file: new File(dir, doc.storage_path.split('/').pop() ?? `${doc.id}.${extFor(doc.mime)}`) };
+function cacheKey(doc: TravelDoc): string {
+  return `${location.origin}/__offline-documents/${doc.storage_path}`;
 }
 
-/** Local file URI if this document has been saved on the phone. */
-export async function localUri(doc: TravelDoc): Promise<string | null> {
-  if (Platform.OS === 'web') return null;
+async function openCache(): Promise<Cache | null> {
   try {
-    const { file } = await localFile(doc);
-    return file.exists ? file.uri : null;
+    return typeof caches === 'undefined' ? null : await caches.open(CACHE);
   } catch {
     return null;
   }
 }
 
-async function download(doc: TravelDoc): Promise<string> {
-  const { File } = await import('expo-file-system');
-  const { dir, file } = await localFile(doc);
-  if (file.exists) return file.uri;
-  dir.create({ intermediates: true, idempotent: true });
-  const url = (await signedUrls('documents', [doc.storage_path]))[doc.storage_path];
-  const out = await File.downloadFileAsync(url, file, { idempotent: true });
-  return out.uri;
+/** The saved copy, if this browser has one. */
+async function localBlob(doc: TravelDoc): Promise<Blob | null> {
+  const cache = await openCache();
+  const hit = await cache?.match(cacheKey(doc));
+  return hit ? hit.blob() : null;
+}
+
+async function signedUrl(doc: TravelDoc): Promise<string> {
+  return (await signedUrls('documents', [doc.storage_path]))[doc.storage_path];
+}
+
+/** The file itself: the saved copy, else downloaded (and saved). */
+async function fileBlob(doc: TravelDoc): Promise<Blob> {
+  const local = await localBlob(doc);
+  if (local) return local;
+  const res = await fetch(await signedUrl(doc));
+  if (!res.ok) throw new Error('Could not download that document');
+  const blob = await res.blob();
+  const cache = await openCache();
+  await cache?.put(cacheKey(doc), new Response(blob, { headers: { 'Content-Type': doc.mime } })).catch(() => {});
+  return blob;
 }
 
 async function deleteLocalCopy(doc: TravelDoc) {
-  if (Platform.OS === 'web') return;
-  const { file } = await localFile(doc);
-  if (file.exists) file.delete();
+  const cache = await openCache();
+  await cache?.delete(cacheKey(doc));
 }
 
 /**
- * Saves every document on the phone (and drops copies of deleted ones), so
- * they all open offline. Returns how many are saved. Native only.
+ * Saves every document in this browser (and drops copies of deleted ones),
+ * so they all open offline. Returns how many are saved, or null when this
+ * browser can't keep them.
  */
-export async function keepOffline(docs: TravelDoc[], userId: string): Promise<number> {
-  if (Platform.OS === 'web') return 0;
+export async function keepOffline(docs: TravelDoc[], userId: string): Promise<number | null> {
+  const cache = await openCache();
+  if (!cache) return null;
   let saved = 0;
   for (const doc of docs) {
     try {
-      await download(doc);
+      await fileBlob(doc);
       saved += 1;
     } catch {
       // offline or failed: try again next time
     }
   }
   try {
-    const { Directory, File, Paths } = await import('expo-file-system');
-    const dir = new Directory(Paths.document, LOCAL_DIR, userId);
-    if (dir.exists) {
-      const keep = new Set(docs.map((d) => d.storage_path.split('/').pop()));
-      for (const item of dir.list()) if (item instanceof File && !keep.has(item.name)) item.delete();
-    }
+    const keep = new Set(docs.map(cacheKey));
+    const mine = `${location.origin}/__offline-documents/${userId}/`;
+    for (const req of await cache.keys()) if (req.url.startsWith(mine) && !keep.has(req.url)) await cache.delete(req);
   } catch {
     // best effort
   }
   return saved;
 }
 
-/** Sign-out: delete every document saved on this phone. */
+/** Sign-out: delete every document saved in this browser. */
 export async function clearLocalDocuments(): Promise<void> {
-  if (Platform.OS === 'web') return;
   try {
-    const { Directory, Paths } = await import('expo-file-system');
-    const dir = new Directory(Paths.document, LOCAL_DIR);
-    if (dir.exists) dir.delete();
+    if (typeof caches !== 'undefined') await caches.delete(CACHE);
   } catch {
     // ignore
   }
 }
 
-/** Best URI to show a photo document: the phone's copy, else a signed URL. */
+/** Best URI to show a photo document: the saved copy, else a signed URL. */
 export async function viewUri(doc: TravelDoc): Promise<string> {
-  const local = await localUri(doc);
-  if (local) return local;
-  return (await signedUrls('documents', [doc.storage_path]))[doc.storage_path];
+  const local = await localBlob(doc);
+  return local ? URL.createObjectURL(local) : signedUrl(doc);
 }
 
-/**
- * Opens a PDF: on a phone the share sheet (with Quick Look preview, Save to
- * Files, Print…) from the saved copy; on the web a new tab.
- */
+/** Opens a PDF in a new tab (the browser's PDF viewer: zoom, print, save) — offline from the saved copy. */
 export async function openPdf(doc: TravelDoc): Promise<void> {
-  if (Platform.OS === 'web') {
-    const win = window.open('', '_blank');
-    const url = (await signedUrls('documents', [doc.storage_path]))[doc.storage_path];
-    if (win) win.location.href = url;
-    else window.location.href = url;
+  // Opened before any await, so popup blockers see the tap.
+  const win = window.open('', '_blank');
+  const local = await localBlob(doc);
+  const url = local ? URL.createObjectURL(local) : await signedUrl(doc);
+  if (win) win.location.href = url;
+  else window.location.href = url;
+}
+
+/** Share sheet for a document (AirDrop, Mail, Save to Files…); downloads it where files can't be shared. */
+export async function shareDocument(doc: TravelDoc): Promise<void> {
+  const blob = await fileBlob(doc);
+  const name = doc.file_name || `${doc.label}.${extFor(doc.mime)}`;
+  const file = new File([blob], name, { type: doc.mime });
+  const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+  if (typeof nav.share === 'function' && nav.canShare?.({ files: [file] })) {
+    try {
+      await nav.share({ files: [file], title: doc.label });
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) throw e;
+    }
     return;
   }
-  const uri = await download(doc);
-  const Sharing = await import('expo-sharing');
-  await Sharing.shareAsync(uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: doc.label });
-}
-
-/** Share sheet for a document (AirDrop, Mail, Print…). Native. */
-export async function shareDocument(doc: TravelDoc): Promise<void> {
-  const uri = await download(doc);
-  const Sharing = await import('expo-sharing');
-  await Sharing.shareAsync(uri, { mimeType: doc.mime, dialogTitle: doc.label });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 export function formatSize(bytes: number | null | undefined): string | null {

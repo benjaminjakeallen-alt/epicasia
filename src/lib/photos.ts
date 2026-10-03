@@ -30,11 +30,11 @@ export function isVideo(p: Pick<PickedPhoto, 'mimeType' | 'durationMs'>): boolea
   return !!p.mimeType?.startsWith('video/') || p.durationMs != null;
 }
 
-export function extFor(mime: string): string {
+function extFor(mime: string): string {
   return mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : mime === 'image/gif' ? 'gif' : 'jpg';
 }
 
-export function imageMime(m: string | null | undefined): string {
+function imageMime(m: string | null | undefined): string {
   return m && m.startsWith('image/') ? m : 'image/jpeg';
 }
 
@@ -43,7 +43,7 @@ export function imageMime(m: string | null | undefined): string {
  * image transformations are a paid feature). Returns null if it can't be
  * made — callers then fall back to the original.
  */
-export async function makeThumb(photo: PickedPhoto): Promise<{ uri: string; width: number; height: number } | null> {
+async function makeThumb(photo: PickedPhoto): Promise<{ uri: string; width: number; height: number } | null> {
   try {
     const { ImageManipulator, SaveFormat } = await import('expo-image-manipulator');
     const ctx = ImageManipulator.manipulate(photo.uri);
@@ -166,12 +166,12 @@ function videoExt(mime: string): string {
   return mime === 'video/quicktime' ? 'mov' : mime === 'video/webm' ? 'webm' : 'mp4';
 }
 
-export function videoMime(m: string | null | undefined): string {
+function videoMime(m: string | null | undefined): string {
   return m === 'video/quicktime' || m === 'video/webm' ? m : 'video/mp4';
 }
 
 /** A still from early in the video (JPEG, ≤ 1280 wide), made in the browser. */
-export async function videoPoster(uri: string): Promise<PickedPhoto & { durationMs: number }> {
+async function videoPoster(uri: string): Promise<PickedPhoto & { durationMs: number }> {
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
@@ -235,7 +235,7 @@ export function durationLabel(ms: number | null | undefined): string {
 // ---- Taken at (EXIF) ------------------------------------------------------
 
 /** DateTimeOriginal from a JPEG's EXIF ("2027:06:07 14:03:22", camera-local), as a wall-clock ISO string. */
-export function exifTakenAt(buf: ArrayBuffer): string | null {
+function exifTakenAt(buf: ArrayBuffer): string | null {
   const v = new DataView(buf);
   if (v.byteLength < 4 || v.getUint16(0) !== 0xffd8) return null;
   let o = 2;

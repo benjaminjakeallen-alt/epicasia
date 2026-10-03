@@ -1,6 +1,5 @@
 // eslint-disable-next-line import/no-named-as-default -- the package's documented default export
 import qrcode from 'qrcode-generator';
-import { Platform } from 'react-native';
 import { GLYPH } from '../components/Seal';
 import { colors as c, legColors, legTextColors } from '../theme/colors';
 import { formatMonthDay, parseDay } from './dates';
@@ -9,13 +8,12 @@ import { STOPS, stopForDay, type Stop } from './places';
 import { supabase } from './supabase';
 import { TRIP } from './trip';
 
-// The end-of-trip photo book: a printable 8×8 in PDF made on the phone from
-// your own journal — a cover, a divider page per leg, then each entry with
-// its text, photos and voice notes. A voice note prints as a QR code that
-// plays it (a long-lived signed link to that one file), plus its length
-// and caption. On web the book opens in a new tab to print / save as PDF.
+// The end-of-trip photo book: a printable 8×8 in book made in the browser
+// from your own journal — a cover, a divider page per leg, then each entry
+// with its text, photos and voice notes. A voice note prints as a QR code
+// that plays it (a long-lived signed link to that one file), plus its length
+// and caption. It opens in a new tab to print or save as a PDF.
 
-const PAGE = 576; // 8 in at 72 pt/in
 const PHOTO_MAX = 1400; // px on the long side — sharp in print, small enough to embed
 const QR_LINK_SECONDS = 10 * 365 * 24 * 60 * 60; // the book should keep working for years
 
@@ -50,27 +48,14 @@ async function photoData(path: string): Promise<string | null> {
   const { data, error } = await supabase.storage.from('journal').createSignedUrl(path, 600);
   if (error || !data) return null;
   try {
-    if (Platform.OS === 'web') {
-      const blob = await (await fetch(data.signedUrl)).blob();
-      return await new Promise<string>((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(String(r.result));
-        r.onerror = reject;
-        r.readAsDataURL(blob);
-      });
-    }
-    const [{ File, Paths }, { ImageManipulator, SaveFormat }] = await Promise.all([
-      import('expo-file-system'),
-      import('expo-image-manipulator'),
-    ]);
-    const dest = new File(Paths.cache, `book-${path.replace(/\//g, '_')}`);
-    if (dest.exists) dest.delete();
-    const file = await File.downloadFileAsync(data.signedUrl, dest);
-    const ctx = ImageManipulator.manipulate(file.uri);
-    ctx.resize({ width: PHOTO_MAX });
-    const out = await (await ctx.renderAsync()).saveAsync({ base64: true, compress: 0.82, format: SaveFormat.JPEG });
-    file.delete();
-    return out.base64 ? `data:image/jpeg;base64,${out.base64}` : null;
+    const bitmap = await createImageBitmap(await (await fetch(data.signedUrl)).blob());
+    const scale = Math.min(1, PHOTO_MAX / bitmap.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.82);
   } catch {
     return null;
   }
@@ -120,7 +105,7 @@ function voiceHtml(notes: JournalMedia[], qrs: Record<string, string>): string {
     .join('');
 }
 
-export async function buildPhotoBookHtml(entries: JournalEntry[], author: string, progress: BookProgress): Promise<string> {
+async function buildPhotoBookHtml(entries: JournalEntry[], author: string, progress: BookProgress): Promise<string> {
   const ordered = [...entries].sort((a, b) => (a.day === b.day ? a.created_at.localeCompare(b.created_at) : a.day.localeCompare(b.day)));
   const photos = ordered.flatMap((e) => e.journal_media.filter((m) => m.kind === 'photo'));
   const notes = ordered.flatMap((e) => e.journal_media.filter((m) => m.kind === 'audio'));
@@ -229,9 +214,9 @@ export async function buildPhotoBookHtml(entries: JournalEntry[], author: string
 }
 
 /**
- * Builds the PDF and opens the share sheet (save to Files, print, AirDrop,
- * upload to a print service). On web, `printWindow` (opened synchronously
- * by the button press, so popup blockers allow it) gets the book to print.
+ * Opens the book in `printWindow` (opened synchronously by the button
+ * press, so popup blockers allow it) and brings up the print dialog —
+ * print it, or "Save as PDF" / on iPhone the share sheet's Print → pinch out.
  */
 export async function exportPhotoBook(
   entries: JournalEntry[],
@@ -240,24 +225,12 @@ export async function exportPhotoBook(
   printWindow?: Window | null,
 ): Promise<void> {
   const html = await buildPhotoBookHtml(entries, author, progress);
-  if (Platform.OS === 'web') {
-    const win = printWindow ?? window.open('', '_blank');
-    if (!win) throw new Error('Allow pop-ups for this site to open the photo book.');
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-    win.document.title = 'Epic Asia photo book';
-    // Give the web fonts and embedded photos a moment before the print dialog.
-    setTimeout(() => win.print(), 900);
-    return;
-  }
-  progress('Making the PDF…');
-  const Print = await import('expo-print');
-  const Sharing = await import('expo-sharing');
-  const { uri } = await Print.printToFileAsync({ html, width: PAGE, height: PAGE });
-  const { File, Paths } = await import('expo-file-system');
-  const named = new File(Paths.cache, `Epic Asia photo book - ${author}.pdf`);
-  if (named.exists) named.delete();
-  new File(uri).move(named);
-  await Sharing.shareAsync(named.uri, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Your photo book' });
+  const win = printWindow ?? window.open('', '_blank');
+  if (!win) throw new Error('Allow pop-ups for this site to open the photo book.');
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.document.title = `Epic Asia photo book - ${author}`;
+  // Give the web fonts and embedded photos a moment before the print dialog.
+  setTimeout(() => win.print(), 900);
 }

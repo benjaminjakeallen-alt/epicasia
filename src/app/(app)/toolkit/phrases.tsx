@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { countryColor } from '../../../lib/arrivals';
 import { todayDay } from '../../../lib/dates';
+import { isIos } from '../../../lib/device';
 import { CATEGORIES, EMERGENCY, LANGUAGES, PHRASES, type LangKey, type Phrase } from '../../../lib/phrases';
 import { stopForDay } from '../../../lib/places';
 import { colors as c, shadow } from '../../../theme/colors';
@@ -99,7 +100,7 @@ export default function Phrasebook() {
           <View style={[styles.notice, { backgroundColor: colors.warningSoft }]} accessibilityRole="alert" testID="no-voice">
             <Ionicons name="volume-mute-outline" size={18} color={colors.warning} />
             <Text style={[type.body, styles.flex, { color: colors.ink }]}>
-              {Platform.OS === 'ios'
+              {isIos()
                 ? `No ${L.name} voice on this phone yet. Add one in Settings → Accessibility → Spoken Content → Voices.`
                 : `No ${L.name} voice is available here.`}
             </Text>
@@ -163,7 +164,7 @@ function ShowCard({ phrase, lang, onClose, onSpeak }: { phrase: Phrase; lang: La
   const L = LANGUAGES.find((l) => l.key === lang)!;
   return (
     // No fade on web: RN-web's Modal only unmounts after its CSS animationend.
-    <Modal visible animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={onClose}>
+    <Modal visible animationType="none" onRequestClose={onClose}>
       <View style={[styles.show, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]} testID="phrase-card">
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
           <Ionicons name="close" size={28} color={c.ink} />

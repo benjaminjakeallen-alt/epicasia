@@ -8,7 +8,7 @@ import type { Page, Request } from '@playwright/test';
 
 export const USER_ID = '00000000-0000-4000-8000-000000000001';
 /** A well-formed P-256 public key (65 bytes, base64url) for push subscription tests. */
-export const FAKE_VAPID_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+const FAKE_VAPID_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
 
 export type FakeBackend = {
   inserts: { table: string; body: Record<string, unknown> }[];

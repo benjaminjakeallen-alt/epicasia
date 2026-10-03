@@ -2,9 +2,23 @@
 
 # Epic Asia
 
-iOS group-trip app for an upcoming Asia trip. Same shape as the Robinson
+Group-trip app for an upcoming Asia trip. Same shape as the Robinson
 reunion app (individual logins, password reset, admin functions) but for
 trip logistics instead of a family reunion.
+
+**It's a PWA — web only (user decision, Oct 3 2026: "I am going to keep it
+a pwa").** Travelers open `https://epicasia.vercel.app` and add it to the
+Home Screen. There is no App Store / EAS build any more: the native-only
+code and packages were removed (expo-notifications, -device, -dev-client,
+-file-system, -media-library, -sharing, -print, -location, -haptics,
+-splash-screen, -status-bar, react-native-webview, the URL polyfill),
+along with `eas.json`, `docs/iphone-build.md`, the native app icons and
+app.json's ios/android/plugin config. Code is still React Native via
+react-native-web; write it for the browser (no `Platform.OS` branches —
+there are none left). Browser APIs used directly: web push + a service
+worker (`public/sw.js`), Web Share with files, Cache Storage (documents
+offline), geolocation, `<video>`, canvas (posters, photo-book images),
+`window.confirm`. `src/lib/device.ts` has `isIos()` / `isStandalone()`.
 
 ## Planned feature set
 
@@ -96,9 +110,12 @@ through them. Build it with standard accessibility practice:
 - **Setting:** a per-user toggle (persisted), offered automatically when
   large Dynamic Type or VoiceOver is detected; intro auto-skips in this
   mode.
-- **Verify on real hardware:** VoiceOver on device, Xcode Accessibility
-  Inspector, every Dynamic Type size, and both folded/unfolded postures —
-  none of this can be verified in the web/Playwright build.
+- **Verify on real hardware:** VoiceOver in iPhone Safari / the Home
+  Screen app, the browser's text-size setting, and both folded/unfolded
+  postures — none of this can be verified in the Playwright build. (The
+  app is a PWA now: iOS Dynamic Type and native VoiceOver APIs don't reach
+  a web page; the browser can't detect a screen reader, so
+  `watchScreenReader()` is always off and the mode speaks for itself.)
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
 points and a leaderboard; **Lost in Translation** and **Godzilla Rampage**
@@ -184,20 +201,21 @@ already) — adds `kind` (checked list), `mime`, `size_bytes`, `thumb_path`,
 owner's folder; the private `documents` bucket now takes only JPEG/PNG/
 WebP/HEIC/PDF up to 20 MB. Files at `<uid>/<id>.<ext>`; photos also get a
 device-made `.thumb.jpg` (shared `uploadPhoto`). Add = pick a kind (chips,
-name follows the kind until edited), then Photo / Camera (native) / "PDF
-or file" (`expo-document-picker`); a failed row insert removes the upload.
-**Offline:** the list is `cached('documents')`, and on a phone
-`keepOffline()` downloads every file to `Paths.document/travel-documents/
-<uid>/` (and drops deleted ones) — "All saved on this phone · they open
-offline". Photos open in a full-screen viewer (pinch-zoom on iOS, Share,
-Delete); PDFs open the iOS share sheet (Quick Look preview, Save to Files,
-Print) from the local copy; web opens a signed URL in a tab. **Sign-out
-deletes the local folder** (`clearLocalDocuments`, next to
-`clearOfflineCopies` in Profile). Tests: `e2e/arrivals.spec.ts` (countries,
-checklist persists, China guide with PEK/PVG + the NRT→PEK pass, add a PDF
-→ exact upload path + row, photo viewer + delete → row + both files
-removed; the fake backend now records storage `removals`) and axe audits
-of all four screens + the viewer.
+name follows the kind until edited), then Photo / Camera / "PDF or file"
+(`expo-document-picker`); a failed row insert removes the upload.
+**Offline:** the list is `cached('documents')`, and `keepOffline()` keeps
+every file in the browser's **Cache Storage** (`epicasia-documents`, keyed
+`<origin>/__offline-documents/<storage path>`; copies of deleted ones are
+dropped) — "All saved on this phone · they open offline". Photos open in a
+full-screen viewer (Share = Web Share with the file, Delete) from a `blob:`
+URL of the saved copy; PDFs open in a new tab (the browser's viewer: zoom,
+print, save), offline too. **Sign-out deletes the cache**
+(`clearLocalDocuments`, next to `clearOfflineCopies` in Profile). Tests:
+`e2e/arrivals.spec.ts` (countries, checklist persists, China guide with
+PEK/PVG + the NRT→PEK pass, add a PDF → exact upload path + row, photo
+viewer + delete → row + both files removed; the fake backend records
+storage `removals`; documents saved in Cache Storage and opened with every
+request aborted) and axe audits of all four screens + the viewer.
 
 ### Toolkit (built, Oct 3 2026) — currency, phrasebook, weather, map pins
 
@@ -252,9 +270,9 @@ pins from the last saved copy).
   admin update/delete. List grouped by city in route order; each pin
   opens **Apple Maps / Google Maps** (by coordinates when saved, else
   name + address search — Google Maps doesn't work in mainland China,
-  Apple Maps does). "Use where I am" = **`expo-location`** (added, ~57.0.20,
-  plugin with a when-in-use permission string only, background location
-  off); web uses browser geolocation. Cached as `pins` for offline.
+  Apple Maps does). "Use where I am" = the browser's geolocation
+  (`navigator.geolocation`, high accuracy, 15 s timeout). Cached as `pins`
+  for offline.
 - Tests: `e2e/toolkit.spec.ts` (ring shows 7; keypad conversion, swap,
   HKD, GBP remembered; offline saved vs bundled rates; phrase plays with
   the right `lang`, card, no-Cantonese-voice notice; weather °F/°C, saved
@@ -360,15 +378,14 @@ city) — then they loop harder (`1.15^round`).
 - **Host:** `src/app/(app)/games/rampage/index.tsx` (Play card + high-score
   board: each player's best run, ties share a rank) and `play.tsx` (full
   screen, swipe-back off, light status bar) using
-  `src/components/games/GameFrame` — `react-native-webview` (13.16.1, the
-  SDK's version) natively, a `sandbox="allow-scripts"` iframe `srcDoc` on
-  web (null origin: no access to the app's storage/session; it focuses the
-  iframe's window on load so keys reach the game). The host swaps
+  `src/components/games/GameFrame` — a `sandbox="allow-scripts"` iframe
+  `srcDoc` (null origin: no access to the app's storage/session; it focuses
+  the iframe's window on load so keys reach the game). The host swaps
   `/*INIT*/null` (`window.RAMPAGE_INIT`) for `{highScore, debug: __DEV__}`
   (HIGH SCORE = best of the phone's own and the group's saved runs).
   Messages from the game: `ready`, `score {score, level, round, hero,
   outcome}` (once per run, on game over or ✕), `haptic {kind}`
-  (`gameHaptic()` in `haptics.ts`), `exit`.
+  (a `selectionTick()` — browsers have one kind of haptic), `exit`.
 - **Scores:** `0014_game_scores.sql` — `game_scores` (game
   `godzilla_rampage`, user, score 1…9,999,999, level 1–4, round, hero
   chris/shea); members read, insert own, admin deletes. Arcade games score
@@ -452,117 +469,200 @@ removed at the user's request — see git history if it's ever wanted.)
 - `src/lib/dates.ts` holds the shared day/time parsing (`isValidDay`,
   `parseTimeInput` — moved out of itinerary's `new.tsx`) and formatting.
 
-### Group chat (built, Oct 1 2026)
+### Group chat (built, Oct 1 2026; rooms, edits, mutes, video and web push Oct 3 2026)
 
-One room for the whole trip. Data: `src/lib/chat.ts` (fetch/send/react/
-delete, signed photo URLs, save/share photo, realtime subscription),
-pure helpers in `src/lib/chatFormat.ts`, screen
-`src/app/(app)/chat/index.tsx`, components in `src/components/chat/`
-(`MessageRow`, `Composer`, `MessageActions` long-press sheet,
-`PhotoViewer`, `TypingIndicator`). On the orbit menu as "Group Chat"
-(sage rotary-telephone icon, `assets/images/menu/chat.png`).
+**Rooms** (user asked to "finish extra chat features", Oct 3 2026): "Everyone"
+(fixed id `00000000-0000-4000-8000-000000000001`, `EVERYONE_ROOM`, can't be
+deleted) plus any **open** or **private** rooms people make. Data:
+`src/lib/chat.ts` (rooms, members, messages, edit, mutes, reactions,
+signed URLs, realtime), pure helpers in `src/lib/chatFormat.ts`, unread in
+`src/lib/chatUnread.ts`. Screens `src/app/(app)/chat/`: `index` (room list
+— emoji, name, lock if private, bell-off if muted, newest message + time,
+unread badge; grey badge for a muted room; the compact notifications row on
+top), `[room]` (the conversation), `new` (name, emoji, private + people),
+`about/[room]` (room info: notifications, mute room, rename/emoji and
+delete for its creator, people in a private room — creator adds/removes,
+others can leave — and a "Mute people (every room)" list). Components in
+`src/components/chat/` (`MessageRow`, `Composer`, `MessageActions`
+long-press sheet, `PhotoViewer`, `TypingIndicator`, `NotificationsRow`,
+`RoomFields` — emoji picker, switch row, people picker). On the orbit menu
+as "Group Chat" (sage rotary-telephone icon, `assets/images/menu/chat.png`).
 
-- **Schema:** migration `0005_group_chat.sql` — `messages` gained
+- **Schema:** `0005_group_chat.sql` — `messages` gained
   `image_path`/`image_width`/`image_height`, `reply_to` (self FK, `on
   delete set null`), `deleted_at` (soft delete keeps replies' place),
   `body` nullable with a has-content check and a 4000-char cap;
   `message_reactions` (PK message+user+emoji, own insert/delete,
-  `replica identity full` so realtime DELETEs carry the row); both tables
-  in the `supabase_realtime` publication; private `chat` storage bucket
-  (15 MB, images only; any member reads, uploads only under
-  `<own uid>/…`); `realtime.messages` policies so only signed-in members
-  can use the private `chat:everyone` broadcast channel (typing).
+  `replica identity full` so realtime DELETEs carry the row); private
+  `chat` bucket (any member reads, uploads only under `<own uid>/…`).
+  **`0015_chat_rooms_media_push.sql`** (applied as 0015a–e): `chat_rooms`
+  (name ≤ 40, emoji, `is_private`, `created_by`) + `chat_room_members`;
+  `private.can_see_room()` (open, or creator/member of a private one) gates
+  messages (select + insert), reactions (via their message) and the typing
+  channels, now **`chat:<room id>`** (`private.can_use_chat_topic()`).
+  The rooms' own select policy tests its columns inline plus
+  `private.is_room_member()` — `INSERT … RETURNING` checks it before
+  `can_see_room()` can see the new row. `messages` gained `room_id`
+  (default Everyone), `edited_at` (stamped by a trigger when a live
+  message's body changes), `video_path`, `video_duration_ms`;
+  `chat_room_reads` (per user+room, replaces `chat_reads`); `chat_mutes`
+  (a person *or* a room; own rows only); `web_push_subscriptions` +
+  `private.push_config` (VAPID keys). The `chat` and `gallery` buckets now
+  take video (mp4/mov/webm) up to 50 MB (free-plan cap). Verified live in a
+  rolled-back block: a private room is invisible to a non-member until
+  they're added, edits stamp `edited_at`. `chat_reads` and `push_tokens`
+  are retired, unused, not dropped.
 - **Sending is optimistic:** the client makes the message id (`newId()`),
   shows it at once ("Sending…", then the time; "Not sent · tap to retry"
   on failure) and the realtime echo is matched by id — never re-key
-  messages. Photos upload first (`<uid>/<message id>.<ext>`), then the
-  row is inserted; a failed insert removes the upload.
-- **Photos** are shown via cached signed URLs (1 h); "Save" uses
-  `expo-file-system` `File.downloadFileAsync` + `expo-media-library`
-  `Asset.create()` — **`saveToLibraryAsync` and the other legacy
-  media-library functions throw at runtime in SDK 57**, use the new API.
-  Web downloads via a signed URL with `download`. Share uses RN `Share`.
+  messages. Photos/videos upload first (`<uid>/<message id>.<ext>`), then
+  the row is inserted; a failed insert removes the uploads.
+- **Editing:** long-press your own message → "Edit message": the composer
+  shows "Editing message" with the old text, ✓ saves (`editMessage`, an
+  optimistic update that rolls back on error); the bubble's time line
+  reads "· Edited".
+- **Muting** only affects notifications (and the home badge for a muted
+  room): long-press someone's message → "Mute Sarah", or room info.
+  `notify-chat` skips anyone who muted the sender or the room.
+- **Video:** the picker takes images and videos (library or camera — the
+  camera is a file input with `capture` on the web). `uploadVideo()` in
+  `photos.ts` uploads the clip and a **poster made in the browser**
+  (`<video>` seeked to ~0.5 s → canvas → JPEG ≤ 1280 wide) as the
+  message's `image_path` + thumbnail, so everything that shows pictures
+  shows videos too. Bubbles show the poster with a play button and length;
+  the viewer plays it in a `<video controls playsInline>`. Over 50 MB is
+  refused before upload. The web picker reports duration in seconds
+  (`Infinity` for some recorded clips — treated as unknown).
+- **Photos/videos** are shown via cached signed URLs (1 h); Download is a
+  signed URL with `download`; Share is the Web Share API with the file
+  (`shareFiles()`; downloads where files can't be shared).
 - **List:** inverted `FlatList`, newest first; runs of one sender within
   5 min share one name label/avatar (`sameRun`); day dividers; older
   pages load at the top (`PAGE_SIZE` 40). The empty state lives outside
   the list (an inverted list flips `ListEmptyComponent`).
 - **Web gotcha:** RN-web `Modal` with `animationType="fade"` only unmounts
   after its CSS `animationend`; when that doesn't fire, the sheet can never
-  reopen — `MessageActions`/`PhotoViewer` use `animationType="none"` on
-  web. The composer's height ignores `onContentSizeChange` while empty
-  (RN-web reports the textarea's tall scrollHeight).
-- **Unread badge** (Oct 2 2026, `0009_chat_unread_push.sql`,
-  `src/lib/chatUnread.ts`): `chat_reads.last_read_at` per user, set when
-  the chat screen gains and loses focus; home counts others' undeleted
-  messages since then (`count: 'exact', head: true`) on focus and bumps
-  it live from a realtime INSERT subscription. Shown as a red (`danger`)
-  count badge on the Group Chat hub (`OrbitMenuItem.badge`; VoiceOver
-  label "Group Chat, N unread").
-- **Push notifications** (code + server done; delivery needs the EAS
-  build, see Conventions): `src/lib/push.ts` registers the phone's Expo
-  push token in `push_tokens` (PK user+token, own rows only) after
-  sign-in (`(app)/_layout.tsx`; native only, real devices only, and only
-  once `extra.eas.projectId` exists — until `eas init` it silently does
-  nothing), deletes it on sign-out, hides the banner for chat pushes
-  while the chat is open, and opens the chat when a notification is
-  tapped (also from a cold start). After a message saves, the sender's
-  app calls the **`notify-chat` Edge Function**
-  (`supabase/functions/notify-chat/index.ts`, deployed, `verify_jwt`):
-  it reads the message *as the caller* (RLS; only the author can trigger
-  it, only within 10 min), then with the function's built-in service role
-  reads everyone else's tokens, posts to Expo's push API in chunks of 100
-  ("Sarah · Landed at Narita!" / "📷 Photo") and prunes
-  `DeviceNotRegistered` tokens. The service role lives only inside the
-  function, never in the app. Smoke-tested live: unauthenticated calls get
-  401. `tsconfig.json` excludes `supabase/functions` (Deno code).
-- **Not built yet:** editing sent messages, multiple rooms, video,
-  per-person mute.
-- **Tests:** `e2e/chat.spec.ts` (empty state, runs/replies/reactions,
-  exact insert bodies, long-press react + reply) on the fake backend,
-  which now returns inserted rows for `.select()`, records PATCH/DELETE,
-  and closes the realtime websocket so nothing touches the live project.
+  reopen — every Modal uses `animationType="none"`. The composer's height
+  ignores `onContentSizeChange` while empty (RN-web reports the textarea's
+  tall scrollHeight).
+- **Unread:** `chat_room_reads.last_read_at` per user+room, set when a
+  room gains and loses focus; `fetchUnreadCounts()` counts others'
+  undeleted messages since then per room (`count: 'exact', head: true`).
+  The home Group Chat hub's red badge is the sum over rooms you haven't
+  muted, bumped live from a realtime INSERT subscription
+  (`OrbitMenuItem.badge`; VoiceOver label "Group Chat, N unread").
+- **Web push** (Oct 3 2026, replaced the Expo push): `public/sw.js` (no
+  caching — offline data is the app's own) shows each push as a
+  notification (silent when that room is already open and in front —
+  Safari revokes subscriptions that get pushes without a notification) and
+  on tap focuses the app and posts `{type:'open', url}` (the app routes to
+  `/chat/<room>`) or opens a window. `src/lib/push.ts`: `pushState()`
+  (`unsupported` / `install` — iPhone outside the Home Screen app, where
+  web push doesn't exist / `denied` / `off` / `on`), `enablePush()` (asks
+  permission from the tap, subscribes with the server's VAPID key,
+  saves), `disablePush()`, `syncPush()` (after sign-in: re-saves this
+  browser's subscription for whoever is signed in), `unregisterPush()` on
+  sign-out, `notifyChat(messageId)` after a send. UI:
+  `NotificationsRow` — a switch row in Profile and room info, and on the
+  room list only while it's off (with the "add Epic Asia to your Home
+  Screen first: Share → Add to Home Screen" note on iPhone, or "blocked —
+  allow in settings"). **`notify-chat` Edge Function**
+  (`supabase/functions/notify-chat/index.ts`, deployed v2, `verify_jwt`):
+  actions `key` (makes the VAPID key pair once with WebCrypto, keeps it in
+  `private.push_config` via service-role-only `push_config_save` /
+  `push_server_config`, returns the public key), `subscribe` / `unsubscribe`
+  (saved with the service role, so a browser that changes hands moves to
+  its new owner — the endpoint is a secret only that browser knows), and
+  `{message_id}`: reads the message *as the caller* (RLS; author only,
+  within 10 min), works out who can see the room minus mutes, sends
+  **RFC 8291 aes128gcm + RFC 8292 VAPID** pushes hand-rolled with WebCrypto
+  (no dependencies; the encryption was checked against the `http_ece`
+  reference library) — "Sarah · Foodies" / "Ramen at 8?" / "📷 Photo" /
+  "🎬 Video", `tag` per room — and prunes 404/410 endpoints. Unauthenticated
+  calls get 401. **Not verified end-to-end on a real phone yet** (needs the
+  Home Screen app on iOS 16.4+): first test = turn on notifications on two
+  phones, post, check the banner and the tap.
+- **Not built yet:** per-room notification sounds, message search,
+  forwarding, read receipts.
+- **Tests:** `e2e/chat.spec.ts` — room list (previews, unread per room,
+  opens a room, other rooms' messages not shown), empty room, sending
+  (exact insert with `room_id`, the `notify-chat` call, `chat_room_reads`),
+  long-press react/reply/mute, edit (exact PATCH, "· Edited", only your
+  own), **a real video** (`e2e/fixtures/clip.webm` → `.webm` + poster
+  `.jpg` + `.thumb.jpg` uploads, 320×240 row, plays), a private room with
+  someone (room + member rows, lands in it), mute a room, home badge,
+  notifications on/off with a stubbed `PushManager` (key → subscribe →
+  unsubscribe calls). The fake backend returns rows for
+  `.update().select()`, answers `notify-chat`'s `key` with a fixed key, and
+  closes the realtime websocket so nothing touches the live project.
 
-### Photos — shared gallery (built, Oct 1 2026)
+### Photos — shared gallery (built, Oct 1 2026; date taken, albums, video, bulk share Oct 3 2026)
 
-`src/lib/gallery.ts` (photos, favorites, upload/delete/caption, realtime),
-shared photo plumbing in `src/lib/photos.ts` (read bytes, **device-made
-thumbnails** via `expo-image-manipulator` — Supabase image transforms are
-a paid feature —, upload original + `.thumb.jpg`, per-bucket cached signed
-URLs, save-to-Photos / share; the chat uses it too), screen
+`src/lib/gallery.ts` (photos, favorites, albums, upload/delete/caption,
+realtime), shared photo plumbing in `src/lib/photos.ts` (read bytes,
+**thumbnails made in the browser** via `expo-image-manipulator` — Supabase
+image transforms are a paid feature —, upload original + `.thumb.jpg`,
+video upload + poster, EXIF "date taken", per-bucket cached signed URLs,
+download, Web Share; the chat uses it too), screen
 `src/app/(app)/photos/index.tsx`, viewer
-`src/components/gallery/GalleryViewer.tsx`. Menu item "Photos" (instant
-prints icon, `assets/images/menu/photos.png`).
+`src/components/gallery/GalleryViewer.tsx`, `AlbumSheet.tsx`. Menu item
+"Photos" (instant prints icon, `assets/images/menu/photos.png`).
 
 - **Schema:** `0006_shared_gallery.sql` — `gallery_photos` gained
   `bucket` ('gallery' | 'chat'), `thumb_path`, `width`/`height`,
   `message_id` (unique, `on delete cascade`), caption ≤ 1000 + an
   owner/admin update policy; `messages.image_thumb_path`;
   `photo_favorites` (PK photo+user, own insert/delete); both in realtime;
-  **the `gallery` bucket was made private** (it was public-read), uploads
-  only under `<own uid>/…`.
+  **the `gallery` bucket was made private**, uploads only under
+  `<own uid>/…`. **0015:** `taken_at` (backfilled from `created_at`, not
+  null, indexed), `video_path`, `video_duration_ms`; `photo_albums`
+  (anyone reads, creator/admin edit) + `album_photos` (anyone adds as
+  themselves; the adder, the album's creator or an admin removes).
 - **Chat → gallery is a database trigger** (`private.chat_photo_to_gallery`,
-  security invoker so RLS still applies): a photo message inserts a
-  gallery row pointing at the *same* object in the `chat` bucket (no copy);
-  soft-deleting the message removes it. Verified live in a rolled-back
-  transaction as an authenticated user. Deleting a chat-sourced photo
+  security invoker so RLS still applies): a photo or video message inserts
+  a gallery row pointing at the *same* objects in the `chat` bucket (no
+  copy, `taken_at` = when it was sent); editing the message updates the
+  caption; soft-deleting it removes the row. Deleting a chat-sourced photo
   from the gallery only removes the gallery row; gallery uploads also
-  delete their files.
-- **UX:** 3-column grid grouped by local day with sticky headers + counts;
-  filter chips (All, Favorites, Mine, From chat, one per uploader);
-  multi-select upload from the library (up to 30, 2 concurrent, progress
-  card) or the camera; long-press to enter select mode → Save all /
-  Delete (own gallery uploads only); viewer with swipe paging (arrows on
-  web), iOS pinch-zoom (`ScrollView maximumZoomScale`), thumbnail shown
-  instantly with the original fading in (`expo-image` `placeholder`),
-  byline + "From chat" tag, ♥ with count, Save, Share, Delete, editable
-  caption for your own photos. `expo-image` with `cacheKey` =
-  `bucket:path`, so photos stay cached across the hourly signed-URL
-  rotation.
+  delete their files (video too).
+- **Date taken:** `photoTakenAt()` reads EXIF DateTimeOriginal (then
+  DateTimeDigitized / DateTime) from the first 256 KB of a JPEG in the
+  browser (`exifTakenAt`, a small TIFF/IFD walker — no library), reads it
+  as the phone's local time and stores the instant; no EXIF (screenshots,
+  HEIC the browser didn't convert, videos) → the upload time. Photos sort
+  newest-taken first (`byTaken`, paging by `taken_at`) and group by that
+  local day — so trip photos (2027) sit above anything taken before.
+- **Albums:** chips after All/Favorites — **one per trip city** that has
+  photos (`cityOf()` = `stopForDay()` of the local taken day; "Tokyo",
+  "Kyoto & Nara"…), then **shared albums** (albums icon). Select photos
+  (long-press) → **Album** → pick one or name a new one (the new album
+  becomes the filter); inside an album, **Remove** takes the selection out;
+  long-press your own album's chip to delete it (the photos stay).
+- **Video:** library/camera take videos too (≤ 50 MB; bigger ones are
+  skipped with a note); uploaded like chat videos (clip + poster +
+  thumbnail); grid cells show a play badge with the length, the viewer
+  plays only the video on screen.
+- **UX:** 3-column grid grouped by day with sticky headers; filter chips
+  (All, Favorites, cities, albums, Mine, From chat, one per uploader);
+  multi-select upload (up to 30, 2 concurrent, progress card) or the
+  camera; long-press to enter select mode → **Share** (Web Share with the
+  files — on iPhone the share sheet with "Save N Items"; downloads where a
+  browser can't share files), **Download**, **Album**, Remove (in an
+  album), Delete (own gallery uploads only); viewer with swipe paging and
+  arrows, thumbnail shown instantly with the original fading in
+  (`expo-image` `placeholder`), byline + taken date + "From chat" tag, ♥
+  with count, Download, Share, Delete, editable caption for your own.
+  `expo-image` with `cacheKey` = `bucket:path`, so photos stay cached
+  across the hourly signed-URL rotation.
 - **Gotcha fixed:** the viewer asks for originals in an effect; that
   callback must be stable and `setUrls` must return `prev` when nothing
-  changed, or it's an infinite render loop (it hung the page on web).
-- **Not built yet:** "taken at" from EXIF (photos sort by upload time),
-  albums, video, bulk share.
+  changed, or it's an infinite render loop (it hung the page).
+- **Tests:** `e2e/gallery.spec.ts` — grid/filters/viewer/favourite; taken
+  order + city chips; **EXIF date taken** (`e2e/fixtures/exif.jpg`, in
+  Tokyo time → exact `taken_at`); a real video upload (three files + row,
+  plays); make an album from a selection (exact rows, becomes the filter)
+  and remove one (exact delete); share several (stubbed `navigator.share`
+  gets both files).
 
 ### Journal (built, Oct 2 2026)
 
@@ -595,27 +695,23 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
   (HIGH_QUALITY + metering, level ring), 5 min max, mic permission via
   `requestRecordingPermissionsAsync`, `setAudioModeAsync({ allowsRecording:
   true, playsInSilentMode: true })` while recording and `allowsRecording:
-  false` after (else iOS routes playback to the earpiece). Native files
-  are `.m4a` (`audio/mp4`), web `.webm`. `app.json` has the `expo-audio`
-  plugin + mic text, and expo-image-picker's `microphonePermission` is now
-  a string (it was `false`, which would strip the Info.plist key).
+  false` after. Files are `.webm` (`audio/webm`).
 - **Photo book** (`src/lib/photoBook.ts`, user picked "printable PDF"):
   8×8 in pages — cover (first photo, wordmark + seal, author, dates,
   route), a divider page per leg in its color, then each of *your own*
   entries in trip order (kicker date · city, title, story, photos as one
   big or a 2-up grid, voice-note cards), and a closing seal page. Photos
-  are embedded as data URIs (downloaded, resized to 1400px on device).
+  are embedded as data URIs (downloaded, resized to 1400px with a canvas).
   **A voice note prints as a QR code** to a signed URL valid 10 years
   for that one file (`qrcode-generator`) — anyone with the printed QR can
   play that note; that's the trade-off for a book that keeps working.
-  Native: `expo-print` `printToFileAsync` (576×576) → renamed PDF →
-  `expo-sharing` share sheet. Web: the button opens a tab synchronously
-  (popup blockers) and the book HTML is written into it and printed
-  (`expo-print`'s web `printToFileAsync` just prints the current page).
+  The button ("Open the book to print") opens a tab synchronously (popup
+  blockers) and the book HTML is written into it and printed — print, or
+  save as PDF from the print dialog.
   Colors come from theme tokens. Fonts are Google Fonts with Georgia /
   system fallbacks (offline printing falls back cleanly).
 - **Not built yet:** speech-to-text transcripts of voice notes (needs a
-  native speech module or a server), reordering media by drag, a photo
+  server), reordering media by drag, a photo
   viewer inside entries, choosing which entries go in the book.
 - **Tests:** `e2e/journal.spec.ts` — empty state, list by day + "From
   the group" tab, read-only shared entry, exact insert body for a new
@@ -632,7 +728,7 @@ components `src/components/journal/` (`JournalEditor`, `JournalReader`,
 ### Profile (built, Oct 2 2026)
 
 `src/app/(app)/profile.tsx` (opened from the home avatar): your photo
-(library, camera on native, remove), name, email, Sign out (asks first,
+(library, camera, remove), name, email, chat notifications on/off, Sign out (asks first,
 via `src/lib/confirm.ts`). Data `src/lib/profile.ts`: the photo is
 center-cropped to a 512px square JPEG on the device and uploaded to the
 private `avatars` bucket as `<uid>/<new id>.jpg` (a new name every time,
@@ -691,8 +787,8 @@ option in `app.json` — not the default `app/`). Non-route code (components,
 hooks, utils) goes in `src/components/`, `src/hooks/`, etc., alongside
 `src/app/`, never inside it.
 
-Target platform is iOS first; the web build (`npm run web`) exists for fast
-iteration and Playwright-driven visual checks, not as a shipped product.
+The product is the web build, as an installable PWA (see the top of this
+file); `npm run web` runs it locally and Playwright drives it in tests.
 
 **Backend: Supabase** (Postgres + Auth + Storage). Chosen over replicating
 reunion-app's homegrown Node+SQLite backend because this app needs
@@ -720,7 +816,9 @@ backend code.
   `0011_travel_documents.sql` (My documents columns + bucket limits — see My documents),
   `0012_map_pins.sql` (shared map pins — see Toolkit),
   `0013_games.sql` (game entries/votes + private `games` bucket — see Games),
-  `0014_game_scores.sql` (arcade runs — see Godzilla Rampage).
+  `0014_game_scores.sql` (arcade runs — see Godzilla Rampage),
+  `0015_chat_rooms_media_push.sql` (chat rooms/edits/mutes/video, web push,
+  gallery taken_at/video/albums — see Group chat and Photos).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
@@ -753,8 +851,9 @@ backend code.
   redirects to `/(auth)/login` without a session, `(auth)/_layout.tsx`
   redirects to `/(app)` with one, root `src/app/index.tsx` redirects to
   whichever applies. Client uses the **PKCE** auth flow (`flowType: 'pkce'`
-  in `src/lib/supabase.ts`), not the older implicit flow, since it's the
-  recommended choice for native apps with deep links. `is_admin` on
+  in `src/lib/supabase.ts`), not the older implicit flow; the session is
+  never read from the URL automatically (`detectSessionInUrl: false`) —
+  `reset-password.tsx` exchanges the `?code=` itself. `is_admin` on
   `profiles` plus the `protect_is_admin` trigger is the `checkAdmin()`
   equivalent — a non-admin can never set `is_admin` on any row (including
   their own) via a client update, only an existing admin can, and only
@@ -794,10 +893,11 @@ backend code.
   logs had `redirect_to=http://localhost:3000` (Supabase's default Site
   URL). Sign-up now sends `emailRedirectTo: <site>/login?confirmed=1`
   (login shows "Your email is confirmed"), forgot-password
-  `authReturnUrl('/reset-password')` (site on web, `epicasia://` natively).
+  `authReturnUrl('/reset-password')` (the public site).
   **Supabase must allow-list them** (Authentication → URL Configuration:
-  Site URL `https://epicasia.vercel.app`, Redirect URLs
-  `https://epicasia.vercel.app/**` and `epicasia://**`) — otherwise it
+  Site URL `https://epicasia.vercel.app`, Redirect URL
+  `https://epicasia.vercel.app/**`; an `epicasia://**` entry from the
+  native days is harmless) — otherwise it
   silently falls back to the Site URL. **Done by the user Oct 3 2026.** Tests in `invites.spec.ts` pin the
   shared link and the sign-up `redirect_to`.
   Tests: `e2e/invites.spec.ts` + axe audits of the invite and register
@@ -816,16 +916,15 @@ backend code.
   0 rows). forgot-password's request screen also reaches Supabase for real
   (hit its email rate limit on a second send — a real 429, correctly
   displayed, not a bug).
-  **`src/app/reset-password.tsx` (the deep-link landing page after clicking
-  a password-reset email) is still NOT end-to-end verified** — that
-  specifically needs a real device receiving a real email and tapping the
-  link to open the app via its `epicasia://` scheme, which no amount of
-  server-side SQL simulation substitutes for. It's written against the PKCE
-  `?code=` param shape and calls `exchangeCodeForSession` — reasoned through
-  carefully, and consistent with how the rest of the now-verified PKCE flow
-  behaves, but unconfirmed for this one specific screen. If it doesn't work
-  when actually tested, start by logging the incoming URL from
-  `Linking.useURL()` to see its real shape.
+  **`src/app/reset-password.tsx` (the landing page after clicking a
+  password-reset email) is still NOT end-to-end verified** — that needs a
+  real email and a tap on the link (it lands on the public site's
+  `/reset-password?code=…`), which no amount of server-side SQL simulation
+  substitutes for. It reads `?code=` with `useLocalSearchParams` and calls
+  `exchangeCodeForSession` — reasoned through carefully, and consistent with
+  how the rest of the now-verified PKCE flow behaves, but unconfirmed for
+  this one screen. If it doesn't work when actually tested, start by
+  logging `window.location.href` to see its real shape.
 - New tables beyond `profiles` (itinerary_items, flights, lodging, messages,
   expenses/expense_shares, gallery_photos, packing_items, documents,
   journal_entries) all follow one of two shapes: **shared** (any
@@ -1062,13 +1161,10 @@ has them).
     (`glow` value).
   - **Feedback** (`src/lib/feedback.ts`): every step, in either direction,
     = click sound + haptic tick; opening = firmer tap + "tock". Kept
-    deliberately quiet (the user asked for a softer click): native
-    volume 0.35/0.4, web peak gain ~0.05. Sounds:
-    native `src/lib/sound.ts` plays `assets/sounds/tick.wav`/`confirm.wav`
-    (generated for this app) via `expo-audio`, respecting the silent switch
-    and mixing with music; web `sound.web.ts` synthesizes the same sounds
-    with Web Audio (unlocked on first tap). Haptics `src/lib/haptics.ts`:
-    `expo-haptics` natively; on web the Vibration API or, on iOS Safari
+    deliberately quiet (the user asked for a softer click): peak gain
+    ~0.05. `src/lib/sound.ts` synthesizes them with Web Audio (unlocked on
+    first tap; the old native .wav files were removed). Haptics
+    `src/lib/haptics.ts`: the Vibration API or, on iOS Safari
     18+, a hidden `<input type="checkbox" switch>` click (needs a user
     gesture, hence ticks fire from the rotation listener inside the drag's
     touch handler, not from an effect).
@@ -1113,8 +1209,8 @@ accessibility mode.
 Playwright (`e2e/`, config in `playwright.config.ts`) drives the **web**
 build as a fast smoke test for layout/logic — it uses Chromium with an
 iPhone 14 viewport, not WebKit, so it is not a Safari-fidelity check. Real
-iOS behavior (gestures, haptics, native modules) must be verified in Expo
-Go or the iOS Simulator/a real device, not this suite.
+iPhone behavior (Safari gestures, haptics, web push, the share sheet,
+Home Screen install) must be checked on a phone.
 
 Run:
 ```bash
@@ -1230,33 +1326,11 @@ playwright test` here with an "Executable doesn't exist" error.
 
 ## Conventions
 
-- No native `ios/`/`android/` dirs are committed (Continuous Native
-  Generation) — configure native behavior via `app.json` and config plugins
-  only.
-- `EAS` (not local Xcode/Android Studio) is the build path. **Configured
-  Oct 2 2026, not yet run** (the user has no Expo or Apple Developer
-  account yet): `eas.json` (profiles `development` with `expo-dev-client`,
-  `preview` internal, `production` with `autoIncrement`; `cli.
-  appVersionSource: remote`; each profile names its EAS `environment`, which
-  must hold `EXPO_PUBLIC_SUPABASE_URL`/`_ANON_KEY`), `app.json`
-  `ios.infoPlist.ITSAppUsesNonExemptEncryption: false`, the
-  `expo-splash-screen` plugin (paper background + the planet art),
-  `expo-notifications`, and `expo-audio` with background playback/recording
-  **off** (it defaulted to an `audio` UIBackgroundModes entry the app
-  doesn't need). Verified by `expo prebuild --platform ios` in a scratch
-  copy: Info.plist has every permission string, the export flag, no
-  background modes; entitlements have `aps-environment`. **App icon** is
-  now real (`assets/icon.png`, composed from the intro art: planet +
-  castle + torii + Kinkaku-ji + the plane, sky-to-paper background; the
-  Expo placeholder is gone), plus matching splash, Android adaptive
-  foreground/monochrome and favicon. **The user's step-by-step guide is
-  `docs/iphone-build.md`** (Apple Developer $99/yr, Expo account, `eas
-  init` → commit projectId, `eas env:create`, `eas build`, `eas submit`,
-  TestFlight external group + public link, Supabase redirect
-  `epicasia://**`, on-device checklist). **TestFlight builds expire after
-  90 days — rebuild in Apr–May 2027 before the June trip.** If an
-  `EXPO_TOKEN` secret is ever added to the environment, `eas` can run from
-  here.
+- **Web only (PWA).** No `ios/`/`android/`, no EAS, no native modules —
+  before adding a package, check it works in the browser (react-native-web)
+  and that the browser can't already do the job. `app.json` only configures
+  Expo Router and web. The Expo/EAS guidance in AGENTS.md about native
+  builds doesn't apply here.
 
 ## Web deploy (Vercel)
 
@@ -1290,17 +1364,16 @@ blurred copy of the art showed a ghost planet), `manifest.webmanifest`
 favicon (`assets/favicon.png`, 48px of the same art). Chromium reports the
 manifest error-free. Vercel serves real files before its SPA rewrite, so
 the rewrite doesn't swallow them. `e2e/pwa.spec.ts` checks the links and
-that every icon is served. The **native** app icon (`assets/icon.png`) is
-still the older composed planet; the user hasn't asked to change it.
+that every icon is served. (The native app icons were removed with the
+move to PWA-only.)
 
 ## Sign-in persistence ("Keep me signed in for 30 days")
 
 `src/lib/rememberMe.ts`, checked once at startup in `AuthProvider`. Login
 has a checkbox, on by default. Checked: session kept 30 days
 (`epicasia.rememberUntil`) and the email is pre-filled next time. Unchecked:
-signed out when the app is closed (native: module flag reset on cold start;
-web: a `sessionStorage` marker, so a reload keeps you in but a new tab or
-browser restart doesn't). Sessions from before this feature get a fresh 30
+signed out when the app is closed (a `sessionStorage` marker, so a reload
+keeps you in but a new tab or browser restart doesn't). Sessions from before this feature get a fresh 30
 days rather than a sign-out. Passwords are never stored by the app: the
 email field is `textContentType`/`autoComplete` = `username` and the
 password field `password`, so iCloud Keychain and browser password managers

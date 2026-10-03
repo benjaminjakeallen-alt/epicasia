@@ -1,11 +1,10 @@
 import { Stack, useRouter } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import GameFrame from '../../../../components/games/GameFrame';
 import RAMPAGE_HTML from '../../../../games/rampage/html';
 import { useAuth } from '../../../../lib/AuthProvider';
-import { gameHaptic } from '../../../../lib/haptics';
+import { selectionTick } from '../../../../lib/haptics';
 import { peek } from '../../../../lib/offline';
 import { localBest, parseRun, saveRun, type ScoreRow } from '../../../../lib/rampage';
 import { useTheme } from '../../../../theme/useTheme';
@@ -43,7 +42,7 @@ export default function RampagePlay() {
         const run = parseRun(msg);
         if (run && userId) saveRun(userId, run).catch(() => {});
       } else if (msg.type === 'haptic') {
-        gameHaptic(msg.kind);
+        selectionTick();
       }
     },
     [router, userId],
@@ -53,7 +52,6 @@ export default function RampagePlay() {
     <View style={[styles.screen, { backgroundColor: colors.arcade }]}>
       {/* Horizontal swipes are the game's: no swipe-back mid-jump. */}
       <Stack.Screen options={{ gestureEnabled: false, animation: 'fade' }} />
-      <StatusBar style="light" />
       {html ? <GameFrame html={html} title="Godzilla Rampage" onMessage={onMessage} /> : null}
     </View>
   );
