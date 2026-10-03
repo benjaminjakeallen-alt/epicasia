@@ -156,7 +156,9 @@ their "Asia Disney Adventure" artifact
 Tokyo → Kyoto/Nara → Beijing → Shanghai → Hong Kong, now June 6–20, 2027 —
 moved a day later and Tokyo reordered Oct 3 2026: arrive Jun 7, city day 8,
 DisneySea 9, Disneyland 10, 7am bullet train to Kyoto Jun 11 for one night,
-fly Kansai → Beijing Jun 12) is
+fly Kansai → Beijing Jun 12; then Beijing 12–15, Shanghai 15–18 with
+Shanghai Disneyland on the 16th, Hong Kong 18–20 with HK Disneyland on the
+19th and Big Buddha + fly home on the 20th) is
 in `itinerary_items` as **unowned plan rows** (`created_by` null), via
 `supabase/seed/asia-disney-adventure.sql` (idempotent — skips existing
 day+title pairs; source data in the `.json` beside it). Migration 0004 made
@@ -165,7 +167,13 @@ change: everyone reads them, only admins can edit/delete them, and the app
 shows no trash icon on them. If the artifact changes, update the JSON +
 SQL and re-run rather than retyping entries through the form (existing
 rows with a changed title won't be touched — delete/update those
-explicitly).
+explicitly). **When the trip dates move, update everything that holds
+them:** `STOPS` + `TRIP_LAST_DAY` (`places.ts`), `TRIP.dates` (`trip.ts`),
+Arrivals country dates, `introPrefs` first day, journal `TRIP_DAYS`, the
+invite message, the home Itinerary caption, Yuki's `SYSTEM` prompt + the
+`2027-06-20` in `get_photos`, then `npm run build:yuki` **and redeploy the
+`yuki` function** (the Oct 3 move had left the deployed copy on the old
+dates until it was redeployed as v4).
 
 ### Arrivals (built, Oct 2 2026) — replaced the Flights menu item
 
@@ -764,7 +772,7 @@ shouldn't be a text interface and a separate page. It should be activated
 by a user saying 'Hey Yuki' … and Yuki speaks back. There should be a
 glowing cherry blossom while she speaks"; the old text screen was deleted).
 She can read **everything in the app the traveler can see**.
-- **Server:** `supabase/functions/yuki` (deployed v2, `verify_jwt`).
+- **Server:** `supabase/functions/yuki` (deployed v4 with the Jun 6–20 dates, `verify_jwt`).
   Claude via `@anthropic-ai/sdk`, a manual tool loop (≤ 6 rounds), effort
   low, the server-side fallback beta. Tools read **as the caller** (RLS):
   itinerary, flights, trip guide (bundled), map pins, chat search (by
@@ -1208,7 +1216,7 @@ has them).
   `src/lib/introPrefs.ts` decides per cold open: **full** the first time
   ever, after each app update (`expo.version` differs from the stored
   `epicasia.introSeenVersion`) and once on the trip's first day
-  (2027-06-05); **short** otherwise; **none** when `epicasia.introSkip`
+  (2027-06-06); **short** otherwise; **none** when `epicasia.introSkip`
   is set (the accessibility mode). The root layout keeps the splash up
   until both fonts and the mode are known. The short variant
   (`<LaunchSequence variant="short">`, `SHORT_MS` 1500): the world
