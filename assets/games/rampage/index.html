@@ -16,17 +16,28 @@
   #stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
   canvas { display: block; position: absolute; }
   #pad {
-    /* Two clusters only: a d-pad disc on the left, Swing + Jump in an arc on
-       the right (pause lives in the screen's top-right corner). --u is one
-       d-pad key, sized from the width: fits a 375pt phone up to a foldable. */
+    /* Two clusters only: the joystick on the left, Swing + Jump in an arc on
+       the right (pause lives in the screen's top-right corner). --u is the
+       control unit, sized from the width: fits a 375pt phone up to a foldable. */
     --u: clamp(48px, calc((100vw - 60px) / 6.4), 68px);
     flex: 0 0 auto; box-sizing: border-box; padding: 12px 16px 14px;
     display: flex; align-items: center; justify-content: space-between;
     background: linear-gradient(#241a52, #0e0a24); border-top: 1px solid rgba(255,255,255,0.12);
   }
-  .dpad { display: grid; grid-template-columns: repeat(3, var(--u)); grid-template-rows: repeat(3, var(--u)); gap: 2px; padding: 8px; border-radius: 50%;
-    background: radial-gradient(circle, rgba(255,255,255,0.10) 0 58%, rgba(255,255,255,0.04) 70%); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }
-  .dpad .btn { border-radius: 14px; font-size: 18px; }
+  /* Joystick: a sunken base with faint direction marks and a raised knob
+     that follows the thumb (game.js moves it with a transform). */
+  .stick { position: relative; flex: 0 0 auto; width: calc(var(--u) * 3 + 18px); height: calc(var(--u) * 3 + 18px); border-radius: 50%; touch-action: none;
+    background: radial-gradient(circle, rgba(10,6,30,0.55) 0 55%, rgba(255,255,255,0.06) 72%, rgba(255,255,255,0.02));
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.14), inset 0 8px 18px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.08); }
+  .stick .mark { position: absolute; color: rgba(255,255,255,0.3); font-size: 15px; line-height: 1; pointer-events: none; transition: color 0.1s; }
+  .stick .mu { top: 9px; left: 50%; transform: translateX(-50%); } .stick .md { bottom: 9px; left: 50%; transform: translateX(-50%); }
+  .stick .ml { left: 10px; top: 50%; transform: translateY(-50%); } .stick .mr { right: 10px; top: 50%; transform: translateY(-50%); }
+  .stick[data-dir~="U"] .mu, .stick[data-dir~="D"] .md, .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr { color: #ffd43b; }
+  .knob { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 1.4); height: calc(var(--u) * 1.4); margin: calc(var(--u) * -0.7) 0 0 calc(var(--u) * -0.7);
+    border-radius: 50%; pointer-events: none; transition: transform 0.14s cubic-bezier(.3,1.6,.5,1);
+    background: radial-gradient(circle at 36% 30%, #9a8cff, #5b4ccf 55%, #3a2d99);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), inset 0 -4px 8px rgba(0,0,0,0.25), 0 6px 0 #1c1550, 0 10px 16px rgba(0,0,0,0.45); }
+  .stick.on .knob { transition: none; background: radial-gradient(circle at 36% 30%, #b0a4ff, #6a5ae0 55%, #4a3cb8); }
   .btn {
     border: 0; border-radius: 16px; background: linear-gradient(#5b4ccf, #3a2d99); color: #fff;
     font: 800 15px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -35,7 +46,6 @@
   }
   .btn.on { background: linear-gradient(#7464e6, #4a3cb8); transform: translateY(2px); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 2px 0 #1c1550; }
   .btn:focus-visible { outline: 3px solid #ffd43b; }
-  .u { grid-column: 2; grid-row: 1; } .l { grid-column: 1; grid-row: 2; } .r { grid-column: 3; grid-row: 2; } .d { grid-column: 2; grid-row: 3; }
   #pausebtn { position: absolute; z-index: 4; width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
     color: #fff; font: 900 15px system-ui, sans-serif; letter-spacing: -1px;
     background: rgba(20,12,40,0.62); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.35); }
@@ -55,7 +65,6 @@
     background: linear-gradient(#5fd38a, #2f9e44); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #1d6b2d; }
   #pause button.alt { background: linear-gradient(#5b4ccf, #3a2d99); box-shadow: inset 0 3px 0 rgba(255,255,255,0.28), 0 5px 0 #1c1550; }
   #pause button.quit { margin-top: 10px; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238; }
-  .dpad { touch-action: none; }
   #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 14%; gap: 12px; }
   #over.show { display: flex; }
   #over button { font: 900 16px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #fff; background: linear-gradient(#ff5c8a, #d6336c); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238, 0 8px 18px rgba(0,0,0,0.45); }
@@ -81,11 +90,10 @@
   </div>
 </div>
 <div id="pad">
-  <div class="dpad">
-    <button class="btn u" data-k="U" aria-label="Climb up" type="button">▲</button>
-    <button class="btn l" data-k="L" aria-label="Move left" type="button">◀</button>
-    <button class="btn r" data-k="R" aria-label="Move right" type="button">▶</button>
-    <button class="btn d" data-k="D" aria-label="Climb down" type="button">▼</button>
+  <div class="stick" role="img" aria-label="Joystick: drag to walk and climb ladders (arrow keys work too)">
+    <span class="mark mu" aria-hidden="true">▲</span><span class="mark md" aria-hidden="true">▼</span>
+    <span class="mark ml" aria-hidden="true">◀</span><span class="mark mr" aria-hidden="true">▶</span>
+    <div class="knob"></div>
   </div>
   <div class="acts">
     <button class="btn atk" id="atk" data-k="A" aria-label="Swing your power-up" type="button">SWING</button>

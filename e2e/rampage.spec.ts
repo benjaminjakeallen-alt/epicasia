@@ -58,6 +58,17 @@ async function game(page: Page): Promise<Frame> {
   return frame!;
 }
 
+/** A point on the joystick pushed toward a direction ('U' | 'D' | 'L' | 'R', or a diagonal like 'UR'), in page coordinates. */
+async function stickPoint(page: Page, dir: string) {
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  const b = (await ui.getByRole('img', { name: /Joystick/ }).boundingBox())!;
+  const r = b.width * 0.36;
+  const dx = (dir.includes('R') ? 1 : 0) - (dir.includes('L') ? 1 : 0);
+  const dy = (dir.includes('D') ? 1 : 0) - (dir.includes('U') ? 1 : 0);
+  const n = Math.hypot(dx, dy) || 1;
+  return { x: b.x + b.width / 2 + (dx / n) * r, y: b.y + b.height / 2 + (dy / n) * r };
+}
+
 const state = (f: Frame) =>
   f.evaluate(() => {
     const r = (window as any).__rampage;
@@ -103,11 +114,11 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   await expect.poll(async () => (await state(f)).mode).toBe('play');
   expect(box.width).toBeGreaterThan(300);
 
-  // The on-screen pad moves her right (a real press on the d-pad zone).
+  // The joystick moves her right (a real press pushed right on the stick).
   await f.evaluate(() => (window as any).__rampage.debug.calm());
   const x0 = (await state(f)).player.x;
-  const rb = (await ui.getByRole('button', { name: 'Move right' }).boundingBox())!;
-  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  const rb = await stickPoint(page, 'R');
+  await page.mouse.move(rb.x, rb.y);
   await page.mouse.down();
   await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(x0 + 5);
   await page.mouse.up();
@@ -135,7 +146,7 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   await ui.getByRole('button', { name: 'CHANGE HERO' }).click();
   await expect.poll(async () => (await state(f)).mode).toBe('select');
 
-  // Leaving is behind the pause menu (no accidental exits next to the d-pad).
+  // Leaving is behind the pause menu (no accidental exits next to the joystick).
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
   await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15000 });
@@ -203,7 +214,7 @@ test('every level can be climbed: a safe ladder up from each girder, none into G
   await page.keyboard.up('ArrowUp');
 });
 
-test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({ page }) => {
+test('controls: forgiving ladders, sweep the joystick, pause menu', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/rampage');
   await page.getByTestId('rampage-play').click();
@@ -215,16 +226,16 @@ test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({
   await f.evaluate(() => { const d = (window as any).__rampage.debug; d.calm(); d.place(143, 0); });
 
   // Up from 7 units beside the ladder (at x 150) grabs it, snaps on and climbs to the next girder.
-  const up = (await ui.getByRole('button', { name: 'Climb up' }).boundingBox())!;
-  const left = (await ui.getByRole('button', { name: 'Move left' }).boundingBox())!;
-  await page.mouse.move(up.x + up.width / 2, up.y + up.height / 2);
+  const up = await stickPoint(page, 'U');
+  const left = await stickPoint(page, 'L');
+  await page.mouse.move(up.x, up.y);
   await page.mouse.down();
   await expect.poll(async () => (await state(f)).player.st).toBe('climb');
   expect((await state(f)).player.x).toBe(150);
   await expect.poll(async () => (await state(f)).player.g, { timeout: 15000 }).toBe(1);
-  // Slide the same finger onto ← without lifting: she walks left.
+  // Sweep the same thumb round to the left without lifting: she walks left.
   const x1 = (await state(f)).player.x;
-  await page.mouse.move(left.x + left.width / 2, left.y + left.height / 2, { steps: 4 });
+  await page.mouse.move(left.x, left.y, { steps: 4 });
   await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeLessThan(x1 - 4);
   await page.mouse.up();
 
@@ -237,7 +248,7 @@ test('controls: forgiving ladders, slide across the d-pad, pause menu', async ({
   expect((await state(f)).mode).toBe('play');
 });
 
-test('the d-pad never sticks: a lost release is overridden by the next touch', async ({ page }) => {
+test('the joystick never sticks: a lost release is overridden by the next touch', async ({ page }) => {
   // User, Oct 3 2026: on level 4 "my character was stuck walking against side".
   // A thumb sliding off the screen edge can lose its pointerup; the pad then
   // ignored every new touch and kept walking left into the wall.
@@ -250,19 +261,20 @@ test('the d-pad never sticks: a lost release is overridden by the next touch', a
   await expect.poll(async () => (await state(f)).mode).toBe('play');
   await f.evaluate(() => { const d = (window as any).__rampage.debug; d.setLevel(4); d.calm(); d.place(30, 0); });
 
-  const press = (name: string, id: number) =>
-    f.evaluate(([label, pid]) => {
-      const b = document.querySelector(`[aria-label="${label}"]`)!.getBoundingClientRect();
-      const pad = document.querySelector('.dpad')!;
-      pad.dispatchEvent(new PointerEvent('pointerdown', { pointerId: pid as number, clientX: b.x + b.width / 2, clientY: b.y + b.height / 2, bubbles: true, cancelable: true }));
-    }, [name, id] as const);
+  const press = (dir: 'L' | 'R', id: number) =>
+    f.evaluate(([d, pid]) => {
+      const stick = document.querySelector('.stick')!;
+      const b = stick.getBoundingClientRect();
+      const x = b.x + b.width / 2 + (d === 'L' ? -1 : 1) * b.width * 0.36;
+      stick.dispatchEvent(new PointerEvent('pointerdown', { pointerId: pid as number, clientX: x, clientY: b.y + b.height / 2, bubbles: true, cancelable: true }));
+    }, [dir, id] as const);
 
-  await press('Move left', 7); // ...and its release never arrives
+  await press('L', 7); // ...and its release never arrives
   await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBe(4);
   // Against the wall she stands rather than walking on the spot.
   await expect.poll(async () => (await state(f)).player.vx).toBe(0);
   // A new touch takes over at once.
-  await press('Move right', 8);
+  await press('R', 8);
   await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(12);
   // Lifting every finger lets go of everything.
   await f.evaluate(() => document.dispatchEvent(new TouchEvent('touchend', { touches: [], bubbles: true })));

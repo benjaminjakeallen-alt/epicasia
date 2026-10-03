@@ -398,24 +398,30 @@ city) — then they loop harder (`1.15^round`).
   queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
   so a run finished offline goes up on the next save or board visit.
 - **Controls (user feedback Oct 3 2026: "a little tough", "easier to climb
-  ladders", the ✕ "too close to the directional button"):** the d-pad is
-  one touch zone (direction from the thumb's position, slide between arrows,
-  diagonals count); ladders grab within `LADDER_REACH` 9 of their centre
+  ladders", the ✕ "too close to the directional button"):** a **joystick**
+  on the left (user, Oct 3 2026: "let's do a joystick control instead of
+  directional pad" — the d-pad is gone): a sunken base with faint ▲▼◀▶
+  marks and a raised knob that follows the thumb, clamped to the rim, and
+  springs back on release; direction from the knob's offset (dead zone 0.3
+  of the throw, diagonals count — up-right onto a ladder), the matching
+  marks light gold (`data-dir`). It's one `role="img"` element labelled
+  "Joystick: drag to walk and climb ladders (arrow keys work too)"; keys
+  remain for keyboards. Ladders grab within `LADDER_REACH` 9 of their centre
   and snap on, climb faster (`CLIMB` 52), and you can step off sideways near
   either end; jump buffering (`JUMP_BUFFER` 0.14 s) and coyote time (0.1 s);
   a little air steering. **Leaving is behind a pause menu** (❚❚ in the top-
   right corner of the playfield — the HUD bar leaves room for it — or
-  Escape/P): Resume, Sound, Leave game. The pad is only two clusters (user:
-  "controls are still spaced a bit odd"): a d-pad disc on the left, Swing +
-  Jump in an arc on the right; sound lives in the pause menu.
+  Escape/P): Resume, Sound, Leave game. The pad is only two clusters: the
+  joystick on the left, Swing + Jump in an arc on the right; sound lives in
+  the pause menu. Specs press the stick with `stickPoint(page, 'UR')`.
   **Controls can never stick** (user, Oct 3 2026: on level 4 "my
   character was stuck walking against side" — a thumb sliding off the
   screen edge lost its pointerup and the pad then ignored every new touch):
-  a new touch on the pad always takes over, a release anywhere counts,
+  a new touch on the stick always takes over, a release anywhere counts,
   lifting every finger (`touchend` with no touches), blur and hiding the
   page release everything (`releaseAll`), and against the side wall the
   hero stands instead of walking on the spot. Tested in `rampage.spec.ts`
-  ("the d-pad never sticks").
+  ("the joystick never sticks").
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
   `screenPoint(x, y)` (logical → client px) and `menu` for tests; in
   development `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
@@ -451,8 +457,8 @@ city) — then they loop harder (`1.15^round`).
   WebGL on, pick Shea by tapping, pad + keyboard move, power-up lights
   SWING, game over → exact `game_scores` insert, TRY AGAIN/CHANGE HERO, ✕
   back to the board with the new best, no page errors; offline run saved
-  on the next visit; forgiving ladder grab, sliding across the d-pad, pause
-  menu — run serially with a 2-minute budget and no screenshots, since
+  on the next visit; forgiving ladder grab, sweeping the joystick, pause
+  menu, a lost release never sticks — run serially with a 2-minute budget and no screenshots, since
   software 3D is slow on CI runners) + axe audits of the board and the game (inside the
   frame, all buttons ≥ 44). The fake backend's session init script skips
   iframes.

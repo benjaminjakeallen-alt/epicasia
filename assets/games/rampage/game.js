@@ -211,42 +211,52 @@ window.addEventListener('keydown', function (e) {
   if (!e.repeat) press(k);
 });
 window.addEventListener('keyup', function (e) { let k = KEYMAP[e.key]; if (k) release(k); });
-// The d-pad is one touch zone: the direction comes from where the thumb is
-// relative to its centre, so sliding between arrows (and diagonals, e.g.
-// up-right onto a ladder) works without lifting.
-const dpad = document.querySelector('.dpad');
-const dpadBtns = {};
-Array.prototype.forEach.call(dpad.querySelectorAll('[data-k]'), function (b) { dpadBtns[b.getAttribute('data-k')] = b; });
-let dpadId = null;
-function dpadSet(dirs) {
+// The joystick (user, Oct 3 2026: "let's do a joystick control instead of
+// directional pad"): put a thumb anywhere on the base and the knob follows
+// it, clamped to the rim; the direction comes from the knob's offset, with
+// a small dead zone in the middle and diagonals (up-right onto a ladder).
+// Letting go springs the knob back to the centre.
+const stick = document.querySelector('.stick');
+const knob = stick.querySelector('.knob');
+let stickId = null;
+function stickSet(dirs, kx, ky) {
+  let on = [];
   ['U', 'D', 'L', 'R'].forEach(function (k) {
-    if (dirs[k]) press(k); else if (held[k]) release(k);
-    dpadBtns[k].classList.toggle('on', !!dirs[k]);
+    if (dirs[k]) { press(k); on.push(k); } else if (held[k]) release(k);
   });
+  knob.style.transform = 'translate(' + (kx || 0) + 'px,' + (ky || 0) + 'px)';
+  stick.classList.toggle('on', stickId !== null);
+  stick.setAttribute('data-dir', on.join(' '));
 }
-function dpadRead(e) {
-  const r = dpad.getBoundingClientRect();
-  const nx = (e.clientX - (r.left + r.width / 2)) / (r.width / 2), ny = (e.clientY - (r.top + r.height / 2)) / (r.height / 2);
-  const ax = Math.abs(nx), ay = Math.abs(ny);
+function stickRead(e) {
+  const r = stick.getBoundingClientRect();
+  const R = Math.max(1, r.width / 2 - knob.offsetWidth / 2);
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy);
+  if (d > R) { dx *= R / d; dy *= R / d; }
+  const nx = dx / R, ny = dy / R, ax = Math.abs(nx), ay = Math.abs(ny);
   return {
-    L: nx < -0.3 && ax > ay * 0.45, R: nx > 0.3 && ax > ay * 0.45,
-    U: ny < -0.3 && ay > ax * 0.45, D: ny > 0.3 && ay > ax * 0.45
+    dirs: {
+      L: nx < -0.3 && ax > ay * 0.45, R: nx > 0.3 && ax > ay * 0.45,
+      U: ny < -0.3 && ay > ax * 0.45, D: ny > 0.3 && ay > ax * 0.45
+    },
+    kx: dx, ky: dy
   };
 }
-dpad.addEventListener('pointerdown', function (e) {
+stick.addEventListener('pointerdown', function (e) {
   e.preventDefault();
-  // A new thumb on the pad always takes over: if the last touch's "up" got
-  // lost (a thumb sliding off the screen edge, a system gesture), the pad
+  // A new thumb on the stick always takes over: if the last touch's "up" got
+  // lost (a thumb sliding off the screen edge, a system gesture), the stick
   // must never stay stuck holding a direction.
-  dpadId = e.pointerId;
-  try { dpad.setPointerCapture(e.pointerId); } catch { /* ok */ }
-  dpadSet(dpadRead(e));
+  stickId = e.pointerId;
+  try { stick.setPointerCapture(e.pointerId); } catch { /* ok */ }
+  const s = stickRead(e); stickSet(s.dirs, s.kx, s.ky);
 });
-dpad.addEventListener('pointermove', function (e) { if (e.pointerId === dpadId) dpadSet(dpadRead(e)); });
-function dpadUp(e) { if (e.pointerId === dpadId) { dpadId = null; dpadSet({}); } }
-dpad.addEventListener('pointerup', dpadUp);
-dpad.addEventListener('pointercancel', dpadUp);
-dpad.addEventListener('lostpointercapture', dpadUp);
+stick.addEventListener('pointermove', function (e) { if (e.pointerId === stickId) { const s = stickRead(e); stickSet(s.dirs, s.kx, s.ky); } });
+function stickUp(e) { if (e.pointerId === stickId) { stickId = null; stickSet({}); } }
+stick.addEventListener('pointerup', stickUp);
+stick.addEventListener('pointercancel', stickUp);
+stick.addEventListener('lostpointercapture', stickUp);
 let ptrKey = {};
 Array.prototype.forEach.call(document.querySelectorAll('.acts [data-k]'), function (b) {
   let k = b.getAttribute('data-k');
@@ -257,10 +267,10 @@ Array.prototype.forEach.call(document.querySelectorAll('.acts [data-k]'), functi
 // Belt and braces against stuck controls: a release anywhere counts, and
 // when no finger is left on the screen (or the game loses focus) every
 // control lets go.
-window.addEventListener('pointerup', dpadUp, true);
-window.addEventListener('pointercancel', dpadUp, true);
+window.addEventListener('pointerup', stickUp, true);
+window.addEventListener('pointercancel', stickUp, true);
 function releaseAll() {
-  dpadId = null; dpadSet({});
+  stickId = null; stickSet({});
   Object.keys(ptrKey).forEach(function (id) { release(ptrKey[id]); delete ptrKey[id]; });
   document.querySelectorAll('.acts [data-k].on').forEach(function (b) { b.classList.remove('on'); });
   Object.keys(held).forEach(release);
@@ -274,7 +284,7 @@ window.addEventListener('blur', releaseAll);
 const pauseEl = document.getElementById('pause');
 function setMenu(on) {
   S.menu = on; pauseEl.classList.toggle('show', on);
-  if (on) { dpadSet({}); document.getElementById('resume').focus(); }
+  if (on) { stickSet({}); document.getElementById('resume').focus(); }
 }
 document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
 document.getElementById('resume').addEventListener('click', function () { setMenu(false); });
