@@ -10,11 +10,14 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { confirmTap } from '../../lib/haptics';
 import { formatDuration } from '../../lib/journal';
+import { startTranscriber, type Transcriber } from '../../lib/transcribe';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
 // Records one voice note. Tap the big button to start, tap again to stop;
-// the finished file is handed to `onDone`. Five minutes max per note.
+// the finished file is handed to `onDone`, with what was said written down
+// as it's spoken (the browser's speech recognition, where it has one).
+// Five minutes max per note.
 
 const MAX_MS = 5 * 60 * 1000;
 const PRESET = { ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true };
@@ -23,7 +26,7 @@ export default function VoiceRecorder({
   onDone,
   onCancel,
 }: {
-  onDone: (note: { uri: string; durationMs: number; mimeType: string | null }) => void;
+  onDone: (note: { uri: string; durationMs: number; mimeType: string | null; transcript: string }) => void;
   onCancel: () => void;
 }) {
   const recorder = useAudioRecorder(PRESET);
@@ -32,6 +35,8 @@ export default function VoiceRecorder({
   const [starting, setStarting] = useState(false);
   const level = useRef(new Animated.Value(0)).current;
   const stopping = useRef(false);
+  const transcriber = useRef<Transcriber | null>(null);
+  const [heard, setHeard] = useState('');
 
   // Live input level (dBFS, about -60 … 0) → 0 … 1 for the ring.
   useEffect(() => {
@@ -49,6 +54,7 @@ export default function VoiceRecorder({
   useEffect(
     () => () => {
       if (recorder.isRecording) recorder.stop().catch(() => {});
+      transcriber.current?.stop();
       setAudioModeAsync({ allowsRecording: false }).catch(() => {});
     },
     [recorder],
@@ -66,6 +72,8 @@ export default function VoiceRecorder({
       await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
+      setHeard('');
+      transcriber.current = startTranscriber(setHeard);
       confirmTap();
       AccessibilityInfo.announceForAccessibility('Recording');
     } catch (e) {
@@ -81,11 +89,13 @@ export default function VoiceRecorder({
     const durationMs = state.durationMillis;
     try {
       await recorder.stop();
+      const transcript = transcriber.current?.stop() ?? '';
+      transcriber.current = null;
       await setAudioModeAsync({ allowsRecording: false });
       confirmTap();
       const uri = recorder.uri;
       if (uri && durationMs > 300) {
-        onDone({ uri, durationMs, mimeType: 'audio/webm' });
+        onDone({ uri, durationMs, mimeType: 'audio/webm', transcript });
       } else {
         setError('That was too short to keep. Hold on a moment longer.');
       }
@@ -130,6 +140,11 @@ export default function VoiceRecorder({
       <Text style={[type.body, styles.hint, { color: c.inkSecondary }]}>
         {recording ? 'Tap to finish' : 'Tap to record a memory'}
       </Text>
+      {recording && heard ? (
+        <Text style={[type.body, styles.heard, { color: c.ink }]} numberOfLines={4} testID="live-transcript">
+          “{heard}”
+        </Text>
+      ) : null}
       {error ? <Text style={[type.body, styles.error, { color: c.danger }]}>{error}</Text> : null}
       {!recording ? (
         <Pressable accessibilityRole="button" onPress={onCancel} style={styles.cancel}>
@@ -141,6 +156,7 @@ export default function VoiceRecorder({
 }
 
 const styles = StyleSheet.create({
+  heard: { textAlign: 'center', paddingHorizontal: 8 },
   card: {
     borderRadius: 24,
     paddingVertical: 22,

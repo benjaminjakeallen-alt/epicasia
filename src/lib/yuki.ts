@@ -101,3 +101,19 @@ export async function draftJournal(entry: DraftInput): Promise<string> {
   if (error) throw new Error(await errorMessage(error));
   return String(data?.draft ?? '');
 }
+
+/** A photo shrunk to ≤ 1024 px JPEG for Yuki to look at (base64, no data: prefix). */
+export async function imageForYuki(uri: string): Promise<{ media_type: string; data: string } | null> {
+  try {
+    const bitmap = await createImageBitmap(await (await fetch(uri)).blob());
+    const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d')?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return { media_type: 'image/jpeg', data: canvas.toDataURL('image/jpeg', 0.8).split(',')[1] ?? '' };
+  } catch {
+    return null;
+  }
+}

@@ -18,9 +18,11 @@ import { addDays, formatMonthDay, formatWeekday, todayDay } from '../../lib/date
 import { deleteEntry, hasContent, saveDraft, type Draft, type DraftMedia, type JournalEntry } from '../../lib/journal';
 import { signedUrls } from '../../lib/photos';
 import { stopForDay } from '../../lib/places';
+import { draftJournal, imageForYuki } from '../../lib/yuki';
 import { colors as c, legTextColors, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import CircleButton from '../CircleButton';
+import YukiMark from '../YukiMark';
 import SkyBackdrop from '../SkyBackdrop';
 import VoiceNote from './VoiceNote';
 import VoiceRecorder from './VoiceRecorder';
@@ -53,6 +55,8 @@ export default function JournalEditor({
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
+  const [writing, setWriting] = useState(false);
+  const [suggestion, setSuggestion] = useState<string | null>(null);
   const saved = useRef(JSON.stringify(initial));
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
@@ -147,6 +151,42 @@ export default function JournalEditor({
       setError(e instanceof Error ? e.message : 'Could not delete');
     }
   }
+
+  // "Write it with Yuki": a first-person draft from the day's notes, voice
+  // transcripts, captions and up to 4 photos (supabase/functions/yuki).
+  async function writeWithYuki() {
+    setWriting(true);
+    setError(null);
+    setSuggestion(null);
+    try {
+      const pics = draft.media.filter((m) => m.kind === 'photo').slice(0, 4);
+      const photos = (
+        await Promise.all(
+          pics.map((m) => {
+            const uri = m.localUri ?? (m.storage_path ? urls[m.thumb_path ?? m.storage_path] : undefined);
+            return uri ? imageForYuki(uri) : Promise.resolve(null);
+          }),
+        )
+      ).filter((p): p is { media_type: string; data: string } => !!p);
+      const text = await draftJournal({
+        day: draft.day,
+        city: draft.city.trim() || null,
+        title: draft.title,
+        story: draft.body,
+        voice: draft.media.filter((m) => m.kind === 'audio' && m.transcript?.trim()).map((m) => m.transcript!.trim()),
+        captions: draft.media.filter((m) => m.caption.trim()).map((m) => m.caption.trim()),
+        photos,
+      });
+      setSuggestion(text);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Yuki couldn’t write it just now.');
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  const hasNotes =
+    !!draft.body.trim() || !!draft.title.trim() || draft.media.some((m) => m.kind === 'photo' || m.transcript?.trim());
 
   return (
     <View style={[styles.screen, { backgroundColor: c.background }]}>
@@ -245,6 +285,60 @@ export default function JournalEditor({
           />
         </View>
 
+        {suggestion ? (
+          <View style={[styles.card, styles.suggestion]} testID="yuki-draft">
+            <View style={styles.suggestionHead}>
+              <YukiMark size={24} />
+              <Text style={[type.bodyStrong, { color: c.ink }]}>Yuki’s draft</Text>
+            </View>
+            <Text style={[type.body, { color: c.ink }]} selectable>
+              {suggestion}
+            </Text>
+            <View style={styles.suggestionActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  set({ body: suggestion });
+                  setSuggestion(null);
+                }}
+                style={({ pressed }) => [styles.pillBtn, { backgroundColor: pressed ? c.accentPressed : c.accent }]}
+              >
+                <Text style={[type.bodyStrong, { color: c.onAccent }]}>{draft.body.trim() ? 'Replace my story' : 'Use it'}</Text>
+              </Pressable>
+              {draft.body.trim() ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    set({ body: `${draft.body.trim()}\n\n${suggestion}` });
+                    setSuggestion(null);
+                  }}
+                  style={({ pressed }) => [styles.pillBtn, { backgroundColor: pressed ? c.surfacePressed : c.accentSoft }]}
+                >
+                  <Text style={[type.bodyStrong, { color: c.highlight }]}>Add below</Text>
+                </Pressable>
+              ) : null}
+              <Pressable accessibilityRole="button" onPress={() => setSuggestion(null)} style={styles.pillBtn}>
+                <Text style={[type.bodyStrong, { color: c.inkSecondary }]}>Discard</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : hasNotes ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ busy: writing, disabled: writing }}
+            disabled={writing}
+            onPress={writeWithYuki}
+            testID="write-with-yuki"
+            style={({ pressed }) => [styles.yukiRow, { backgroundColor: pressed ? c.surfacePressed : c.card }]}
+          >
+            <YukiMark size={30} />
+            <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>
+              {writing ? 'Yuki is writing…' : 'Write it with Yuki'}
+            </Text>
+            <Ionicons name="sparkles-outline" size={18} color={c.highlight} />
+          </Pressable>
+        ) : null}
+
         <Text style={styles.section} accessibilityRole="header">
           Photos
         </Text>
@@ -308,6 +402,8 @@ export default function JournalEditor({
               durationMs={m.duration_ms}
               caption={m.caption}
               onChangeCaption={(caption) => setMedia(m.id, { caption })}
+              transcript={m.transcript}
+              onChangeTranscript={(transcript) => setMedia(m.id, { transcript })}
               onRemove={() => removeMedia(m.id)}
             />
           ))}
@@ -320,7 +416,15 @@ export default function JournalEditor({
                   ...d,
                   media: [
                     ...d.media,
-                    { id: newId(), kind: 'audio', localUri: n.uri, mimeType: n.mimeType, duration_ms: n.durationMs, caption: '' },
+                    {
+                      id: newId(),
+                      kind: 'audio',
+                      localUri: n.uri,
+                      mimeType: n.mimeType,
+                      duration_ms: n.durationMs,
+                      caption: '',
+                      transcript: n.transcript,
+                    },
                   ],
                 }));
               }}
@@ -368,6 +472,19 @@ export default function JournalEditor({
 }
 
 const styles = StyleSheet.create({
+  suggestion: { gap: 10, backgroundColor: c.card },
+  suggestionHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  suggestionActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pillBtn: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  yukiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minHeight: 56,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    boxShadow: shadow.card,
+  },
   screen: { flex: 1 },
   flex: { flex: 1 },
   header: {

@@ -81,6 +81,7 @@ export default function JournalReader({ entry }: { entry: JournalEntry }) {
             uri={urls[n.storage_path] ?? null}
             durationMs={n.duration_ms}
             caption={n.caption ?? ''}
+            transcript={n.transcript ?? undefined}
           />
         ))}
       </ScrollView>

@@ -20,6 +20,8 @@ export type JournalMedia = {
   height: number | null;
   duration_ms: number | null;
   caption: string | null;
+  /** What was said in a voice note (written down while recording). */
+  transcript?: string | null;
   position: number;
   created_at: string;
 };
@@ -49,6 +51,7 @@ export type DraftMedia = {
   height?: number | null;
   duration_ms?: number | null;
   caption: string;
+  transcript?: string;
 };
 
 export type Draft = {
@@ -136,6 +139,7 @@ export function draftFrom(e: JournalEntry): Draft {
       height: m.height,
       duration_ms: m.duration_ms,
       caption: m.caption ?? '',
+      transcript: m.transcript ?? '',
     })),
   };
 }
@@ -237,13 +241,20 @@ export async function saveDraft(
     if (insErr) throw insErr;
   }
 
-  // Existing media: captions and order.
+  // Existing media: captions, transcripts and order.
   for (const [position, m] of draft.media.entries()) {
     if (!m.storage_path) continue;
     const before = previous?.journal_media.find((p) => p.id === m.id);
     const caption = m.caption.trim() || null;
-    if (before && (before.caption !== caption || before.position !== position)) {
-      const { error: upErr } = await supabase.from('journal_media').update({ caption, position }).eq('id', m.id);
+    const transcript = m.transcript?.trim() || null;
+    if (
+      before &&
+      (before.caption !== caption || before.position !== position || (before.transcript ?? null) !== transcript)
+    ) {
+      const { error: upErr } = await supabase
+        .from('journal_media')
+        .update({ caption, position, transcript })
+        .eq('id', m.id);
       if (upErr) throw upErr;
     }
   }
@@ -259,6 +270,7 @@ function mediaRow(m: DraftMedia, entryId: string, userId: string, position: numb
     height: m.height ?? null,
     duration_ms: m.duration_ms ?? null,
     caption: m.caption.trim() || null,
+    transcript: m.kind === 'audio' ? m.transcript?.trim() || null : null,
     position,
   };
 }

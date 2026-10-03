@@ -14,6 +14,8 @@ export default function VoiceNote({
   durationMs,
   caption,
   onChangeCaption,
+  transcript,
+  onChangeTranscript,
   onRemove,
   index,
 }: {
@@ -21,6 +23,9 @@ export default function VoiceNote({
   durationMs: number | null | undefined;
   caption: string;
   onChangeCaption?: (text: string) => void;
+  /** What was said (written down while recording). */
+  transcript?: string;
+  onChangeTranscript?: (text: string) => void;
   onRemove?: () => void;
   index: number;
 }) {
@@ -76,6 +81,21 @@ export default function VoiceNote({
         ) : caption ? (
           <Text style={[type.body, styles.captionText, { color: c.ink }]}>{caption}</Text>
         ) : null}
+        {onChangeTranscript && transcript ? (
+          <TextInput
+            value={transcript}
+            onChangeText={onChangeTranscript}
+            accessibilityLabel={`What you said in voice note ${index + 1}`}
+            multiline
+            style={[type.caption, styles.transcript, { color: c.inkSecondary }]}
+            maxLength={8000}
+            testID="voice-transcript"
+          />
+        ) : transcript ? (
+          <Text style={[type.caption, styles.transcript, { color: c.inkSecondary }]} testID="voice-transcript">
+            “{transcript}”
+          </Text>
+        ) : null}
       </View>
       <Text style={[styles.time, { color: c.inkSecondary }]}>
         {formatDuration(status.playing || status.currentTime ? status.currentTime * 1000 : total)}
@@ -95,6 +115,9 @@ export default function VoiceNote({
 }
 
 const styles = StyleSheet.create({
+  transcript: {
+    marginTop: 6,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

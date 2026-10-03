@@ -219,4 +219,68 @@ test.describe('voice notes', () => {
     expect(rows[0].duration_ms as number).toBeGreaterThan(1000);
     expect(uploads[0]).toMatch(new RegExp(`/journal/${USER_ID}/[0-9a-f-]+/[0-9a-f-]+\\.webm$`));
   });
+
+  test('what you say is written down while recording and saved with the note', async ({ page }) => {
+    // Stand in for the browser's speech recognition (headless Chromium has none that works offline).
+    await page.addInitScript(() => {
+      class FakeRecognition {
+        lang = '';
+        continuous = false;
+        interimResults = false;
+        onresult: ((e: unknown) => void) | null = null;
+        onend: (() => void) | null = null;
+        onerror: ((e: unknown) => void) | null = null;
+        start() {
+          setTimeout(() => {
+            const result = Object.assign([{ transcript: 'The ramen here is unbelievable' }], { isFinal: true });
+            this.onresult?.({ resultIndex: 0, results: [result] });
+          }, 300);
+        }
+        stop() {
+          setTimeout(() => this.onend?.(), 10);
+        }
+      }
+      const w = window as unknown as { SpeechRecognition: unknown; webkitSpeechRecognition: unknown };
+      w.SpeechRecognition = FakeRecognition;
+      w.webkitSpeechRecognition = FakeRecognition;
+    });
+    const backend = await signInWithFakeBackend(page, { profiles: PROFILES, journal_entries: [] });
+    await open(page, '/journal/new');
+    await page.getByTestId('journal-record').click();
+    await page.getByRole('button', { name: 'Start recording' }).click();
+    await expect(page.getByTestId('live-transcript')).toContainText('The ramen here is unbelievable');
+    await page.waitForTimeout(800);
+    await page.getByRole('button', { name: 'Stop recording' }).click();
+    await expect(page.getByTestId('voice-transcript')).toHaveValue('The ramen here is unbelievable');
+
+    await page.route(/\/storage\/v1\/object\/journal\//, (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ Key: 'ok' }) }),
+    );
+    await page.getByTestId('journal-save').click();
+    await expect.poll(() => backend.inserts.filter((i) => i.table === 'journal_media').length).toBe(1);
+    const rows = backend.inserts.find((i) => i.table === 'journal_media')!.body as unknown as Record<string, unknown>[];
+    expect(rows[0]).toMatchObject({ kind: 'audio', transcript: 'The ramen here is unbelievable' });
+  });
+});
+
+test('write it with Yuki: a draft from your notes you can use or discard', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, { profiles: PROFILES, journal_entries: [] });
+  await open(page, '/journal/new');
+  await expect(page.getByTestId('write-with-yuki')).toHaveCount(0); // nothing to go on yet
+  await page.getByTestId('journal-title').fill('Golden Pavilion');
+  await page.getByTestId('journal-body').fill('Kinkaku-ji, rain, matcha soft serve.');
+  await page.getByTestId('write-with-yuki').click();
+
+  await expect(page.getByTestId('yuki-draft')).toContainText('We started the day at the Golden Pavilion');
+  const call = backend.functions.find((f) => f.name === 'yuki')!.body as Record<string, unknown>;
+  expect(call).toMatchObject({
+    action: 'journal_draft',
+    entry: { title: 'Golden Pavilion', story: 'Kinkaku-ji, rain, matcha soft serve.', voice: [], captions: [] },
+    photos: [],
+  });
+
+  await page.getByRole('button', { name: 'Add below' }).click();
+  await expect(page.getByTestId('journal-body')).toHaveValue(
+    'Kinkaku-ji, rain, matcha soft serve.\n\nWe started the day at the Golden Pavilion…',
+  );
 });
