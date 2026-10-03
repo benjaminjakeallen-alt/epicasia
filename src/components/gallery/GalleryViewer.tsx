@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StatusBar,
@@ -18,7 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dayLabel, timeLabel } from '../../lib/chatFormat';
-import type { GalleryPhoto } from '../../lib/gallery';
+import { takenAt, type GalleryPhoto } from '../../lib/gallery';
 import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
@@ -117,7 +116,7 @@ export default function GalleryViewer({
   const count = current ? favCount(current.id) : 0;
 
   return (
-    <Modal visible animationType={Platform.OS === 'web' ? 'none' : 'fade'} onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <StatusBar barStyle="light-content" />
       <View style={styles.root}>
         <FlatList
@@ -129,13 +128,40 @@ export default function GalleryViewer({
           initialScrollIndex={startIndex ?? 0}
           getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
           onMomentumScrollEnd={onScrollEnd}
-          onScrollEndDrag={Platform.OS === 'web' ? onScrollEnd : undefined}
+          onScrollEndDrag={onScrollEnd}
           showsHorizontalScrollIndicator={false}
           windowSize={3}
           initialNumToRender={1}
-          renderItem={({ item }) => {
+          renderItem={({ item, index: i }) => {
             const full = urls[item.storage_path];
             const thumb = item.thumb_path ? urls[item.thumb_path] : undefined;
+            if (item.video_path) {
+              const src = urls[item.video_path];
+              // Only the video on screen is mounted, so swiping away stops it.
+              return (
+                <View style={[styles.page, { width, height }]}>
+                  {i === index && src ? (
+                    <video
+                      src={src}
+                      poster={full ?? thumb}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      aria-label={item.caption ? `Video: ${item.caption}` : 'Video'}
+                      data-testid="gallery-video"
+                      style={{ width, height: height - insets.top - insets.bottom - 220, objectFit: 'contain' }}
+                    />
+                  ) : (
+                    <Image
+                      source={full ? { uri: full, cacheKey: `${item.bucket}:${item.storage_path}` } : undefined}
+                      contentFit="contain"
+                      style={{ width, height }}
+                      accessibilityLabel="Video"
+                    />
+                  )}
+                </View>
+              );
+            }
             return (
               <ScrollView
                 style={{ width, height }}
@@ -170,7 +196,7 @@ export default function GalleryViewer({
           <View style={styles.roundSpacer} />
         </View>
 
-        {Platform.OS === 'web' && photos.length > 1 ? (
+        {photos.length > 1 ? (
           <>
             {index > 0 ? (
               <Pressable accessibilityRole="button" onPress={() => goTo(index - 1)} accessibilityLabel="Previous photo" style={[styles.arrow, { left: 12 }]}>
@@ -193,7 +219,7 @@ export default function GalleryViewer({
                 {mine ? 'You' : who.name}
               </Text>
               <Text style={styles.when}>
-                {dayLabel(current.created_at)} · {timeLabel(current.created_at)}
+                {dayLabel(takenAt(current))} · {timeLabel(takenAt(current))}
               </Text>
               {current.bucket === 'chat' ? (
                 <View style={styles.tag}>
@@ -273,27 +299,25 @@ export default function GalleryViewer({
                   setBusy(false);
                 }}
                 accessibilityRole="button"
-                accessibilityLabel={Platform.OS === 'web' ? 'Download photo' : 'Save to Photos'}
+                accessibilityLabel={current.video_path ? 'Download video' : 'Download photo'}
                 style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
               >
                 <Ionicons name="download-outline" size={19} color={c.onMedia} />
-                <Text style={styles.pillText}>{busy ? 'Saving…' : Platform.OS === 'web' ? 'Download' : 'Save'}</Text>
+                <Text style={styles.pillText}>{busy ? 'Saving…' : 'Download'}</Text>
               </Pressable>
-              {Platform.OS !== 'web' ? (
-                <Pressable
-                  onPress={() => onShare(current)}
-                  accessibilityRole="button"
-                  accessibilityLabel="Share photo"
-                  style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-                >
-                  <Ionicons name="share-outline" size={19} color={c.onMedia} />
-                </Pressable>
-              ) : null}
+              <Pressable
+                onPress={() => onShare(current)}
+                accessibilityRole="button"
+                accessibilityLabel={current.video_path ? 'Share video' : 'Share photo'}
+                style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+              >
+                <Ionicons name="share-outline" size={19} color={c.onMedia} />
+              </Pressable>
               {mine && current.bucket === 'gallery' ? (
                 <Pressable
                   onPress={() => onDelete(current)}
                   accessibilityRole="button"
-                  accessibilityLabel="Delete photo"
+                  accessibilityLabel={current.video_path ? 'Delete video' : 'Delete photo'}
                   style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
                 >
                   <Ionicons name="trash-outline" size={19} color={c.mediaDanger} />

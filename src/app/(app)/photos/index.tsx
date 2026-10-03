@@ -4,7 +4,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Platform,
   Pressable,
   ScrollView,
   SectionList,
@@ -18,22 +17,42 @@ import OfflineNotice from '../../../components/OfflineNotice';
 import CircleButton from '../../../components/CircleButton';
 import { GridSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
+import AlbumSheet from '../../../components/gallery/AlbumSheet';
 import GalleryViewer from '../../../components/gallery/GalleryViewer';
 import { useAuth } from '../../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../../lib/chat';
 import { dayLabel, firstName, personColor, sameDay } from '../../../lib/chatFormat';
+import { confirm } from '../../../lib/confirm';
 import {
   GALLERY_PAGE,
   addPhoto,
+  addToAlbum,
+  byTaken,
+  cityOf,
+  createAlbum,
+  deleteAlbum,
   deletePhoto,
+  fetchAlbums,
   fetchFavorites,
   fetchPhotos,
+  removeFromAlbum,
   setFavorite,
   subscribeGallery,
+  takenAt,
   updateCaption,
+  type Album,
   type GalleryPhoto,
 } from '../../../lib/gallery';
-import { savePhoto, sharePhoto, signedUrls, type PhotoBucket, type PickedPhoto } from '../../../lib/photos';
+import {
+  MAX_VIDEO_BYTES,
+  durationLabel,
+  savePhoto,
+  shareFiles,
+  signedUrls,
+  type PhotoBucket,
+  type PickedPhoto,
+} from '../../../lib/photos';
+import { STOPS } from '../../../lib/places';
 import { colors as c, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 
@@ -41,7 +60,29 @@ const COLS = 3;
 const GAP = 3;
 const PAD = 14;
 
-type Filter = 'all' | 'favorites' | 'mine' | 'chat' | `person:${string}`;
+type Filter = 'all' | 'favorites' | 'mine' | 'chat' | `person:${string}` | `city:${string}` | `album:${string}`;
+
+/** A picked library/camera asset as an upload (photo or video). */
+function toPicked(a: ImagePicker.ImagePickerAsset): PickedPhoto {
+  const video = a.type === 'video' || !!a.mimeType?.startsWith('video/');
+  return {
+    uri: a.uri,
+    width: a.width,
+    height: a.height,
+    mimeType: a.mimeType ?? (video ? 'video/mp4' : null),
+    file: a.file ?? null,
+    // The web picker gives seconds (Infinity for some recorded clips).
+    durationMs: video ? (Number.isFinite(a.duration) ? Math.round((a.duration ?? 0) * 1000) : 0) : null,
+  };
+}
+
+function tooBig(a: ImagePicker.ImagePickerAsset): boolean {
+  const size = a.fileSize ?? a.file?.size ?? 0;
+  return (a.type === 'video' || !!a.mimeType?.startsWith('video/')) && size > MAX_VIDEO_BYTES;
+}
+
+/** What a photo's file is for share/download: the video itself for a video. */
+const fileOf = (p: GalleryPhoto) => ({ bucket: p.bucket, path: p.video_path ?? p.storage_path });
 type Row = { key: string; photos: GalleryPhoto[] };
 type Section = { key: string; title: string; count: number; data: Row[] };
 
@@ -64,6 +105,8 @@ export default function Photos() {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [selected, setSelected] = useState<Set<string> | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [albumSheet, setAlbumSheet] = useState(false);
   const loadingMore = useRef(false);
 
   const cell = Math.floor((width - PAD * 2 - GAP * (COLS - 1)) / COLS);
@@ -84,6 +127,7 @@ export default function Photos() {
     for (const p of list) {
       byBucket[p.bucket].push(p.thumb_path ?? p.storage_path);
       if (full && p.thumb_path) byBucket[p.bucket].push(p.storage_path);
+      if (full && p.video_path) byBucket[p.bucket].push(p.video_path);
     }
     try {
       const got = await Promise.all(
@@ -107,12 +151,15 @@ export default function Photos() {
         const [m, list, f] = await Promise.all([fetchMembers(), fetchPhotos(), fetchFavorites()]);
         if (!alive) return;
         setMembers(m);
-        setPhotos(list);
+        setPhotos([...list].sort(byTaken));
         setHasMore(list.length === GALLERY_PAGE);
         const byPhoto: Record<string, string[]> = {};
         for (const x of f) (byPhoto[x.photo_id] ??= []).push(x.user_id);
         setFavs(byPhoto);
         ensureUrls(list);
+        fetchAlbums()
+          .then((a) => alive && setAlbums(a))
+          .catch(() => {});
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Could not load photos');
       } finally {
@@ -136,7 +183,7 @@ export default function Photos() {
               next[i] = p;
               return next;
             }
-            return [p, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at));
+            return [p, ...prev].sort(byTaken);
           });
           ensureUrls([p]);
         },
@@ -155,7 +202,7 @@ export default function Photos() {
     if (!hasMore || loadingMore.current || photos.length === 0) return;
     loadingMore.current = true;
     try {
-      const older = await fetchPhotos(photos[photos.length - 1].created_at);
+      const older = await fetchPhotos(takenAt(photos[photos.length - 1]));
       setPhotos((prev) => [...prev, ...older.filter((o) => !prev.some((p) => p.id === o.id))]);
       setHasMore(older.length === GALLERY_PAGE);
       ensureUrls(older);
@@ -172,16 +219,20 @@ export default function Photos() {
       if (filter === 'mine') return p.user_id === myId;
       if (filter === 'chat') return p.bucket === 'chat';
       if (filter.startsWith('person:')) return p.user_id === filter.slice(7);
+      if (filter.startsWith('city:')) return cityOf(p)?.key === filter.slice(5);
+      if (filter.startsWith('album:')) return albums.find((a) => a.id === filter.slice(6))?.photoIds.includes(p.id) ?? false;
       return true;
     });
-  }, [photos, filter, favs, myId]);
+  }, [photos, filter, favs, myId, albums]);
+
+  const activeAlbum = filter.startsWith('album:') ? (albums.find((a) => a.id === filter.slice(6)) ?? null) : null;
 
   const sections = useMemo<Section[]>(() => {
     const out: Section[] = [];
     for (const p of visible) {
       let s = out[out.length - 1];
-      if (!s || !sameDay(s.key, p.created_at)) {
-        s = { key: p.created_at, title: dayLabel(p.created_at), count: 0, data: [] };
+      if (!s || !sameDay(s.key, takenAt(p))) {
+        s = { key: takenAt(p), title: dayLabel(takenAt(p)), count: 0, data: [] };
         out.push(s);
       }
       s.count += 1;
@@ -211,9 +262,7 @@ export default function Photos() {
         for (let next = queue.shift(); next; next = queue.shift()) {
           try {
             const saved = await addPhoto(myId, next);
-            setPhotos((prev) =>
-              prev.some((x) => x.id === saved.id) ? prev : [saved, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at)),
-            );
+            setPhotos((prev) => (prev.some((x) => x.id === saved.id) ? prev : [saved, ...prev].sort(byTaken)));
             ensureUrls([saved]);
           } catch {
             failed += 1;
@@ -226,35 +275,39 @@ export default function Photos() {
       setNotice(
         failed
           ? `${picked.length - failed} uploaded · ${failed} couldn’t upload — check your connection and try again.`
-          : `${picked.length} photo${picked.length === 1 ? '' : 's'} added`,
+          : `${picked.length} added`,
       );
     },
     [myId, ensureUrls],
   );
 
+  const uploadPicked = useCallback(
+    (res: ImagePicker.ImagePickerResult) => {
+      if (res.canceled) return;
+      const ok = res.assets.filter((a) => !tooBig(a));
+      const skipped = res.assets.length - ok.length;
+      uploadAll(ok.map(toPicked)).then(() => {
+        if (skipped) setNotice(`${skipped} video${skipped === 1 ? ' is' : 's are'} over 50 MB — trim and try again.`);
+      });
+    },
+    [uploadAll],
+  );
+
   const pickFromLibrary = useCallback(async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: 30,
-      orderedSelection: true,
-      quality: 0.92,
-    });
-    if (!res.canceled) uploadAll(res.assets.map((a) => ({ uri: a.uri, width: a.width, height: a.height, mimeType: a.mimeType })));
-  }, [uploadAll]);
+    uploadPicked(
+      await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        allowsMultipleSelection: true,
+        selectionLimit: 30,
+        orderedSelection: true,
+        quality: 0.92,
+      }),
+    );
+  }, [uploadPicked]);
 
   const takePhoto = useCallback(async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      setNotice('Camera access is off — turn it on in Settings to take photos here.');
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.92 });
-    if (!res.canceled && res.assets[0]) {
-      const a = res.assets[0];
-      uploadAll([{ uri: a.uri, width: a.width, height: a.height, mimeType: a.mimeType }]);
-    }
-  }, [uploadAll]);
+    uploadPicked(await ImagePicker.launchCameraAsync({ mediaTypes: ['images', 'videos'], quality: 0.92 }));
+  }, [uploadPicked]);
 
   const toggleFav = useCallback(
     async (p: GalleryPhoto) => {
@@ -280,36 +333,107 @@ export default function Photos() {
     try {
       await deletePhoto(p);
     } catch {
-      setPhotos((prev) => [p, ...prev].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+      setPhotos((prev) => [p, ...prev].sort(byTaken));
       setNotice('Couldn’t delete that photo. Try again.');
     }
   }, []);
 
   const saveOne = useCallback(async (p: GalleryPhoto) => {
     try {
-      const ok = await savePhoto(p.bucket, p.storage_path);
-      if (!ok) return 'Photo access is off — allow it in Settings.';
-      return Platform.OS === 'web' ? 'Downloading…' : 'Saved to your photos';
+      const f = fileOf(p);
+      await savePhoto(f.bucket, f.path);
+      return 'Downloading…';
     } catch {
-      return 'Couldn’t save that photo. Try again.';
+      return 'Couldn’t download that. Try again.';
     }
   }, []);
 
   const saveSelected = useCallback(async () => {
     if (!selected) return;
     const list = photos.filter((p) => selected.has(p.id));
-    setNotice(`Saving ${list.length}…`);
+    setNotice(`Downloading ${list.length}…`);
     let ok = 0;
     for (const p of list) {
       try {
-        if (await savePhoto(p.bucket, p.storage_path)) ok += 1;
+        const f = fileOf(p);
+        if (await savePhoto(f.bucket, f.path)) ok += 1;
       } catch {
         // counted below
       }
     }
     setSelected(null);
-    setNotice(ok === list.length ? `Saved ${ok} photo${ok === 1 ? '' : 's'}` : `Saved ${ok} of ${list.length} photos`);
+    setNotice(ok === list.length ? `Downloading ${ok}` : `Downloading ${ok} of ${list.length} — the rest couldn’t be fetched`);
   }, [selected, photos]);
+
+  const shareSelected = useCallback(async () => {
+    if (!selected) return;
+    const list = photos.filter((p) => selected.has(p.id));
+    try {
+      const res = await shareFiles(list.map(fileOf));
+      if (res !== 'cancelled') setSelected(null);
+      if (res === 'downloaded') setNotice(`This browser can’t share files — downloading ${list.length} instead.`);
+    } catch {
+      setNotice('Couldn’t share those. Try again.');
+    }
+  }, [selected, photos]);
+
+  // ---- albums ----------------------------------------------------------------
+
+  const addSelectedTo = useCallback(
+    async (album: Album | null, name?: string) => {
+      if (!selected) return;
+      const ids = [...selected];
+      setAlbumSheet(false);
+      setSelected(null);
+      try {
+        if (album) {
+          await addToAlbum(album.id, myId, ids);
+          setAlbums((prev) =>
+            prev.map((a) => (a.id === album.id ? { ...a, photoIds: [...new Set([...a.photoIds, ...ids])] } : a)),
+          );
+          setNotice(`Added ${ids.length} to ${album.name}`);
+        } else if (name) {
+          const made = await createAlbum(name, myId, ids);
+          setAlbums((prev) => [...prev, made]);
+          setFilter(`album:${made.id}`);
+          setNotice(`Made “${made.name}” with ${ids.length}`);
+        }
+      } catch {
+        setNotice('Couldn’t update the album. Try again.');
+      }
+    },
+    [selected, myId],
+  );
+
+  const removeSelectedFromAlbum = useCallback(async () => {
+    if (!selected || !activeAlbum) return;
+    const ids = [...selected];
+    setSelected(null);
+    setAlbums((prev) =>
+      prev.map((a) => (a.id === activeAlbum.id ? { ...a, photoIds: a.photoIds.filter((x) => !ids.includes(x)) } : a)),
+    );
+    try {
+      await removeFromAlbum(activeAlbum.id, ids);
+    } catch {
+      setAlbums((prev) => prev.map((a) => (a.id === activeAlbum.id ? activeAlbum : a)));
+      setNotice('Couldn’t update the album. Try again.');
+    }
+  }, [selected, activeAlbum]);
+
+  const removeAlbum = useCallback(
+    async (album: Album) => {
+      if (album.created_by !== myId) return;
+      if (!(await confirm(`Delete “${album.name}”?`, 'The photos stay in the gallery.', 'Delete album', true))) return;
+      try {
+        await deleteAlbum(album.id);
+        setAlbums((prev) => prev.filter((a) => a.id !== album.id));
+        setFilter('all');
+      } catch {
+        setNotice('Couldn’t delete that album. Try again.');
+      }
+    },
+    [myId],
+  );
 
   // Stable, so the viewer's "fetch originals" effect doesn't re-run on
   // every render.
@@ -328,9 +452,16 @@ export default function Photos() {
   // ---- render ----------------------------------------------------------------
 
   const fromChat = photos.filter((p) => p.bucket === 'chat').length;
-  const chips: { key: Filter; label: string; color?: string; icon?: keyof typeof Ionicons.glyphMap }[] = [
+  const cities = new Set(photos.map((p) => cityOf(p)?.key).filter(Boolean));
+  const chips: { key: Filter; label: string; color?: string; icon?: keyof typeof Ionicons.glyphMap; album?: Album }[] = [
     { key: 'all', label: 'All' },
     { key: 'favorites', label: 'Favorites', icon: 'heart' },
+    ...STOPS.filter((st) => cities.has(st.key)).map((st) => ({
+      key: `city:${st.key}` as Filter,
+      label: st.city,
+      icon: 'location-outline' as const,
+    })),
+    ...albums.map((a) => ({ key: `album:${a.id}` as Filter, label: a.name, icon: 'albums-outline' as const, album: a })),
     { key: 'mine', label: 'Mine' },
     ...(fromChat ? [{ key: 'chat' as Filter, label: 'From chat', icon: 'chatbubble-outline' as const }] : []),
     ...uploaders
@@ -362,7 +493,9 @@ export default function Photos() {
             onPress={() => openPhoto(p)}
             onLongPress={() => setSelected(new Set([...(selected ?? []), p.id]))}
             delayLongPress={300}
-            accessibilityLabel={`Photo by ${p.user_id === myId ? 'you' : person(p.user_id).name}${p.caption ? `: ${p.caption}` : ''}`}
+            accessibilityLabel={`${p.video_path ? `Video, ${durationLabel(p.video_duration_ms)},` : 'Photo'} by ${
+              p.user_id === myId ? 'you' : person(p.user_id).name
+            }${p.caption ? `: ${p.caption}` : ''}`}
             accessibilityHint={selected ? 'Tap to select' : 'Opens the photo. Long press to select several'}
             accessibilityState={{ selected: isSel }}
             testID="gallery-cell"
@@ -384,6 +517,12 @@ export default function Photos() {
               <View style={styles.badgeFav}>
                 <Ionicons name="heart" size={11} color={c.onMedia} />
                 {favCount > 1 ? <Text style={styles.badgeText}>{favCount}</Text> : null}
+              </View>
+            ) : null}
+            {p.video_path ? (
+              <View style={styles.badgeVideo}>
+                <Ionicons name="play" size={10} color={c.onMedia} />
+                {p.video_duration_ms ? <Text style={styles.badgeText}>{durationLabel(p.video_duration_ms)}</Text> : null}
               </View>
             ) : null}
             {p.bucket === 'chat' ? (
@@ -423,8 +562,8 @@ export default function Photos() {
                 Photos
               </Text>
             </View>
-            {Platform.OS !== 'web' ? <CircleButton icon="camera-outline" label="Take a photo" onPress={takePhoto} /> : null}
-            <CircleButton icon="add" label="Add photos" onPress={pickFromLibrary} testID="gallery-add" />
+            <CircleButton icon="camera-outline" label="Take a photo or video" onPress={takePhoto} />
+            <CircleButton icon="add" label="Add photos and videos" onPress={pickFromLibrary} testID="gallery-add" />
           </>
         )}
       </View>
@@ -438,8 +577,11 @@ export default function Photos() {
               <Pressable
                 key={ch.key}
                 onPress={() => setFilter(ch.key)}
+                onLongPress={ch.album && ch.album.created_by === myId ? () => removeAlbum(ch.album!) : undefined}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
+                accessibilityHint={ch.album && ch.album.created_by === myId ? 'Long press to delete the album' : undefined}
+                testID={`chip-${ch.key}`}
                 style={[styles.chip, on ? { backgroundColor: c.accent } : { backgroundColor: c.card }]}
               >
                 {ch.color ? <View style={[styles.chipDot, { backgroundColor: ch.color }]} /> : null}
@@ -489,7 +631,11 @@ export default function Photos() {
         </View>
       ) : visible.length === 0 ? (
         <Text style={[type.body, styles.message, { color: c.inkSecondary }]}>
-          {filter === 'favorites' ? 'Tap ♥ on a photo to keep it here.' : 'No photos here yet.'}
+          {filter === 'favorites'
+            ? 'Tap ♥ on a photo to keep it here.'
+            : activeAlbum
+              ? 'Long press photos to select them, then Album to add them here.'
+              : 'No photos here yet.'}
         </Text>
       ) : (
         <SectionList
@@ -513,14 +659,28 @@ export default function Photos() {
 
       {selected ? (
         <View style={[styles.selectBar, { paddingBottom: insets.bottom + 12 }]}>
-          <Pressable onPress={saveSelected} style={styles.selectBtn} accessibilityRole="button">
-            <Ionicons name="download-outline" size={20} color={c.accent} />
-            <Text style={[type.bodyStrong, { color: c.accent }]}>{Platform.OS === 'web' ? 'Download' : 'Save'}</Text>
+          <Pressable onPress={shareSelected} style={styles.selectBtn} accessibilityRole="button" testID="select-share">
+            <Ionicons name="share-outline" size={21} color={c.highlight} />
+            <Text style={[styles.selectText, { color: c.highlight }]}>Share</Text>
           </Pressable>
+          <Pressable onPress={saveSelected} style={styles.selectBtn} accessibilityRole="button">
+            <Ionicons name="download-outline" size={21} color={c.highlight} />
+            <Text style={[styles.selectText, { color: c.highlight }]}>Download</Text>
+          </Pressable>
+          <Pressable onPress={() => setAlbumSheet(true)} style={styles.selectBtn} accessibilityRole="button" testID="select-album">
+            <Ionicons name="albums-outline" size={21} color={c.highlight} />
+            <Text style={[styles.selectText, { color: c.highlight }]}>Album</Text>
+          </Pressable>
+          {activeAlbum ? (
+            <Pressable onPress={removeSelectedFromAlbum} style={styles.selectBtn} accessibilityRole="button" accessibilityLabel="Remove from album">
+              <Ionicons name="remove-circle-outline" size={21} color={c.highlight} />
+              <Text style={[styles.selectText, { color: c.highlight }]}>Remove</Text>
+            </Pressable>
+          ) : null}
           {canDeleteSelected ? (
             <Pressable onPress={deleteSelected} style={styles.selectBtn} accessibilityRole="button">
-              <Ionicons name="trash-outline" size={20} color={c.error} />
-              <Text style={[type.bodyStrong, { color: c.error }]}>Delete</Text>
+              <Ionicons name="trash-outline" size={21} color={c.danger} />
+              <Text style={[styles.selectText, { color: c.danger }]}>Delete</Text>
             </Pressable>
           ) : null}
         </View>
@@ -536,7 +696,9 @@ export default function Photos() {
         isFav={(id) => (favs[id] ?? []).includes(myId)}
         onToggleFav={toggleFav}
         onSave={saveOne}
-        onShare={(p) => sharePhoto(p.bucket, p.storage_path).catch(() => {})}
+        onShare={(p) => {
+          shareFiles([fileOf(p)]).catch(() => {});
+        }}
         onDelete={removePhoto}
         onCaption={(p, text) => {
           setPhotos((prev) => prev.map((x) => (x.id === p.id ? { ...x, caption: text.trim() || null } : x)));
@@ -544,6 +706,16 @@ export default function Photos() {
         }}
         onNeedUrls={needFullUrls}
         onClose={() => setViewerIndex(null)}
+      />
+
+      <AlbumSheet
+        visible={albumSheet}
+        count={selected?.size ?? 0}
+        albums={albums}
+        onPick={(a) => addSelectedTo(a)}
+        onCreate={(name) => addSelectedTo(null, name)}
+        onClose={() => setAlbumSheet(false)}
+        bottomInset={insets.bottom}
       />
     </View>
   );
@@ -680,6 +852,18 @@ const styles = StyleSheet.create({
     fontSize: 10.5,
     color: c.onMedia,
   },
+  badgeVideo: {
+    position: 'absolute',
+    left: 5,
+    top: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: c.mediaBadge,
+  },
   badgeChat: {
     position: 'absolute',
     left: 5,
@@ -767,10 +951,15 @@ const styles = StyleSheet.create({
     boxShadow: shadow.float,
   },
   selectBtn: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    minHeight: 44,
-    paddingHorizontal: 18,
+    justifyContent: 'center',
+    gap: 2,
+    minHeight: 48,
+    minWidth: 60,
+    paddingHorizontal: 6,
+  },
+  selectText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 12,
   },
 });
