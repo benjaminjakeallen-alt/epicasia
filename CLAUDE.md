@@ -571,9 +571,18 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   out (its nose slopes down, a two-car gap, then the next train's tail) —
   the last car has yellow/black hazard stripes and "END OF THE TRAIN —
   HOP!" shows; stay on and you fall. One gap at a time, never pantographs
-  near one. `makeRow()` guarantees a way through every row;
-  `fairnessProblems()` (on `__dash`) checks 3,000 generated rows and the
-  e2e asserts it's empty — re-run it whenever the generator changes.
+  near one. **Fairness is tested two ways — re-run both whenever the
+  generator changes:** `makeRow()` guarantees a way through every row and
+  `fairnessProblems()` (on `__dash`) checks 3,000 generated rows; and
+  `debug.simulate(seed, metres)` plays whole runs headless through the real
+  update loop with a perfect-reaction bot (the e2e wants ≥ 7 of 8 seeds
+  past 6 km; 58 of 60 reach 10 km). The simulation caught what the per-row
+  check couldn't (Oct 6 2026): **crows used to fly at you** and drifted onto
+  the previous row's fairing (jump + slide at once) — now they hover; and
+  pantographs next to a train that ends just after the row, or whose next
+  train's tail is still rising, left no time to hop — a train only counts
+  as open for a row if it's flat from 30 m before to 26 m after
+  (`OPEN_BEFORE`/`OPEN_AFTER`). The bot's remaining misses are late jumps.
 - **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
   (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
   Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in
@@ -1592,6 +1601,13 @@ playwright test` here with an "Executable doesn't exist" error.
 
 ## Conventions
 
+- **Always check all your work** (user, Oct 6 2026). Before reporting
+  something done: run typecheck, lint, `build:games --check` and the whole
+  e2e suite; look at screenshots of anything visual; re-read your own diff
+  for bugs; for game logic, prove it's winnable (simulate it, don't just
+  test single moves); and **wait for CI on the pushed commit** — report its
+  result, never "CI is running". Say plainly what still can't be checked
+  here (real phones).
 - **Web only (PWA).** No `ios/`/`android/`, no EAS, no native modules —
   before adding a package, check it works in the browser (react-native-web)
   and that the browser can't already do the job. `app.json` only configures

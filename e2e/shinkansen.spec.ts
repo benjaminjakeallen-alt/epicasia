@@ -102,8 +102,14 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   const f = await game(page);
   expect((await st(f)).hi).toBe(12400); // the group's best to beat
   expect(await f.evaluate(() => (window as any).__dash.gl)).toBe(true);
-  // Every row of obstacles the generator makes leaves a way through.
+  // Every row of obstacles the generator makes leaves a way through…
   expect(await f.evaluate(() => (window as any).__dash.fairnessProblems())).toEqual([]);
+  // …and so do whole runs: a perfect-reaction bot, playing through the real
+  // update loop, gets past Kyoto into round 2 on (nearly) every seed. It
+  // found crows drifting onto fairings and pantograph rows next to ending
+  // trains; the bot's own few misses are late jumps, not unwinnable rows.
+  const runs = await f.evaluate(() => [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (window as any).__dash.debug.simulate(s, 6000)));
+  expect(runs.filter((r: { dist: number }) => r.dist >= 6000).length, JSON.stringify(runs)).toBeGreaterThanOrEqual(7);
 
   await start(page, f, 2); // Emily
   expect((await st(f)).hero).toBe('emily');

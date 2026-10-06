@@ -71,20 +71,37 @@ export function parseRun(msg: unknown): Run | null {
   return score && level && round && hero ? { score, level, round, hero } : null;
 }
 
+// Queue operations for a game run one at a time: a finished run is saved
+// from the game while its board may be sending the queue too, and two
+// overlapping sends could insert a run twice — or clear a run queued
+// meanwhile.
+const lanes = new Map<ArcadeGame, Promise<void>>();
+function serial(game: ArcadeGame, job: () => Promise<void>): Promise<void> {
+  const next = (lanes.get(game) ?? Promise.resolve()).then(job, job);
+  lanes.set(game, next.catch(() => {}));
+  return next;
+}
+
 /** Keeps the phone's best and saves the run (queued if offline). */
 export async function saveRun(userId: string, game: ArcadeGame, run: Run): Promise<void> {
-  if (run.score > (await localBest(game))) await AsyncStorage.setItem(bestKey(game), String(run.score)).catch(() => {});
-  const queue = [...(await readPending(game)), run];
-  await AsyncStorage.setItem(pendingKey(game), JSON.stringify(queue)).catch(() => {});
+  await serial(game, async () => {
+    if (run.score > (await localBest(game))) await AsyncStorage.setItem(bestKey(game), String(run.score)).catch(() => {});
+    const queue = [...(await readPending(game)), run];
+    await AsyncStorage.setItem(pendingKey(game), JSON.stringify(queue)).catch(() => {});
+  });
   await flushRuns(userId, game);
 }
 
 /** Sends any runs that couldn't be saved earlier. */
-export async function flushRuns(userId: string, game: ArcadeGame): Promise<void> {
-  const queue = await readPending(game);
-  if (!queue.length) return;
-  const { error } = await supabase.from('game_scores').insert(queue.map((r) => ({ game, user_id: userId, ...r })));
-  if (!error) await AsyncStorage.removeItem(pendingKey(game)).catch(() => {});
+export function flushRuns(userId: string, game: ArcadeGame): Promise<void> {
+  return serial(game, async () => {
+    const queue = await readPending(game);
+    if (!queue.length) return;
+    const { error } = await supabase.from('game_scores').insert(queue.map((r) => ({ game, user_id: userId, ...r })));
+    if (error) return;
+    // Clear only what was sent (nothing else can touch the queue meanwhile).
+    await AsyncStorage.removeItem(pendingKey(game)).catch(() => {});
+  });
 }
 
 async function fetchScoresLive(game: ArcadeGame): Promise<ScoreRow[]> {

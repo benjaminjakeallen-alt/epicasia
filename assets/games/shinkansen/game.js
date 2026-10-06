@@ -137,8 +137,15 @@ function coinLine(lane, d0, n, arc) {
  * you can get through (no pantograph, train present) — fairnessProblems()
  * checks that over thousands of rows.
  */
+// A train counts as open for a row only if it runs on well past it (if it
+// ended just after a pair of pantographs, you'd hop onto it with no time to
+// hop off) and has been back up to full height for a while (crossing the
+// rising tail of a returning train to dodge pantographs is near impossible).
+// Found by simulate(): a perfect bot kept dying on exactly those rows.
+const OPEN_BEFORE = 30, OPEN_AFTER = 26;
+function openAt(l, d) { return flatAt(l, d + (OPEN_AFTER - OPEN_BEFORE) / 2, (OPEN_AFTER + OPEN_BEFORE) / 2); }
 function makeRow(d) {
-  const open = [0, 1, 2].filter(function (l) { return flatAt(l, d, 4); });
+  const open = [0, 1, 2].filter(function (l) { return openAt(l, d); });
   if (!open.length) return [];
   const gapNear = open.length < 3; // a train is ending: no pantographs now
   const lvl = Math.min(4, S.stage + S.lap * 2);
@@ -158,7 +165,7 @@ function makeRow(d) {
   } else if (r < 0.6 + lvl * 0.02) { // crows
     const n = lvl >= 2 && rnd() < 0.5 ? 2 : 1;
     const ls = open.slice().sort(function () { return rnd() - 0.5; }).slice(0, Math.min(n, open.length - (gapNear ? 0 : 0)));
-    ls.forEach(function (l) { put('crow', l, { fly: 2 + rnd() * 2 }); });
+    ls.forEach(function (l) { put('crow', l); }); // they hover where they are (a crow that flew at you could land on the row before)
   } else if (r < 0.76 && !gapNear) { // a mix across the three trains
     const kinds = ['panto', 'hump', lvl >= 1 ? 'crow' : 'hump'].sort(function () { return rnd() - 0.5; });
     open.forEach(function (l, i) { put(kinds[i], l); });
@@ -200,7 +207,7 @@ function fairnessProblems() {
       S.obs = [];
       const row = makeRow(d);
       const ok = [0, 1, 2].some(function (l) {
-        return flatAt(l, d, 4) && !row.some(function (o) { return o.lane === l && o.type === 'panto' && Math.abs(o.d - d) < 1; });
+        return openAt(l, d) && !row.some(function (o) { return o.lane === l && o.type === 'panto' && Math.abs(o.d - d) < 1; });
       });
       if (!ok) out.push('stage ' + (stage + 1) + ' row ' + i + ': no way through');
       for (let a = 0; a < S.gaps.length; a++)
@@ -312,6 +319,8 @@ function crash(why) {
     return;
   }
   S.p.crash = why;
+  S.lastCrash = { why: why, y: +(S.p.y - ROOF).toFixed(2), air: S.p.air, vy: +S.p.vy.toFixed(1), slideT: +S.p.slideT.toFixed(2), lane: S.p.lane, laneT: +S.p.laneT.toFixed(2), x: +S.p.x.toFixed(2), speed: +S.speed.toFixed(1),
+    gaps: S.gaps.map(function (g) { return g.lane + ':' + Math.round(g.g0 - S.dist) + '..' + Math.round(g.g1 - S.dist); }), near: S.obs.filter(function (o) { return o.d - S.dist > -12 && o.d - S.dist < 45 && !OBS[o.type].pickup; }).map(function (o) { return o.type + '@' + o.lane + ':' + (o.d - S.dist).toFixed(1) + (o.hit ? '!' : ''); }) };
   setMode('crash');
   SFX.crash(); haptic('error'); S.shakeT = 0.4;
   say(why === 'fall' ? 'MIND THE GAP!' : why === 'side' ? 'TOO LATE!' : 'OUCH!', 1.2, '#ff6b6b', true);
@@ -486,8 +495,6 @@ function update(dt) {
     S.dist += S.speed * dt;
     S.score += Math.floor(S.dist) - Math.floor(before);
     if (S.score > S.hi) S.hi = S.score;
-    // crows fly at you
-    S.obs.forEach(function (o) { if (o.type === 'crow') o.d -= (o.fly || 2) * dt; });
     spawnAhead();
     updateRunner(dt);
     // stages: Tokyo → … → Kyoto, then round again
@@ -543,15 +550,63 @@ window.__dash = {
 if (INIT.debug) {
   window.__dash.debug = {
     calm: function () { S.calm = true; S.obs.length = 0; S.gaps.length = 0; S.nextGap = 1e9; },
-    spawn: function (type, lane, ahead) { add(type, lane, S.dist + ahead, type === 'crow' ? { fly: 0 } : {}); },
+    spawn: function (type, lane, ahead) { add(type, lane, S.dist + ahead); },
     gap: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2 }); return g0 - S.dist; },
     lane: function (l) { const p = S.p; p.lane = l; p.x = LANES[l]; p.laneT = 1; },
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
-    go: function () { if (S.mode === 'ready') S.modeT = 2.4; }
+    go: function () { if (S.mode === 'ready') S.modeT = 2.4; },
+    simulate: simulate
   };
+}
+
+/**
+ * Plays a whole run headless with a perfect-reaction bot, through the real
+ * update loop (development/tests only). If even the bot can't get through,
+ * some sequence of rows is unwinnable. Returns how far it got and why it stopped.
+ */
+function simulate(runSeed, metres) {
+  const keepSeed = INIT.seed;
+  INIT.seed = runSeed;
+  newRun('chris');
+  S.modeT = 2.4;
+  const muteWas = muted; muted = true;
+  let steps = 0;
+  const lane = function () { return S.p.lane; };
+  const blocked = function (l, from, to) { // a pantograph, or no flat train, ahead in lane l
+    if (!flatAt(l, S.dist + (from + to) / 2, (to - from) / 2 + NOSE * 0.3)) return true;
+    return S.obs.some(function (o) { return !o.gone && o.lane === l && o.type === 'panto' && o.d - S.dist > from && o.d - S.dist < to; });
+  };
+  const busy = function (l, to) { // anything at all (but onigiri) close ahead in lane l
+    return S.obs.some(function (o) { return !o.gone && !OBS[o.type].pickup && (o.lane === l || OBS[o.type].all) && o.d - S.dist > -1.5 && o.d - S.dist < to; });
+  };
+  while (S.dist < metres && steps < 60 * 60 * 20) {
+    if (S.mode === 'ready' || S.mode === 'run') {
+      const p = S.p, v = Math.max(S.speed, 10), reach = v * 0.5 + 3;
+      if (p.laneT >= 1 && blocked(lane(), -1, reach)) {
+        const order = [lane() - 1, lane() + 1, lane() - 2, lane() + 2].filter(function (l) { return l >= 0 && l < 3; });
+        const ok = order.filter(function (l) { return !blocked(l, -1, reach + 6) && (Math.abs(l - lane()) === 1 || !blocked(1, -1, 4)); });
+        const to = ok.find(function (l) { return !busy(l, 4); }) ?? ok[0];
+        if (to !== undefined) { act(to < lane() ? 'L' : 'R'); }
+      }
+      const next = S.obs.filter(function (o) { return !o.gone && (o.lane === lane() || OBS[o.type].all) && !OBS[o.type].pickup && o.d - S.dist > -0.5; })
+        .sort(function (a, b) { return a.d - b.d; })[0];
+      if (next) {
+        const ahead = next.d - S.dist;
+        if (next.type === 'hump' && !p.air && ahead < v * 0.2 + 1.6) act('U');
+        if ((next.type === 'gantry' || next.type === 'crow') && ahead < v * 0.22 + 1.2 && p.slideT <= 0.05) act('D');
+      }
+    } else break;
+    update(STEP);
+    steps++;
+  }
+  muted = muteWas;
+  INIT.seed = keepSeed;
+  const out = { dist: Math.round(S.dist), mode: S.mode, why: S.p.crash || null, stage: S.stage + 1, round: S.lap + 1, at: S.mode === 'crash' ? S.lastCrash : null };
+  setMode('select');
+  return out;
 }
 
 R.layout();

@@ -334,9 +334,18 @@ test('secret: smash the barrel at the start with a power-up → Girl Power; Emil
 
   await f.evaluate(() => (window as any).__rampage.debug.gameOver(3000));
   await expect.poll(async () => (await state(f)).mode, { timeout: 8000 }).toBe('gameover');
-  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBeGreaterThan(0);
-  const rows = backend.inserts.filter((i) => i.table === 'game_scores').flatMap((i) => i.body as unknown as Record<string, unknown>[]);
-  expect(rows.at(-1)).toMatchObject({ hero: 'emily', score: 3000 });
+  const saved = () => backend.inserts.filter((i) => i.table === 'game_scores').flatMap((i) => i.body as unknown as Record<string, unknown>[]);
+  await expect.poll(() => saved().length, { timeout: 15_000 }).toBe(2);
+  await page.waitForTimeout(500); // and no duplicate turns up after
+  const rows = saved();
+  // Both runs saved, once each (the first from leaving after the unlock).
+  expect(rows).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ hero: 'chris', score: 1000 }),
+      expect.objectContaining({ hero: 'emily', score: 3000 }),
+    ]),
+  );
+  expect(rows).toHaveLength(2);
   expect(errors).toEqual([]);
 });
 

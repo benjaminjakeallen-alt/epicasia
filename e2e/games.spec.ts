@@ -164,28 +164,40 @@ test('deleting your find removes it, its votes and its files', async ({ page }) 
 test('trip leaderboard: placings in every game become trip points', async ({ page }) => {
   // Lost in Translation: Sarah 3 and Tom 3 upvotes (tied 1st), me 1 (3rd).
   // Godzilla Rampage: me 50,000 (1st), Tom 20,000 (2nd).
-  // Trip points: Tom 10 + 8 = 18, me 6 + 10 = 16, Sarah 10.
-  const run = (id: string, user_id: string, score: number) => ({
+  // Shinkansen Dash: Sarah 3,000 (1st), me 1,000 (2nd) — every arcade game counts.
+  // Trip points: me 6 + 10 + 8 = 24, Sarah 10 + 10 = 20, Tom 10 + 8 = 18.
+  const run = (id: string, user_id: string, score: number, game = 'godzilla_rampage') => ({
     id,
     user_id,
     score,
     level: 2,
     round: 1,
     hero: 'chris',
-    game: 'godzilla_rampage',
+    game,
     created_at: minsAgo(60),
   });
-  await signInWithFakeBackend(page, { ...DATA, game_scores: [run('r1', USER_ID, 50000), run('r2', TOM, 20000)] });
+  await signInWithFakeBackend(page, {
+    ...DATA,
+    game_scores: [
+      run('r1', USER_ID, 50000),
+      run('r2', TOM, 20000),
+      run('d1', SARAH, 3000, 'shinkansen_dash'),
+      run('d2', USER_ID, 1000, 'shinkansen_dash'),
+    ],
+  });
   await open(page, '/games');
   await page.getByTestId('games-leaderboard').click();
   await expect(page.getByRole('heading', { name: 'Leaderboard' })).toBeVisible();
 
   const rows = page.getByTestId('trip-standing');
   await expect(rows).toHaveCount(3);
-  await expect(page.getByTestId('trip-points')).toHaveText(['18', '16', '10']);
-  await expect(rows.nth(0)).toContainText('Tom Park');
-  await expect(rows.nth(1)).toContainText('Test Traveler (you)');
-  await expect(page.getByTestId('trip-placings').nth(1)).toHaveText('Godzilla Rampage 1st · Lost in Translation 3rd');
+  await expect(page.getByTestId('trip-points')).toHaveText(['24', '20', '18']);
+  await expect(rows.nth(0)).toContainText('Test Traveler (you)');
+  await expect(rows.nth(1)).toContainText('Sarah Lee');
+  await expect(rows.nth(2)).toContainText('Tom Park');
+  await expect(page.getByTestId('trip-placings').nth(0)).toHaveText(
+    'Godzilla Rampage 1st · Shinkansen Dash 2nd · Lost in Translation 3rd',
+  );
   await expect(page.getByTestId('podium')).toBeVisible();
   await page.screenshot({ path: 'test-results/trip-leaderboard.png' });
 });
