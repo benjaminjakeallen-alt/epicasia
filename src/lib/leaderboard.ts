@@ -1,6 +1,6 @@
 import { fetchMembers } from './chat';
 import { GAMES, fetchEntries, fetchVotes, leaderboard, voteCounts, type GameKey } from './games';
-import { fetchScores, highScores } from './rampage';
+import { ARCADE, fetchScores, highScores, type ArcadeGame } from './arcade';
 
 // The trip leaderboard: one table across every game. Games score in
 // different units (upvotes, arcade points), so each game ranks its own
@@ -64,11 +64,13 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 
 /** Every game's ranking, from the same tables each game's own board uses. */
 export async function fetchGameResults(): Promise<GameResult[]> {
-  const voteGames = GAMES.filter((g) => g.key !== 'godzilla_rampage').map((g) => g.key as GameKey);
-  const [votes, scores, ...entryLists] = await Promise.all([
+  const isArcade = (k: string): k is ArcadeGame => k in ARCADE;
+  const voteGames = GAMES.filter((g) => !isArcade(g.key)).map((g) => g.key as GameKey);
+  const arcadeGames = GAMES.map((g) => g.key).filter(isArcade);
+  const [votes, scoreLists, entryLists] = await Promise.all([
     fetchVotes(),
-    fetchScores(),
-    ...voteGames.map((g) => fetchEntries(g)),
+    Promise.all(arcadeGames.map((g) => fetchScores(g))),
+    Promise.all(voteGames.map((g) => fetchEntries(g))),
   ]);
   const counts = voteCounts(votes);
   const title = (key: string) => GAMES.find((g) => g.key === key)?.title ?? key;
@@ -81,15 +83,17 @@ export async function fetchGameResults(): Promise<GameResult[]> {
       detail: plural(s.points, 'upvote'),
     })),
   }));
-  results.push({
-    game: 'godzilla_rampage',
-    title: title('godzilla_rampage'),
-    ranks: highScores(scores).map((h) => ({
-      userId: h.user_id,
-      rank: h.rank,
-      detail: `best ${h.score.toLocaleString('en-US')}`,
-    })),
-  });
+  arcadeGames.forEach((game, i) =>
+    results.push({
+      game,
+      title: title(game),
+      ranks: highScores(scoreLists[i]).map((h) => ({
+        userId: h.user_id,
+        rank: h.rank,
+        detail: `best ${h.score.toLocaleString('en-US')}`,
+      })),
+    }),
+  );
   return results;
 }
 

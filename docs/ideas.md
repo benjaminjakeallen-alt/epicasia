@@ -13,10 +13,9 @@ Every game scores into the shared points / leaderboards (`game_entries`,
 - **Konbini Review:** film your reaction to a mystery snack, rate it 1–5;
   upvotes for the reaction, "Snacks" board of best → worst.
 - **Trip leaderboard** across every game (placings → trip points).
+- **Shinkansen Dash:** endless runner on three bullet trains, Tokyo → Kyoto.
 
 **Chosen — to build (Oct 3 2026)**
-- **Shinkansen Dash:** endless runner on top of a bullet train (duck tunnels,
-  grab onigiri). Arcade style, same 3D voxel look and score board as Rampage.
 - **Sushi Conveyor:** catch and match plates as the belt speeds up. Short
   rounds for train rides.
 - **Head-to-head variety pack:** 4 people play short Asian-themed mini games

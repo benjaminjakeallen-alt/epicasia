@@ -63,6 +63,10 @@ options each; the user picked the camera and the arcade cabinet):
 | | **B (picked)** | a small vintage muted sage green smartphone on a little tripod filming a colorful mystery snack bag with a question mark on it, beside a melon soda can and a rice ball |
 | | C | a miniature Japanese convenience store building with a muted sage green awning and glowing window full of snacks, with a giant colorful mystery snack bag with a question mark sitting in front |
 
+| Shinkansen Dash (Oct 6 2026, picked by Claude) | A | a sleek white Japanese shinkansen bullet train with a long aerodynamic nose and a muted sage green stripe along its side, speeding forward on a short curved section of track |
+| | **B (picked)** | a tiny white shinkansen bullet train with a muted sage green stripe speeding along a short curved track past a small snow-capped Mount Fuji |
+| | C | a white shinkansen bullet train with a muted sage green stripe on a short track, with three rice ball onigiri wrapped in seaweed floating in an arc above its roof |
+
 All `MODEL=qwen`, cut out with `cutout.py <src> <dst> 360`.
 
 Qwen occasionally returns "model temporarily unavailable" (not charged) —

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>Shinkansen Dash</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e1630; overflow: hidden; }
+  body {
+    box-sizing: border-box; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
+    touch-action: none; -webkit-user-select: none; user-select: none;
+    -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+    font-family: system-ui, sans-serif; color: #fff;
+  }
+  /* The whole screen is the controller: swipe left/right to hop trains,
+     up to jump, down to slide (arrow keys / WASD / Space work too). */
+  #stage { position: absolute; inset: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0; touch-action: none; }
+  canvas { display: block; position: absolute; left: 0; top: 0; }
+  #pausebtn { position: absolute; z-index: 4; right: 10px; top: 10px; width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
+    color: #fff; font: 900 15px system-ui, sans-serif; letter-spacing: -1px;
+    background: rgba(14,22,48,0.55); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
+  #pausebtn:focus-visible, button:focus-visible { outline: 3px solid #ffd43b; }
+  #pause { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,16,36,0.55); z-index: 5; }
+  #pause.show { display: flex; }
+  .card { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 220px; padding: 22px 20px; border-radius: 24px;
+    background: linear-gradient(#24407a, #142650); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 12px 30px rgba(0,0,0,0.5); }
+  .title { font: 900 28px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; color: #fff; text-align: center; letter-spacing: 1px; margin-bottom: 4px; text-shadow: 0 3px 0 #1c6dd0; }
+  #pause button, #over button { font: 900 16px "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #fff;
+    background: linear-gradient(#5fd38a, #2f9e44); box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #1d6b2d; }
+  button.alt { background: linear-gradient(#4f8ef0, #2563c9) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.3), 0 5px 0 #173f86 !important; }
+  button.quit { margin-top: 10px; background: linear-gradient(#ff5c8a, #d6336c) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a1238 !important; }
+  #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 16%; gap: 12px; z-index: 3; pointer-events: none; }
+  #over.show { display: flex; }
+  #over button { pointer-events: auto; box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #1d6b2d, 0 8px 18px rgba(0,0,0,0.45); }
+</style>
+</head>
+<body>
+<div id="stage" role="application" aria-label="Shinkansen Dash. Swipe left or right to hop trains, up to jump, down to slide. Arrow keys work too.">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <canvas id="hud" role="img" aria-label="Shinkansen Dash"></canvas>
+  <button id="pausebtn" aria-label="Pause" type="button">❚❚</button>
+  <div id="pause" role="dialog" aria-modal="true" aria-label="Paused">
+    <div class="card">
+      <div class="title">PAUSED</div>
+      <button id="resume" type="button">RESUME</button>
+      <button id="psound" class="alt" type="button">SOUND: ON</button>
+      <button id="exit" class="quit" type="button" aria-label="Leave the game">LEAVE GAME</button>
+    </div>
+  </div>
+  <div id="over">
+    <button id="again" type="button">TRY AGAIN</button>
+    <button id="change" class="alt" type="button">CHANGE HERO</button>
+  </div>
+</div>
+<script>window.SHINKANSEN_INIT = /*INIT*/null;</script>
+<script>/*GAME*/</script>
+</body>
+</html>

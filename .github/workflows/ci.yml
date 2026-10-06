@@ -22,7 +22,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx eslint .
-      - run: node tools/build-rampage.mjs --check
+      - run: node tools/build-games.mjs --check
       - run: node tools/build-yuki-knowledge.mjs --check
 
   e2e:

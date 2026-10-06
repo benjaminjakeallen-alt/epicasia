@@ -10,7 +10,7 @@
 // The game logic below works in a 2D logical playfield (192 x 288, y down,
 // HUD band at the top); render3d.js draws it as a lit voxel diorama with
 // three.js, and hud.js draws the HUD and messages over it. Built into one
-// offline HTML string by tools/build-rampage.mjs. The host injects
+// offline HTML string by tools/build-games.mjs. The host injects
 // window.RAMPAGE_INIT = { highScore, debug } and listens for messages:
 // ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';

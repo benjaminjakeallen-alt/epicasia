@@ -46,7 +46,7 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "build:rampage": "node tools/build-rampage.mjs",
+    "build:games": "node tools/build-games.mjs",
     "build:yuki": "node tools/build-yuki-knowledge.mjs"
   },
   "private": true

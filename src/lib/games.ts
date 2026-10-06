@@ -1,4 +1,5 @@
 import type { Href } from 'expo-router';
+import type { ArcadeGame } from './arcade';
 import { newId } from './chat';
 import { cached } from './offline';
 import { removePhotoFiles, uploadPhoto, uploadVideo, type PickedPhoto } from './photos';
@@ -15,7 +16,7 @@ export type GameKey = 'lost_in_translation' | 'konbini_review';
 // `image`: the game's 3D icon (assets/images/games, generated like the menu
 // icons — see tools/menu-icons/README.md).
 export const GAMES: {
-  key: GameKey | 'godzilla_rampage';
+  key: GameKey | ArcadeGame;
   title: string;
   line: string;
   icon: string;
@@ -39,13 +40,21 @@ export const GAMES: {
     href: '/(app)/games/konbini',
   },
   {
-    // Arcade: scores itself (src/lib/rampage.ts, game_scores), not upvotes.
+    // Arcade games score themselves (src/lib/arcade.ts, game_scores), not upvotes.
     key: 'godzilla_rampage',
     title: 'Godzilla Rampage',
     line: 'Climb the girders, dodge the barrels, rescue Emily and Heather.',
     icon: 'game-controller-outline',
     image: require('../../assets/images/games/godzilla-rampage.png'),
     href: '/(app)/games/rampage',
+  },
+  {
+    key: 'shinkansen_dash',
+    title: 'Shinkansen Dash',
+    line: 'Run the roofs of three bullet trains from Tokyo to Kyoto. Jump, slide, hop.',
+    icon: 'train-outline',
+    image: require('../../assets/images/games/shinkansen-dash.png'),
+    href: '/(app)/games/shinkansen',
   },
 ];
 

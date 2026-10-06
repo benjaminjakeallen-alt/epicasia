@@ -122,9 +122,9 @@ through them. Build it with standard accessibility practice:
   `watchScreenReader()` is always off and the mode speaks for itself.)
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
-points and a leaderboard; **Lost in Translation**, **Konbini Review** and
-**Godzilla Rampage** are built, plus a **trip leaderboard** across them
-(see below). (Trivia from the reunion app is still not planned.)
+points and a leaderboard; **Lost in Translation**, **Konbini Review**,
+**Godzilla Rampage** and **Shinkansen Dash** are built, plus a **trip
+leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -387,8 +387,8 @@ points: 10, 8, 6, 5, 4, 3, 2, 1, then 1 for anyone else who played**
 (`PLACE_POINTS`); ties share a rank and its points. Standings sort by
 total, then 1st places, then name. A podium (2nd/1st/3rd) and the full
 list with each player's placing per game. New games join automatically
-via `GAMES` (vote games) — an arcade game needs its own branch in
-`fetchGameResults()`. Tests in `e2e/games.spec.ts` + axe.
+via `GAMES`: vote games by default, arcade games when their key is in
+`ARCADE` (`src/lib/arcade.ts`). Tests in `e2e/games.spec.ts` + axe.
 
 ### Games → Godzilla Rampage (built, Oct 3 2026; 3D voxel art Oct 3 2026)
 
@@ -446,12 +446,13 @@ Tower behind) — then they loop harder (`1.15^round`).
   (HUD, messages, speech bubbles, select/game-over screens on a 2D canvas
   over the 3D one, chunky rounded type). **The game's colours are game art,
   the one exception to the colour-token rule** — they never leave these files.
-- **Build:** `tools/build-rampage.mjs` bundles the modules with **esbuild**
-  (three.js 0.169 tree-shaken in; both are devDependencies, only used here),
-  inlines the bundle into `index.html` and writes `src/games/rampage/html.ts`
-  (~540 KB). **Edit the files in assets/games/rampage, then
-  `npm run build:rampage`**; CI runs it with `--check` and fails if html.ts is
-  stale. Works offline (no CDN).
+- **Build:** `tools/build-games.mjs` (every arcade game; was
+  build-rampage) bundles each game's modules with **esbuild** (three.js
+  0.169 tree-shaken in; both are devDependencies, only used here), inlines
+  the bundle into its `index.html` and writes `src/games/<game>/html.ts`
+  (~540 KB each). **Edit the files in assets/games/<game>, then
+  `npm run build:games`**; CI runs it with `--check` and fails if any
+  html.ts is stale. Works offline (no CDN).
 - **Software WebGL** (SwiftShader/llvmpipe — CI, some emulators) switches
   to a low-power mode (no shadows, 0.75 pixel ratio, 3D redrawn at most
   ~12×/s so taps stay responsive); `RAMPAGE_INIT.quality
@@ -459,10 +460,12 @@ Tower behind) — then they loop harder (`1.15^round`).
   game still runs with only the HUD. `playwright.config.ts` launches
   Chromium with `--use-angle=swiftshader --enable-unsafe-swiftshader` so the
   game renders in tests.
-- **Host:** `src/app/(app)/games/rampage/index.tsx` (Play card + high-score
-  board: each player's best run, ties share a rank) and `play.tsx` (full
-  screen, swipe-back off, light status bar) using
-  `src/components/games/GameFrame` — a `sandbox="allow-scripts"` iframe
+- **Host** (shared by every arcade game since Shinkansen Dash):
+  `src/components/games/ArcadeBoard.tsx` (Play card + high-score board:
+  each player's best run, ties share a rank; `src/app/(app)/games/rampage/
+  index.tsx` passes the copy and how a run reads) and `ArcadePlay.tsx`
+  (full screen, swipe-back off; `rampage/play.tsx` adds the Girl Power
+  `init` + `unlock` message) using `src/components/games/GameFrame` — a `sandbox="allow-scripts"` iframe
   `srcDoc` (null origin: no access to the app's storage/session; it focuses
   the iframe's window on load so keys reach the game). The host swaps
   `/*INIT*/null` (`window.RAMPAGE_INIT`) for `{highScore, debug: __DEV__}`
@@ -473,9 +476,10 @@ Tower behind) — then they loop harder (`1.15^round`).
 - **Scores:** `0014_game_scores.sql` — `game_scores` (game
   `godzilla_rampage`, user, score 1…9,999,999, level 1–5, round, hero
   chris/shea/emily/heather — widened by 0019); members read, insert own, admin deletes. Arcade games score
-  themselves; photo games use upvotes. `src/lib/rampage.ts` validates the
-  message (`parseRun`), keeps the phone's best (`epicasia.rampage.best`),
-  queues runs in `epicasia.rampage.pending` and sends them (`flushRuns`) —
+  themselves; photo games use upvotes. `src/lib/arcade.ts` (was
+  rampage.ts; every function takes the game key) validates the message
+  (`parseRun`), keeps the phone's best (`epicasia.<slug>.best`), queues
+  runs in `epicasia.<slug>.pending` and sends them (`flushRuns`) —
   so a run finished offline goes up on the next save or board visit.
 - **Controls (user feedback Oct 3 2026: "a little tough", "easier to climb
   ladders", the ✕ "too close to the directional button"):** a **joystick**
@@ -542,6 +546,50 @@ Tower behind) — then they loop harder (`1.15^round`).
   software 3D is slow on CI runners) + axe audits of the board and the game (inside the
   frame, all buttons ≥ 44). The fake backend's session init script skips
   iframes.
+
+### Games → Shinkansen Dash (built, Oct 6 2026)
+
+The second arcade game, from the ideas list ("endless runner on top of a
+bullet train … same 3D voxel look and score board as Rampage"): **three
+bullet trains race side by side** from Tokyo to Kyoto and you run on
+their roofs. **Swipe** anywhere — left/right hops trains, up jumps, down
+slides (one move per swipe; arrow keys/WASD/Space and Enter too). Icon
+`assets/images/games/shinkansen-dash.png` (a sage-striped bullet train
+passing Mount Fuji; option B of three, picked by Claude — A train on a
+curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
+- **Source** `assets/games/shinkansen/` (built like Rampage, see its Build
+  bullet): `game.js` (logic in metres along the track — `S.dist`; things
+  ahead have an absolute `d`, drawn at z = `S.dist − d`), `render3d.js`
+  (chase camera, trains, obstacles, streamed scenery, tunnels, the 4-hero
+  line-up on the select screen), `models.js` (train car + the long "duck
+  bill" nose, roof hazards, pickups, scenery), `hud.js`. **Reuses Rampage's
+  `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`) — all
+  four are playable here, no secret needed, no +15%.
+- **Roofs:** fairings (jump), pantographs (too tall — hop trains), signal
+  gantries over every train and crows (slide), onigiri (+25), a lucky cat
+  (maneki-neko: survives one crash). **Trains end**: a lane's train runs
+  out (its nose slopes down, a two-car gap, then the next train's tail) —
+  the last car has yellow/black hazard stripes and "END OF THE TRAIN —
+  HOP!" shows; stay on and you fall. One gap at a time, never pantographs
+  near one. `makeRow()` guarantees a way through every row;
+  `fairnessProblems()` (on `__dash`) checks 3,000 generated rows and the
+  e2e asserts it's empty — re-run it whenever the generator changes.
+- **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
+  (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
+  Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in
+  Tokyo, faster. Speed 15 → 36 m/s. Tunnels every ~500–1000 m (darker
+  light). Score = metres + onigiri + lucky cats.
+- **Scores:** `game_scores` with game `shinkansen_dash`
+  (`0020_shinkansen_dash.sql`); `level` = furthest stage (1–5), `round` =
+  laps. Board line "as Emily · reached Mount Fuji" / "· round 2".
+  `window.__dash` exposes state + `heroPoint(i)`, `fairnessProblems()`;
+  in development `debug` adds calm, spawn(type, lane, ahead), gap(lane,
+  ahead), lane, setDist, shield, gameOver, pause, go.
+- Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
+  play — tap Emily, swipes and keys, jump/slide counters, onigiri, lucky
+  cat, crash → exact `game_scores` insert, CHANGE HERO, leave; obstacles —
+  jump a fairing, slide a gantry and a crow, hop off an ending train, fall
+  off one) + axe on the board and inside the game frame.
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
@@ -1004,7 +1052,8 @@ backend code.
   `0018_konbini_review.sql` (snack/rating/video on `game_entries`, video
   in the `games` bucket — see Konbini Review),
   `0019_rampage_level5_girl_power.sql` (`game_scores` level 1–5, heroes
-  chris/shea/emily/heather — see Godzilla Rampage).
+  chris/shea/emily/heather — see Godzilla Rampage),
+  `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

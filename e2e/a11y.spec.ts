@@ -89,6 +89,7 @@ const DATA = {
   game_votes: [{ entry_id: 'g1', user_id: USER_ID }],
   game_scores: [
     { id: 'r1', game: 'godzilla_rampage', user_id: USER_ID, score: 4200, level: 2, round: 1, hero: 'chris', created_at: ago(30) },
+    { id: 's1', game: 'shinkansen_dash', user_id: USER_ID, score: 3100, level: 3, round: 1, hero: 'emily', created_at: ago(20) },
   ],
   map_pins: PINS,
   profiles: [
@@ -271,6 +272,7 @@ const SCREENS: [string, string][] = [
   ['lost in translation', '/games/lost-in-translation'],
   ['new find', '/games/lost-in-translation/new'],
   ['godzilla rampage', '/games/rampage'],
+  ['shinkansen dash', '/games/shinkansen'],
   ['chat rooms', '/chat'],
   ['chat room', `/chat/${EVERYONE}`],
   ['new chat room', '/chat/new'],
@@ -393,6 +395,18 @@ test('a11y: godzilla rampage game (the iframe and its controls)', async ({ page 
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/rampage/play');
   await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Jump' })).toBeVisible();
+  expect(await axe(page)).toEqual([]); // axe also audits inside the game's frame
+  const sizes = await page
+    .frameLocator('[data-testid="game-frame"]')
+    .locator('button:visible')
+    .evaluateAll((els) => els.map((e) => [e.getAttribute('aria-label') ?? e.textContent, e.getBoundingClientRect()]));
+  expect(sizes.filter(([, r]) => (r as DOMRect).width < 44 || (r as DOMRect).height < 44)).toEqual([]);
+});
+
+test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen/play');
+  await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Pause' })).toBeVisible();
   expect(await axe(page)).toEqual([]); // axe also audits inside the game's frame
   const sizes = await page
     .frameLocator('[data-testid="game-frame"]')
