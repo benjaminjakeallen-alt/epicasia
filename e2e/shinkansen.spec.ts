@@ -95,12 +95,12 @@ test('the board: each player’s best run, ties share a rank', async ({ page }) 
   await expect(rows.nth(2)).toHaveAccessibleName('3. Test Traveler (you), 800, as Chris · reached Tokyo');
 });
 
-test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page }) => {
+test('Emily is earned by reaching Mount Fuji; locked travellers stay a secret', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');
   await page.getByTestId('dash-play').click();
   let f = await game(page);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole']);
   // Tapping a locked traveler only says it's a secret (no name, no clue) and doesn't start.
   const tap = async (i: number) => {
     const box = (await page.getByTestId('game-frame').boundingBox())!;
@@ -118,16 +118,16 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   await expect.poll(async () => (await st(f)).mode).toBe('run');
   await debug(f, 'calm');
   await debug(f, 'setDist', 1990);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 15_000 }).toEqual(['heather', 'nicole']);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 15_000 }).toEqual(['miles', 'nicole']);
   const ui = page.frameLocator('[data-testid="game-frame"]');
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
   await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15_000 });
 
-  // Next time Emily is playable from the line-up; Heather still needs Kyoto.
+  // Next time Emily is playable from the line-up; the others are still secrets.
   await page.getByTestId('dash-play').click();
   f = await game(page);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['heather', 'nicole']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['miles', 'nicole']);
   await tap(3);
   await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   await tap(2);
@@ -160,14 +160,14 @@ test('Nicole is earned with a boba tea: only in the fast end, and only with a ju
   await debug(f, 'pause', false);
   await page.waitForTimeout(1500);
   expect(await bobas()).toBe(0);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole']);
   // …a jump does, and Nicole is unlocked.
   await debug(f, 'pause', true);
   await debug(f, 'spawn', 'boba', 1, 4);
   await page.keyboard.press('ArrowUp');
   await debug(f, 'pause', false);
   await expect.poll(bobas, { timeout: 10_000 }).toBe(1);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles']);
   const ui = page.frameLocator('[data-testid="game-frame"]');
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
@@ -176,7 +176,7 @@ test('Nicole is earned with a boba tea: only in the fast end, and only with a ju
   // The app remembers: next time Nicole is in the line-up, and her runs save as her.
   await page.getByTestId('dash-play').click();
   f = await game(page);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles']);
   await start(page, f, 4);
   expect((await st(f)).hero).toBe('nicole');
   await debug(f, 'gameOver', 321);
@@ -186,6 +186,70 @@ test('Nicole is earned with a boba tea: only in the fast end, and only with a ju
   expect((scores()[0].body as unknown as Record<string, unknown>[])[0]).toMatchObject({ hero: 'chris' });
   const saved = (scores()[1].body as unknown as Record<string, unknown>[])[0];
   expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, hero: 'nicole', score: 321 });
+});
+
+test('Miles: a spring gives one double jump, and only a double jump reaches the golden guitar', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  let f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.fairnessProblems())).toEqual([]); // springs, guitars placed fairly
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  const dash = () => f.evaluate(() => { const d = (window as any).__dash; return { y: d.y, air: d.air, spring: d.spring, doubles: d.doubles, guitars: d.guitars, locked: d.locked }; });
+  const ground = (await dash()).y;
+  /** Jump, and once well up in the air (paused there), run `then`. */
+  const jumpThen = async (then: () => Promise<void>) => {
+    await expect.poll(async () => (await dash()).air, { timeout: 10_000 }).toBe(false);
+    await page.keyboard.press('ArrowUp');
+    // (high for only ~0.5 s: poll fast — the default backs off to 1 s between tries)
+    await expect.poll(async () => (await dash()).y - ground, { timeout: 10_000, intervals: [40] }).toBeGreaterThan(0.8);
+    await debug(f, 'pause', true);
+    await then();
+    await debug(f, 'pause', false);
+    await page.waitForTimeout(1600);
+  };
+
+  // No spring: a second swipe up in the air does nothing.
+  await jumpThen(() => page.keyboard.press('ArrowUp'));
+  expect((await dash()).doubles).toBe(0);
+
+  // Grab a spring.
+  await debug(f, 'spawn', 'spring', 1, 4);
+  await expect.poll(async () => (await dash()).spring, { timeout: 10_000 }).toBe(true);
+  // A single jump passes under the guitar (and keeps the spring).
+  await expect.poll(async () => (await dash()).air, { timeout: 10_000 }).toBe(false);
+  await debug(f, 'pause', true);
+  await debug(f, 'spawn', 'guitar', 1, 5);
+  await page.keyboard.press('ArrowUp');
+  await debug(f, 'pause', false);
+  await page.waitForTimeout(1600);
+  expect(await dash()).toMatchObject({ guitars: 0, spring: true });
+  expect((await dash()).locked).toEqual(['emily', 'miles', 'nicole']);
+  // Swipe up again in mid-air: the spring's double jump reaches it — Miles is unlocked.
+  await jumpThen(async () => {
+    await debug(f, 'spawn', 'guitar', 1, 5);
+    await page.keyboard.press('ArrowUp');
+  });
+  await expect.poll(async () => (await dash()).guitars, { timeout: 10_000 }).toBe(1);
+  expect(await dash()).toMatchObject({ doubles: 1, spring: false, locked: ['emily', 'nicole'] });
+  // The spring is used up: no more double jumps.
+  await jumpThen(() => page.keyboard.press('ArrowUp'));
+  expect((await dash()).doubles).toBe(1);
+
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  await ui.getByRole('button', { name: 'Pause' }).click();
+  await ui.getByRole('button', { name: 'Leave the game' }).click();
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15_000 });
+  await page.getByTestId('dash-play').click();
+  f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'nicole']);
+  await start(page, f, 3);
+  expect((await st(f)).hero).toBe('miles');
+  await debug(f, 'gameOver', 654);
+  const scores = () => backend.inserts.filter((i) => i.table === 'game_scores');
+  await expect.poll(() => scores().length).toBe(2);
+  expect((scores()[1].body as unknown as Record<string, unknown>[])[0]).toMatchObject({ hero: 'miles', score: 654 });
 });
 
 test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash and save', async ({ page }) => {
@@ -206,7 +270,7 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   const runs = await f.evaluate(() => [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (window as any).__dash.debug.simulate(s, 6000)));
   expect(runs.filter((r: { dist: number }) => r.dist >= 6000).length, JSON.stringify(runs)).toBeGreaterThanOrEqual(7);
   // (the bot passing Fuji and Kyoto doesn't earn anyone)
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole']);
 
   await start(page, f, 1); // Shea
   expect((await st(f)).hero).toBe('shea');
@@ -293,7 +357,7 @@ test('smooth: every frame moves the world by exactly the time that passed', asyn
   // particles of an unlock burst.
   const before = await f.evaluate(() => (window as any).__dash.programs().length);
   await debug(f, 'setDist', 1990);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 20_000 }).toEqual(['heather', 'nicole']);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 20_000 }).toEqual(['miles', 'nicole']);
   await page.waitForTimeout(1500);
   expect(await f.evaluate(() => (window as any).__dash.programs().length)).toBe(before);
 });

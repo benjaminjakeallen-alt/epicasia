@@ -3,8 +3,8 @@ import ArcadePlay from '../../../../components/games/ArcadePlay';
 import SHINKANSEN_HTML from '../../../../games/shinkansen/html';
 import { unlockHero, unlockedHeroes } from '../../../../lib/arcade';
 
-// Shinkansen Dash, full screen. Emily and Heather are earned in the game
-// (reach Mount Fuji / Kyoto); the game's own storage is off in its sandbox,
+// Shinkansen Dash, full screen. Some travellers are secrets earned in the
+// game (see UNLOCK in its game.js); the game's own storage is off in its sandbox,
 // so the app remembers what this phone has unlocked and tells the game.
 
 const init = async () => ({ unlocked: await unlockedHeroes('shinkansen_dash') });

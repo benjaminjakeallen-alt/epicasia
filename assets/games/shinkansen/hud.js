@@ -62,10 +62,15 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     round(mx - 9 * u, y - 7 * u, 18 * u, 14 * u, 7 * u, '#ffffff', INK, 1.5);
     ctx.fillStyle = '#1f4fb5'; ctx.fillRect(mx - 6 * u, y + 1 * u, 12 * u, 2 * u);
     if (S.lap > 0) text('ROUND ' + (S.lap + 1), W / 2, top + 13 * u, 8, '#ffe066', { stroke: false });
-    if (S.shield) {
-      round(W / 2 - 46 * u, top + 96 * u, 92 * u, 22 * u, 11 * u, 'rgba(255,212,59,0.92)', INK, 1.5);
-      text('LUCKY CAT', W / 2, top + 107.5 * u, 10, '#3b2a00', { stroke: false });
-    }
+    const badges = [];
+    if (S.shield) badges.push(['LUCKY CAT', 'rgba(255,212,59,0.92)', '#3b2a00']);
+    if (S.spring) badges.push(['SPRING · DOUBLE JUMP', 'rgba(140,233,154,0.94)', '#0c3318']);
+    badges.forEach(([label, bg, ink], i) => {
+      ctx.font = `900 ${10 * u}px ${FONT}`;
+      const bw = ctx.measureText(label).width + 24 * u, by = top + (96 + i * 27) * u;
+      round(W / 2 - bw / 2, by, bw, 22 * u, 11 * u, bg, INK, 1.5);
+      text(label, W / 2, by + 11.5 * u, 10, ink, { stroke: false });
+    });
   }
 
   function messages() {

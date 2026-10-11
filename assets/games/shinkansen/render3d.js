@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makePole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makePole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -208,7 +208,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
-    chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), heather: makeHeroine('heather'),
+    chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), miles: makeHero('miles'),
     nicole: makeHero('nicole')
   };
   Object.values(heroes).forEach((h) => {
@@ -483,6 +483,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         case 'onigiri': m = take('onigiri', makeOnigiri); m.position.set(x, base + 0.45 + (o.h || 0) + Math.sin(t * 4 + o.d) * 0.08, z(o.d)); m.rotation.y = t * 3 + o.d; break;
         case 'boba': // floats over head height, bobbing and turning, so you jump for it
           m = take('boba', makeBoba); m.position.set(x, base + 2.05 + Math.sin(t * 3 + o.d) * 0.1, z(o.d)); m.rotation.y = t * 1.6 + o.d; break;
+        case 'spring': m = take('spring', makeSpring); m.position.set(x, base, z(o.d)); m.rotation.y = t * 1.2; break;
+        case 'guitar': // high up, a double jump's height; turns slowly, catching the light
+          m = take('guitar', makeGuitar); m.position.set(x, base + 3.35 + Math.sin(t * 2.4 + o.d) * 0.12, z(o.d)); m.rotation.y = Math.sin(t * 1.3) * 0.6; break;
         case 'neko': m = take('neko', makeNeko); m.position.set(x, base + 0.3, z(o.d)); m.rotation.y = Math.sin(t * 2) * 0.5; break;
       }
       if (!m) return;
@@ -553,7 +556,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // obstacle or tunnel appears mid-run nothing has to be built.
   function prewarm() {
     STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
-    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba);
+    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba); take('spring', makeSpring); take('guitar', makeGuitar);
     take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
     take('nose', () => glossy(makeNose(NOSE, noseHeight)));
     take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));

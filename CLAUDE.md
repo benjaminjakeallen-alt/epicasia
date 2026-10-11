@@ -565,10 +565,13 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   bill" nose, roof hazards, pickups, scenery), `hud.js`. **Reuses Rampage's
   `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`); no
   +15% here.
-- **Emily and Heather are earned** (user, Oct 11 2026: "not have Emily
-  immediately playable but you have to earn them"): Chris and Shea from
-  the start; **reach Mount Fuji (2 km) in a run → Emily, Kyoto (4 km) →
-  Heather** (`UNLOCK` in game.js). **Locked ones are a surprise** (user, Oct 11
+- **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
+  playable but you have to earn them"): Chris and Shea from the start;
+  **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
+  (`UNLOCK` in game.js; ROSTER chris, shea, emily, miles, nicole).
+  **Heather is no longer in Shinkansen Dash** (user: "replace Heather as a
+  secret character with Miles") — her old runs still show "as Heather";
+  she's unchanged in Rampage. **Locked ones are a surprise** (user, Oct 11
   2026: "don't say the character names or tell them how to get the
   character… they need to just figure out the secrets"): a dark silhouette
   with a padlock and a "???" pill; picking one only says "A SECRET TRAVELER
@@ -578,6 +581,26 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   the app keeps `epicasia.shinkansen.unlocked` per phone
   (`unlockedHeroes`/`unlockHero` in arcade.ts) and passes
   `INIT.unlocked`. `simulate()` never unlocks anyone (`S.simulating`).
+- **Miles — a spring, then a golden guitar** (user, Oct 11 2026: "there
+  should first be a spring power up you find. With the spring it allows a
+  one time double jump to collect a golden guitar which is later past the
+  spring… you swipe up twice"; modelled on his photos as `LOOKS.miles` —
+  shaggy dark-brown hair with a heavy fringe, round tortoiseshell glasses
+  (`roundGlasses`), freckles, a forest-green tee, dark jeans). **Springs**
+  (`makeSpring`, `OBS.spring`) sit on the roof from Rice Fields on
+  (`SPRING_FROM` 1 km, ~3.5% of rows, not while you hold one, ≥ 300 m
+  apart); grabbing one shows "SPRING! DOUBLE JUMP" and a green HUD badge
+  while held (`S.spring`). **Swipe up again in mid-air** (≥ 0.3 m up) →
+  `doubleJump()`: a second full jump, once — the spring is then used up.
+  While you hold a spring a **golden guitar** (`makeGuitar`, `OBS.guitar`,
+  lo 3.3 m) floats up ≥ 200 m further on (`GUITAR_AFTER`), over a train
+  with nothing else on it in that row — above a single jump's reach (head
+  at most 3.07 m), so only the double jump collects it; miss it while still
+  holding the spring and another guitar follows. It unlocks Miles;
+  after that it's +500. `fairnessProblems()` checks no spring before 1 km,
+  some after, no guitar without a spring, and that a held spring brings a
+  guitar over a clear train soon after it's due. Runs save as hero `miles`
+  (`0022_shinkansen_miles.sql`).
 - **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
   faster end of the board if you collect a boba drink you unlock Nicole";
   modelled on her photos as `LOOKS.nicole` in Rampage's models.js — a
@@ -657,8 +680,10 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   in development `debug` adds calm, spawn(type, lane, ahead), gap(lane,
   ahead), lane, setDist, shield, gameOver, pause, go.
 - Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
-  earning Emily/Heather and Nicole (boba missed without a jump, grabbed
-  with one, remembered, a run saved as her); play — swipes and keys, jump/slide counters, onigiri, lucky
+  earning Emily, Miles (no double jump without a spring, a single jump
+  passes under the guitar, the double jump gets it, the spring is used up,
+  remembered, a run saved as him) and Nicole (boba missed without a jump,
+  grabbed with one, remembered, a run saved as her); play — swipes and keys, jump/slide counters, onigiri, lucky
   cat, crash → exact `game_scores` insert, CHANGE HERO, leave; obstacles —
   jump a fairing, slide a gantry and a crow, hop off an ending train, fall
   off one) + axe on the board and inside the game frame.
@@ -1126,7 +1151,8 @@ backend code.
   `0019_rampage_level5_girl_power.sql` (`game_scores` level 1–5, heroes
   chris/shea/emily/heather — see Godzilla Rampage),
   `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`),
-  `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`).
+  `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`),
+  `0022_shinkansen_miles.sql` (… and `miles`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

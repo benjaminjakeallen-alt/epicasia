@@ -74,6 +74,33 @@ export const LOOKS = {
       return null;
     }
   },
+  // Miles (Shinkansen Dash, unlocked with a golden guitar): shaggy dark-brown
+  // hair with a heavy fringe over the brows and over the ears, round
+  // tortoiseshell glasses, a few freckles; a forest-green tee, dark jeans.
+  miles: {
+    skin: 0xf4cfb6, skinShade: 0xe0b196, eye: 0x5b7590, brow: 0x4a3221, mouth: 0xb9616a, freckles: 0xdcae92,
+    glasses: 0x3a2618, roundGlasses: true,
+    shirt: 0x1f5a3c, shirtDark: 0x184a31, pants: 0x2f3a4f, shoes: 0xf1f3f5,
+    hair: (u, w, d, core) => {
+      const n = hash3(u + 7, w * 3, d + 11);
+      const c = n < 0.25 ? 0x6b4a2e : n < 0.7 ? 0x4e3420 : 0x3b2717;
+      const tip = hash3(u, 0, d + 21) < 0.5; // a ragged edge
+      if (core) {
+        if (w >= 12) return c;
+        if (d === 13 && (w >= 9 || (w === 8 && tip && (u <= 1 || u >= 12)))) return c; // a heavy fringe down to the brows
+        if ((u <= 0 || u >= 13) && w >= 5) return c; // over the ears
+        if (d <= 2 && w >= 2) return c;
+        return null;
+      }
+      if (w === 14) return d >= 0 && d <= 13 && u >= 0 && u <= 13 ? c : null; // shaggy volume on top
+      if (w === 15) return d >= 1 && d <= 13 && u >= 0 && u <= 13 && hash3(u, w, d) < 0.8 ? c : null;
+      if (w === 16) return d >= 3 && d <= 11 && u >= 2 && u <= 11 && hash3(u, w, d) < 0.35 ? c : null; // messy tufts
+      if ((u === -1 || u === 14) && d >= 1 && d <= 13 && (w >= 5 || (w === 4 && tip)) && w <= 15) return c;
+      if (d === 14 && w >= 9 && w <= 14 && u >= 0 && u <= 13 && (w >= 10 || tip)) return c; // the fringe sticks out a little
+      if (d === -1 && w >= (tip ? 2 : 3) && w <= 14 && u >= 0 && u <= 13) return c;
+      return null;
+    }
+  },
   // Emily: big wavy red hair, blue eyes.
   emily: {
     skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
@@ -128,11 +155,12 @@ function head(look) {
       return null;
     }
     if (edges >= 2) return null; // rounded edges
-    if (look.glasses && d === 13) { // frames round each eye, a bridge, cat-eye corners
+    if (look.glasses && d === 13) { // frames round each eye, a bridge, cat-eye corners (or round)
       const lens = (u >= 2 && u <= 5) || (u >= 8 && u <= 11);
-      if (lens && w >= 5 && w <= 8 && (u === 2 || u === 5 || u === 8 || u === 11 || w === 5 || w === 8)) return look.glasses;
+      const corner = look.roundGlasses && (w === 5 || w === 8) && (u === 2 || u === 5 || u === 8 || u === 11); // rounded frames
+      if (lens && !corner && w >= 5 && w <= 8 && (u === 2 || u === 5 || u === 8 || u === 11 || w === 5 || w === 8)) return look.glasses;
       if (w === 7 && (u === 6 || u === 7)) return look.glasses;
-      if (w === 8 && (u === 1 || u === 12)) return look.glasses;
+      if (w === 8 && (u === 1 || u === 12) && !look.roundGlasses) return look.glasses;
     }
     if (look.freckles && d === 13 && w >= 4 && w <= 5 && (u <= 2 || u >= 11 || u === 6 || u === 7) && hash3(u, w, 77) < 0.45) return look.freckles;
     if (d === 13) {

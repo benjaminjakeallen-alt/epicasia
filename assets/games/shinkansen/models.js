@@ -221,6 +221,40 @@ export function makeBoba() {
   return mesh(b.geometry());
 }
 
+/** A spring on a little base plate: one double jump. */
+export function makeSpring() {
+  const b = new VoxBuilder();
+  b.add(9, 1, 9, (x, y, z) => (Math.hypot(x - 4, z - 4) <= 4.2 ? 0x2b8a3e : null), { size: 0.08, offset: [-0.36, 0, -0.36] }); // base
+  b.add(9, 9, 9, (x, y, z) => { // the coil: a ring every other layer
+    const r = Math.hypot(x - 4, z - 4);
+    if (y % 2 === 0) return r <= 3.9 && r >= 2.6 ? (y % 4 ? 0xdee2e6 : 0xadb5bd) : null;
+    const a = Math.atan2(z - 4, x - 4); // a riser joining each ring to the next
+    return r <= 3.9 && r >= 2.6 && Math.abs(a - (y % 4 === 1 ? 0.6 : -2.5)) < 0.45 ? 0xced4da : null;
+  }, { size: 0.08, offset: [-0.36, 0.08, -0.36] });
+  b.add(9, 1, 9, (x, y, z) => (Math.hypot(x - 4, z - 4) <= 4.2 ? (Math.hypot(x - 4, z - 4) < 1.5 ? 0xffffff : 0x51cf66) : null), { size: 0.08, offset: [-0.36, 0.8, -0.36] }); // the pad
+  return mesh(b.geometry());
+}
+/** A golden electric guitar, standing up and glowing a little: unlocks Miles. */
+export function makeGuitar() {
+  const b = new VoxBuilder(), glow = new VoxBuilder();
+  const GOLD = 0xf2c230, DARK = 0xc8961a;
+  b.add(9, 11, 3, (x, y, z) => { // the body: two rounded bouts and a waist
+    const cx = x - 4, wide = y < 5 ? 4.4 - Math.abs(y - 2) * 0.35 : y < 7 ? 3.1 : 3.6 - Math.abs(y - 8.5) * 0.45;
+    if (Math.abs(cx) > wide) return null;
+    if (z === 2 && y >= 2 && y <= 3 && Math.abs(cx) <= 2) return 0x2b2b2b; // bridge pickup
+    if (z === 2 && y === 6 && Math.abs(cx) <= 1.5) return 0x2b2b2b; // neck pickup
+    if (z === 2 && x === 6 && y === 1) return 0xfff3bf; // a knob
+    return z === 0 || Math.abs(cx) > wide - 1 ? DARK : GOLD;
+  }, { size: 0.07, offset: [-0.315, 0, -0.105] });
+  b.add(2, 12, 2, (x, y) => (y % 3 === 0 ? 0xfff3bf : 0x8a5a1a), { size: 0.07, offset: [-0.07, 0.77, -0.07] }); // neck with frets
+  b.add(3, 4, 2, (x, y) => (x !== 1 && y % 2 === 0 ? 0xfff3bf : GOLD), { size: 0.07, offset: [-0.105, 1.61, -0.07] }); // head + tuners
+  glow.add(1, 1, 1, () => 0xfff3bf, { size: 0.9, offset: [-0.45, 0.3, -0.6] }); // a soft glow plate behind it
+  const g = new THREE.Group();
+  const glowMesh = new THREE.Mesh(glow.geometry(), new THREE.MeshBasicMaterial({ color: 0xffe066, transparent: true, opacity: 0.35, fog: false }));
+  g.add(mesh(b.geometry()), glowMesh);
+  return g;
+}
+
 // ---- along the line --------------------------------------------------------------------
 /** A catenary pole with its arm (one each side of the line). */
 export function makePole(side, height) {

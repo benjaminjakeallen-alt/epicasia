@@ -30,22 +30,26 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, heather: { name: 'HEATHER' }, nicole: { name: 'NICOLE' } };
-const ROSTER = ['chris', 'shea', 'emily', 'heather', 'nicole'];
-// Emily and Heather are earned (user, Oct 11 2026): reach Mount Fuji in a
-// run to unlock Emily, Kyoto to unlock Heather. The app remembers unlocks
+const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' } };
+const ROSTER = ['chris', 'shea', 'emily', 'miles', 'nicole'];
+// Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
+// unlock Emily; Miles (who replaced Heather here) needs a golden guitar; Nicole a boba tea. The app remembers unlocks
 // per phone (the game's own storage is off in its sandbox) and passes them
 // back in INIT.unlocked. Locked ones are a surprise (user, Oct 11 2026):
 // the line-up shows a silhouette and "???", never their name or how to earn them.
 const UNLOCK = {
   emily: { at: 2 * STAGE_LEN },
-  heather: { at: 4 * STAGE_LEN },
+  // Miles (user, Oct 11 2026): first find a spring — it gives one double
+  // jump (swipe up again in the air) — then a golden guitar floats up
+  // ahead, too high for a single jump.
+  miles: { item: 'guitar' },
   // Nicole (user, Oct 11 2026): grab a boba tea. They only float over the
   // roofs in the fast end of the line (Tea Hills on, every later round) and
   // need a jump.
   nicole: { item: 'boba' }
 };
 const BOBA_FROM = 3 * STAGE_LEN, BOBA = 250;
+const SPRING_FROM = STAGE_LEN, GUITAR_AFTER = 200, GUITAR = 500; // springs from Rice Fields on; the guitar ≥ 200 m past one
 
 // ---- the runner -----------------------------------------------------------------
 const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16; // a jump is ~1.37 m high, ~0.74 s long
@@ -61,7 +65,10 @@ const OBS = {
   gantry: { len: 0.7, lo: 1.0, hi: 1.9, all: true }, // a signal gantry over every train: slide
   onigiri: { len: 0.9, lo: 0.2, hi: 1.4, pickup: true },
   neko: { len: 0.9, lo: 0.2, hi: 1.5, pickup: true },
-  boba: { len: 1.0, lo: 1.9, hi: 2.9, pickup: true } // floats above head height: jump for it
+  boba: { len: 1.0, lo: 1.9, hi: 2.9, pickup: true }, // floats above head height: jump for it
+  spring: { len: 0.9, lo: 0.2, hi: 1.4, pickup: true }, // one double jump
+  // Above a single jump's reach (head at most 1.37 + 1.7 = 3.07 m): only a double jump gets there.
+  guitar: { len: 1.2, lo: 3.3, hi: 4.5, pickup: true }
 };
 
 // ---- host bridge ------------------------------------------------------------------
@@ -76,7 +83,7 @@ function haptic(kind) { post({ type: 'haptic', kind: kind }); }
 const S = {
   mode: 'select', // select | ready | run | crash | gameover
   sel: 0, hero: 'chris', t: 0, modeT: 0,
-  dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, hi: Math.max(0, INIT.highScore | 0),
+  dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, hi: Math.max(0, INIT.highScore | 0),
   stage: 0, lap: 0, maxStage: 0,
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [],
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
@@ -216,6 +223,24 @@ function makeRow(d) {
     const clear = open.filter(function (l) { return !row.some(function (o) { return o.lane === l || o.lane === -1; }); });
     if (clear.length && !row.some(function (o) { return o.type === 'gantry'; })) put('boba', pick(clear), { d: d - 12 });
   }
+  // A spring (one double jump) from Rice Fields on; while you hold one, a
+  // golden guitar floats up ≥ 200 m further on, over a train with nothing
+  // else on it in that row (the random draws only start past 1 km / once a
+  // spring is held, so earlier layouts never change).
+  const clearLanes = function () {
+    if (row.some(function (o) { return o.type === 'gantry'; })) return [];
+    return open.filter(function (l) { return !row.some(function (o) { return o.lane === l; }); });
+  };
+  const near = function (type, back) { return S.obs.some(function (o) { return o.type === type && !o.gone && o.d > d - back; }); };
+  // (missed the guitar but still holding the spring? another one comes along)
+  if (S.spring && !S.guitarDue && !near('guitar', 400)) S.guitarDue = d + GUITAR_AFTER;
+  if (S.spring && S.guitarDue && d >= S.guitarDue && !near('guitar', 150)) {
+    const cl = clearLanes();
+    if (cl.length) { put('guitar', pick(cl), { d: d - 12 }); S.guitarDue = 0; }
+  } else if (d >= SPRING_FROM && !S.spring && rnd() < 0.035 && !near('spring', 300)) {
+    const cl = clearLanes();
+    if (cl.length) put('spring', pick(cl), { d: d - 6 });
+  }
   // Safety net: never a row with no way through.
   const passable = open.some(function (l) {
     return !row.some(function (o) { return o.lane === l && o.type === 'panto'; });
@@ -235,8 +260,9 @@ function spawnAhead() {
 }
 /** Checks the row generator: every row must leave a train you can get through. */
 function fairnessProblems() {
-  const keep = { seed: seed, obs: S.obs, gaps: S.gaps, stage: S.stage, lap: S.lap, nextGap: S.nextGap };
+  const keep = { seed: seed, obs: S.obs, gaps: S.gaps, stage: S.stage, lap: S.lap, nextGap: S.nextGap, spring: S.spring, guitarDue: S.guitarDue };
   const out = [];
+  S.spring = false; S.guitarDue = 0;
   seed = 4242; S.obs = []; S.gaps = []; S.nextGap = 100;
   for (let stage = 0; stage < 5; stage++) {
     S.stage = stage; S.lap = stage === 4 ? 1 : 0;
@@ -255,17 +281,55 @@ function fairnessProblems() {
       S.gaps = S.gaps.filter(function (g) { return g.g1 > d - 100; });
     }
   }
-  // Boba teas: never before Tea Hills, and enough after it to find one.
-  seed = 77; S.gaps = []; S.nextGap = 100; S.obs = [];
-  let early = 0, late = 0;
-  for (let d = 100; d < 2 * BOBA_FROM; d += 30) {
-    while (S.nextGap < d + 200) scheduleGap();
-    makeRow(d).forEach(function (o) { if (o.type === 'boba') { if (d < BOBA_FROM) early++; else late++; } });
-    S.obs = S.obs.filter(function (o) { return o.d > d - 150; });
+  // Boba teas: never before Tea Hills, and enough after it to find one
+  // (over five layouts, so one unlucky sequence doesn't decide it).
+  let early = 0, late = 0, dry = 0;
+  for (let k = 0; k < 5; k++) {
+    seed = 77 + k * 1013; S.gaps = []; S.nextGap = 100; S.obs = []; S.spring = false;
+    let here = 0;
+    for (let d = 100; d < 2 * BOBA_FROM; d += 30) {
+      while (S.nextGap < d + 200) scheduleGap();
+      makeRow(d).forEach(function (o) { if (o.type === 'boba') { if (d < BOBA_FROM) early++; else { late++; here++; } } });
+      S.obs = S.obs.filter(function (o) { return o.d > d - 150; });
+    }
+    if (!here) dry++;
   }
   if (early) out.push(early + ' boba before Tea Hills');
-  if (late < 3) out.push('only ' + late + ' boba in the fast stretch');
-  Object.assign(S, { obs: keep.obs, gaps: keep.gaps, stage: keep.stage, lap: keep.lap, nextGap: keep.nextGap });
+  if (dry || late < 10) out.push(late + ' boba in 5 × 3 km, ' + dry + ' layouts with none');
+  S.spring = false;
+  // Springs: none before Rice Fields, a few after; no guitar without one.
+  seed = 91; S.gaps = []; S.nextGap = 100; S.obs = [];
+  let springsEarly = 0, springs = 0, guitars = 0;
+  for (let d = 100; d < 6000; d += 30) {
+    while (S.nextGap < d + 200) scheduleGap();
+    makeRow(d).forEach(function (o) { if (o.type === 'spring') { if (d < SPRING_FROM) springsEarly++; else springs++; } if (o.type === 'guitar') guitars++; });
+    S.obs = S.obs.filter(function (o) { return o.d > d - 350; });
+  }
+  if (springsEarly) out.push(springsEarly + ' springs before Rice Fields');
+  if (springs < 2) out.push('only ' + springs + ' springs in 5 km');
+  if (guitars) out.push('a guitar without a spring');
+  // Holding a spring: a guitar comes ≥ 200 m on, soon after, over a clear train.
+  S.spring = true; S.guitarDue = 2200; S.obs = [];
+  let at = -1;
+  for (let d = 1900; d < 2700 && at < 0; d += 30) {
+    while (S.nextGap < d + 200) scheduleGap();
+    const row = makeRow(d), g = row.find(function (o) { return o.type === 'guitar'; });
+    if (g) {
+      at = g.d;
+      if (row.some(function (o) { return o !== g && (o.lane === g.lane || o.lane === -1); })) out.push('guitar shares a train with an obstacle');
+      if (!openAt(g.lane, g.d)) out.push('guitar over an ending train');
+    }
+  }
+  if (at < 0) out.push('no guitar within 500 m of being due');
+  else if (at < 2200 - 12) out.push('guitar came too soon');
+  // Missed it, spring still held: another guitar follows.
+  let again = false;
+  for (let d = at + 42; d < at + 1200 && !again; d += 30) {
+    while (S.nextGap < d + 200) scheduleGap();
+    again = makeRow(d).some(function (o) { return o.type === 'guitar'; });
+  }
+  if (at >= 0 && !again) out.push('no second guitar after missing one');
+  Object.assign(S, { obs: keep.obs, gaps: keep.gaps, stage: keep.stage, lap: keep.lap, nextGap: keep.nextGap, spring: keep.spring, guitarDue: keep.guitarDue });
   seed = keep.seed;
   return out.filter(function (x, i, a) { return a.indexOf(x) === i; });
 }
@@ -310,6 +374,7 @@ const SFX = {
   horn: function () { tone(330, 0.7, 'sawtooth', 0.035); tone(415, 0.7, 'sawtooth', 0.03); },
   chime: function () { [659, 831, 988, 1319].forEach(function (f, i) { tone(f, 0.22, 'sine', 0.06, 0, i * 0.16); }); },
   count: function (hi) { tone(hi ? 1046 : 523, hi ? 0.35 : 0.14, 'square', 0.045); },
+  spring: function () { tone(300, 0.22, 'triangle', 0.05, 1200); tone(600, 0.16, 'square', 0.025, 1800, 0.05); },
   locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); }
 };
 // A light chiptune loop while running.
@@ -345,7 +410,7 @@ function newRun(hero) {
   S.hero = hero; S.sel = ROSTER.indexOf(hero);
   seed = INIT.seed || (Date.now() % 2147483646) + 1;
   Object.assign(S, {
-    dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
+    dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false
   });
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null };
@@ -395,10 +460,18 @@ function act(dir) {
     if (to === p.lane) { SFX.hop(); return; }
     p.from = p.x; p.lane = to; p.laneT = 0; SFX.hop();
   } else if (dir === 'U') {
-    if (!p.air) jump(p); else p.jbuf = JUMP_BUFFER;
+    if (!p.air) jump(p);
+    else if (S.spring && S.mode === 'run' && p.y > (roofAt(p.lane, S.dist) || ROOF) + 0.3) doubleJump(p);
+    else p.jbuf = JUMP_BUFFER;
   } else if (dir === 'D') {
     if (p.air) { p.vy = Math.min(p.vy, DIVE_V); p.dive = true; } else { p.slideT = SLIDE_TIME; S.slides++; SFX.slide(); }
   }
+}
+/** The spring's one double jump: a second full jump from mid-air. */
+function doubleJump(p) {
+  S.spring = false; S.doubles++;
+  p.vy = JUMP_V; p.dive = false; p.jbuf = 0; p.jumpT = S.t;
+  SFX.spring(); burst(p.x, p.y, 0, ['#8ce99a', '#ffffff', '#d3f9d8'], 12, 3);
 }
 function jump(p) { p.air = true; p.vy = JUMP_V; p.slideT = 0; p.jbuf = 0; p.jumpT = S.t; S.jumps++; SFX.jump(); }
 
@@ -515,6 +588,12 @@ function updateRunner(dt) {
       else if (o.type === 'boba') {
         S.score += BOBA; S.bobas++; SFX.neko(); S.pops.push({ txt: '+' + BOBA, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
         if (locked('nicole')) unlockHero('nicole'); else say('BOBA!', 1.2, '#ffc9a3');
+      } else if (o.type === 'spring') {
+        S.spring = true; S.guitarDue = S.dist + GUITAR_AFTER; SFX.spring(); haptic('success'); say('SPRING! DOUBLE JUMP', 1.6, '#8ce99a');
+      } else if (o.type === 'guitar') {
+        S.score += GUITAR; S.guitars++; SFX.chime(); S.pops.push({ txt: '+' + GUITAR, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
+        burst(LANES[o.lane], lo + 0.5, 0, ['#ffd43b', '#fff3bf', '#ffffff'], 24, 5);
+        if (locked('miles')) unlockHero('miles'); else say('GOLDEN GUITAR!', 1.4, '#ffd43b');
       } else { S.shield = true; S.score += NEKO; SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
       continue;
     }
@@ -603,7 +682,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)
@@ -616,6 +695,7 @@ if (INIT.debug) {
     lane: function (l) { const p = S.p; p.lane = l; p.x = LANES[l]; p.laneT = 1; },
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
+    spring: function () { S.spring = true; },
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
     go: function () { if (S.mode === 'ready') S.modeT = 2.4; },
