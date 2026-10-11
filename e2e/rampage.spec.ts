@@ -201,16 +201,19 @@ test('every level can be climbed: a safe ladder up from each girder, none into G
   await expect.poll(async () => (await state(f)).player.g, { timeout: 15000 }).toBe(5);
   await page.keyboard.up('ArrowUp');
   expect((await state(f)).mode).toBe('play'); // not stomped
-  // Walk right toward the ledge ladder (x 118). On a slow runner the hero can
-  // overshoot it before the key is released, so step back if needed.
-  await page.keyboard.down('ArrowRight');
-  await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeGreaterThan(111);
-  await page.keyboard.up('ArrowRight');
-  if ((await state(f)).player.x > 125) {
-    await page.keyboard.down('ArrowLeft');
-    await expect.poll(async () => (await state(f)).player.x, { timeout: 15000 }).toBeLessThan(124);
-    await page.keyboard.up('ArrowLeft');
+  // Walk to the ledge ladder (x 118). Holding a key and polling overshot on a
+  // busy CI runner (56 units/s; the ladder grabs within 9), so close in with
+  // short steps sized to the distance left until it's within reach.
+  for (let i = 0; i < 12; i++) {
+    const x = (await state(f)).player.x;
+    if (Math.abs(x - 118) <= 5) break;
+    const key = x < 118 ? 'ArrowRight' : 'ArrowLeft';
+    await page.keyboard.down(key);
+    await page.waitForTimeout(Math.max(20, Math.min(600, ((Math.abs(x - 118) - 2) / 56) * 1000 * 0.6)));
+    await page.keyboard.up(key);
+    await page.waitForTimeout(80);
   }
+  expect(Math.abs((await state(f)).player.x - 118)).toBeLessThanOrEqual(8);
   await page.keyboard.down('ArrowUp');
   await expect.poll(async () => (await state(f)).mode, { timeout: 15000 }).toBe('rescue');
   await page.keyboard.up('ArrowUp');
