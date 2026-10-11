@@ -98,7 +98,7 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   await open(page, '/games/shinkansen');
   await page.getByTestId('dash-play').click();
   let f = await game(page);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
   // Tapping a locked traveler says how to earn them and doesn't start.
   const tap = async (i: number) => {
     const box = (await page.getByTestId('game-frame').boundingBox())!;
@@ -116,7 +116,7 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   await expect.poll(async () => (await st(f)).mode).toBe('run');
   await debug(f, 'calm');
   await debug(f, 'setDist', 1990);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 15_000 }).toEqual(['heather']);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 15_000 }).toEqual(['heather', 'nicole']);
   const ui = page.frameLocator('[data-testid="game-frame"]');
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
@@ -125,12 +125,65 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   // Next time Emily is playable from the line-up; Heather still needs Kyoto.
   await page.getByTestId('dash-play').click();
   f = await game(page);
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['heather']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['heather', 'nicole']);
   await tap(3);
   await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('REACH KYOTO TO UNLOCK HEATHER');
   await tap(2);
   await expect.poll(async () => (await st(f)).mode).toBe('ready');
   expect((await st(f)).hero).toBe('emily');
+});
+
+test('Nicole is earned with a boba tea: only in the fast end, and only with a jump', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  let f = await game(page);
+  const box = (await page.getByTestId('game-frame').boundingBox())!;
+  const tap = async (i: number) => {
+    const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
+    await page.mouse.click(box.x + pt.x, box.y + pt.y);
+  };
+  await tap(4);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('GRAB A BOBA TEA NEAR KYOTO TO UNLOCK NICOLE');
+  expect((await st(f)).mode).toBe('select');
+  // (fairnessProblems also checks no boba before Tea Hills, and some after)
+  expect(await f.evaluate(() => (window as any).__dash.fairnessProblems())).toEqual([]);
+
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  const bobas = () => f.evaluate(() => (window as any).__dash.bobas);
+  // It floats above your head: running under it doesn't collect it…
+  await debug(f, 'pause', true);
+  await debug(f, 'spawn', 'boba', 1, 4);
+  await debug(f, 'pause', false);
+  await page.waitForTimeout(1500);
+  expect(await bobas()).toBe(0);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
+  // …a jump does, and Nicole is unlocked.
+  await debug(f, 'pause', true);
+  await debug(f, 'spawn', 'boba', 1, 4);
+  await page.keyboard.press('ArrowUp');
+  await debug(f, 'pause', false);
+  await expect.poll(bobas, { timeout: 10_000 }).toBe(1);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  await ui.getByRole('button', { name: 'Pause' }).click();
+  await ui.getByRole('button', { name: 'Leave the game' }).click();
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15_000 });
+
+  // The app remembers: next time Nicole is in the line-up, and her runs save as her.
+  await page.getByTestId('dash-play').click();
+  f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  await start(page, f, 4);
+  expect((await st(f)).hero).toBe('nicole');
+  await debug(f, 'gameOver', 321);
+  // (the first run, left from the pause menu, was saved as Chris)
+  const scores = () => backend.inserts.filter((i) => i.table === 'game_scores');
+  await expect.poll(() => scores().length).toBe(2);
+  expect((scores()[0].body as unknown as Record<string, unknown>[])[0]).toMatchObject({ hero: 'chris' });
+  const saved = (scores()[1].body as unknown as Record<string, unknown>[])[0];
+  expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, hero: 'nicole', score: 321 });
 });
 
 test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash and save', async ({ page }) => {
@@ -151,7 +204,7 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   const runs = await f.evaluate(() => [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (window as any).__dash.debug.simulate(s, 6000)));
   expect(runs.filter((r: { dist: number }) => r.dist >= 6000).length, JSON.stringify(runs)).toBeGreaterThanOrEqual(7);
   // (the bot passing Fuji and Kyoto doesn't earn anyone)
-  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
 
   await start(page, f, 1); // Shea
   expect((await st(f)).hero).toBe('shea');
@@ -238,7 +291,7 @@ test('smooth: every frame moves the world by exactly the time that passed', asyn
   // particles of an unlock burst.
   const before = await f.evaluate(() => (window as any).__dash.programs().length);
   await debug(f, 'setDist', 1990);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 20_000 }).toEqual(['heather']);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 20_000 }).toEqual(['heather', 'nicole']);
   await page.waitForTimeout(1500);
   expect(await f.evaluate(() => (window as any).__dash.programs().length)).toBe(before);
 });

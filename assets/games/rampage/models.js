@@ -51,6 +51,29 @@ export const LOOKS = {
       return null;
     }
   },
+  // Nicole (Shinkansen Dash, unlocked with a boba tea): a copper-auburn
+  // chin-length bob with a side part, blue-green eyes, freckles, dark teal
+  // cat-eye glasses; white tee, jeans, and her rust crossbody belt bag.
+  nicole: {
+    skin: 0xf3cdb2, skinShade: 0xdfae90, eye: 0x4f7f86, brow: 0x9a4a28, mouth: 0xc0505a, blush: 0xf0a99e,
+    freckles: 0xcf8f69, glasses: 0x2c4a55,
+    shirt: 0xf5f2ea, shirtDark: 0xe2ddd2, pants: 0x7894bb, shoes: 0xf1f3f5,
+    strap: 0xe9e2d0, bag: 0xa65a3c,
+    hair: (u, w, d, core) => {
+      const n = hash3(u + 3, w * 2, d + 5);
+      const c = n < 0.22 ? 0xd27c46 : n < 0.62 ? 0xb5582c : 0x9f4a26;
+      if (core) {
+        if (w >= 12) return c;
+        if (d === 13 && w >= 11 && u <= 4) return c; // swept from a side part
+        if (d <= 1 && w >= 1) return c;
+        return null;
+      }
+      if (w >= 14) return d >= 1 && d <= 12 && u >= 1 && u <= 12 ? c : null;
+      if ((u === -1 || u === 14) && w >= 1 && w <= 13 && d >= 0 && d <= 12) return c; // to the chin
+      if (d === -1 && w >= 1 && w <= 13 && u >= 0 && u <= 13) return c;
+      return null;
+    }
+  },
   // Emily: big wavy red hair, blue eyes.
   emily: {
     skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
@@ -105,6 +128,13 @@ function head(look) {
       return null;
     }
     if (edges >= 2) return null; // rounded edges
+    if (look.glasses && d === 13) { // frames round each eye, a bridge, cat-eye corners
+      const lens = (u >= 2 && u <= 5) || (u >= 8 && u <= 11);
+      if (lens && w >= 5 && w <= 8 && (u === 2 || u === 5 || u === 8 || u === 11 || w === 5 || w === 8)) return look.glasses;
+      if (w === 7 && (u === 6 || u === 7)) return look.glasses;
+      if (w === 8 && (u === 1 || u === 12)) return look.glasses;
+    }
+    if (look.freckles && d === 13 && w >= 4 && w <= 5 && (u <= 2 || u >= 11 || u === 6 || u === 7) && hash3(u, w, 77) < 0.45) return look.freckles;
     if (d === 13) {
       if (w >= 6 && w <= 7 && ((u >= 3 && u <= 4) || (u >= 9 && u <= 10))) return w === 7 && (u === 3 || u === 9) ? 0xffffff : look.eye;
       if (w === 9 && ((u >= 2 && u <= 4) || (u >= 9 && u <= 11))) return look.brow;
@@ -122,11 +152,18 @@ function heroParts(look) {
   const torso = vox(11, 11, 7, (x, y, z) => {
     if ((x === 0 || x === 10) && (z === 0 || z === 6)) return null;
     if (y === 10 && z >= 5 && x >= 4 && x <= 6) return look.skin; // neckline
+    if (look.strap && (z === 6 || z === 0) && Math.abs(x - (1.2 + y * 0.82)) < 0.75) return look.strap; // crossbody strap
     return y === 0 ? look.shirtDark : look.shirt;
   }, V, [5.5, 0, 3.5]);
   const arm = vox(3, 10, 4, (x, y) => (y >= 6 ? look.shirt : y <= 2 ? look.skinShade : look.skin), V, [1.5, 10, 2]);
   const leg = vox(3, 10, 4, (x, y, z) => (y <= 1 ? (z === 3 && y === 0 ? 0xffffff : look.shoes) : look.pants), V, [1.5, 10, 2]);
-  return { torso, arm, leg, head: head(look) };
+  // a belt bag at the hip: rust with cream piping, a zip, a little black patch
+  const bag = look.bag ? vox(6, 4, 3, (x, y, z) => {
+    if (y === 3 && z === 2 && x >= 1 && x <= 4) return 0x8a8f96;
+    if (z === 2 && y === 1 && x === 4) return 0x16181c;
+    return x === 0 || x === 5 ? look.strap : look.bag;
+  }, V, [3, 0, 0]) : null;
+  return { torso, arm, leg, bag, head: head(look) };
 }
 
 function wifeParts(look) {
@@ -172,6 +209,7 @@ export function makeHero(key) {
   legL.position.set(-1.2, 5, 0);
   legR.position.set(1.2, 5, 0);
   root.add(legL, legR);
+  if (p.bag) { const bag = mesh(p.bag); bag.position.set(-1.6, 0.3, 1.75); body.add(bag); }
   root.userData = { body, head: headM, armL, armR, legL, legR, hand };
   return root;
 }

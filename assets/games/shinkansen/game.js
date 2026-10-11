@@ -30,16 +30,21 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, heather: { name: 'HEATHER' } };
-const ROSTER = ['chris', 'shea', 'emily', 'heather'];
+const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, heather: { name: 'HEATHER' }, nicole: { name: 'NICOLE' } };
+const ROSTER = ['chris', 'shea', 'emily', 'heather', 'nicole'];
 // Emily and Heather are earned (user, Oct 11 2026): reach Mount Fuji in a
 // run to unlock Emily, Kyoto to unlock Heather. The app remembers unlocks
 // per phone (the game's own storage is off in its sandbox) and passes them
 // back in INIT.unlocked.
 const UNLOCK = {
   emily: { at: 2 * STAGE_LEN, goal: 'REACH MOUNT FUJI', short: 'REACH FUJI' },
-  heather: { at: 4 * STAGE_LEN, goal: 'REACH KYOTO', short: 'REACH KYOTO' }
+  heather: { at: 4 * STAGE_LEN, goal: 'REACH KYOTO', short: 'REACH KYOTO' },
+  // Nicole (user, Oct 11 2026): grab a boba tea. They only float over the
+  // roofs in the fast end of the line (Tea Hills on, every later round) and
+  // need a jump.
+  nicole: { item: 'boba', goal: 'GRAB A BOBA TEA NEAR KYOTO', short: 'FIND BOBA' }
 };
+const BOBA_FROM = 3 * STAGE_LEN, BOBA = 250;
 
 // ---- the runner -----------------------------------------------------------------
 const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16; // a jump is ~1.37 m high, ~0.74 s long
@@ -54,7 +59,8 @@ const OBS = {
   crow: { len: 0.9, lo: 0.95, hi: 1.75 }, // slide under (or hop trains)
   gantry: { len: 0.7, lo: 1.0, hi: 1.9, all: true }, // a signal gantry over every train: slide
   onigiri: { len: 0.9, lo: 0.2, hi: 1.4, pickup: true },
-  neko: { len: 0.9, lo: 0.2, hi: 1.5, pickup: true }
+  neko: { len: 0.9, lo: 0.2, hi: 1.5, pickup: true },
+  boba: { len: 1.0, lo: 1.9, hi: 2.9, pickup: true } // floats above head height: jump for it
 };
 
 // ---- host bridge ------------------------------------------------------------------
@@ -69,7 +75,7 @@ function haptic(kind) { post({ type: 'haptic', kind: kind }); }
 const S = {
   mode: 'select', // select | ready | run | crash | gameover
   sel: 0, hero: 'chris', t: 0, modeT: 0,
-  dist: 0, speed: 0, score: 0, coins: 0, hi: Math.max(0, INIT.highScore | 0),
+  dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, hi: Math.max(0, INIT.highScore | 0),
   stage: 0, lap: 0, maxStage: 0,
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [],
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
@@ -202,6 +208,13 @@ function makeRow(d) {
     coinLine(pick(open), d - 4, 5, false);
   }
   if (rnd() < 0.03 && !S.shield) put('neko', pick(open), { d: d - 7 });
+  // A boba tea (unlocks Nicole) — only from Tea Hills on, so earlier layouts
+  // never change. Over a train with nothing else on it in this row, and never
+  // under a gantry, so the jump for it can't land you in anything.
+  if (d >= BOBA_FROM && rnd() < 0.06 && !S.obs.some(function (o) { return o.type === 'boba' && !o.gone && o.d > d - 120; })) {
+    const clear = open.filter(function (l) { return !row.some(function (o) { return o.lane === l || o.lane === -1; }); });
+    if (clear.length && !row.some(function (o) { return o.type === 'gantry'; })) put('boba', pick(clear), { d: d - 12 });
+  }
   // Safety net: never a row with no way through.
   const passable = open.some(function (l) {
     return !row.some(function (o) { return o.lane === l && o.type === 'panto'; });
@@ -241,6 +254,16 @@ function fairnessProblems() {
       S.gaps = S.gaps.filter(function (g) { return g.g1 > d - 100; });
     }
   }
+  // Boba teas: never before Tea Hills, and enough after it to find one.
+  seed = 77; S.gaps = []; S.nextGap = 100; S.obs = [];
+  let early = 0, late = 0;
+  for (let d = 100; d < 2 * BOBA_FROM; d += 30) {
+    while (S.nextGap < d + 200) scheduleGap();
+    makeRow(d).forEach(function (o) { if (o.type === 'boba') { if (d < BOBA_FROM) early++; else late++; } });
+    S.obs = S.obs.filter(function (o) { return o.d > d - 150; });
+  }
+  if (early) out.push(early + ' boba before Tea Hills');
+  if (late < 3) out.push('only ' + late + ' boba in the fast stretch');
   Object.assign(S, { obs: keep.obs, gaps: keep.gaps, stage: keep.stage, lap: keep.lap, nextGap: keep.nextGap });
   seed = keep.seed;
   return out.filter(function (x, i, a) { return a.indexOf(x) === i; });
@@ -321,7 +344,7 @@ function newRun(hero) {
   S.hero = hero; S.sel = ROSTER.indexOf(hero);
   seed = INIT.seed || (Date.now() % 2147483646) + 1;
   Object.assign(S, {
-    dist: 0, speed: 0, score: 0, coins: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
+    dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false
   });
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null };
@@ -358,8 +381,8 @@ function act(dir) {
   audio();
   if (S.menu) return;
   if (S.mode === 'select') {
-    if (dir === 'L') S.sel = (S.sel + 3) % 4;
-    else if (dir === 'R') S.sel = (S.sel + 1) % 4;
+    if (dir === 'L') S.sel = (S.sel + ROSTER.length - 1) % ROSTER.length;
+    else if (dir === 'R') S.sel = (S.sel + 1) % ROSTER.length;
     else if (dir === 'U' || dir === 'go') pickHero(ROSTER[S.sel]);
     return;
   }
@@ -488,7 +511,10 @@ function updateRunner(dt) {
       o.gone = true; o.gotT = S.t; // (drawn flying off for a moment)
       burst(LANES[o.lane], lo + 0.5, 0, o.type === 'onigiri' ? ['#ffffff', '#ffe066', '#b2f2bb'] : ['#ffe066', '#ff8787', '#ffffff'], 10, 3);
       if (o.type === 'onigiri') { S.coins++; S.score += COIN; SFX.coin(); S.pops.push({ txt: '+' + COIN, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d }); }
-      else { S.shield = true; S.score += NEKO; SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
+      else if (o.type === 'boba') {
+        S.score += BOBA; S.bobas++; SFX.neko(); S.pops.push({ txt: '+' + BOBA, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
+        if (locked('nicole')) unlockHero('nicole'); else say('BOBA!', 1.2, '#ffc9a3');
+      } else { S.shield = true; S.score += NEKO; SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
       continue;
     }
     o.hit = true;
@@ -522,7 +548,7 @@ function update(dt) {
     const before = S.dist;
     S.dist += S.speed * dt;
     S.score += Math.floor(S.dist) - Math.floor(before);
-    ROSTER.forEach(function (h) { if (UNLOCK[h] && locked(h) && S.dist >= UNLOCK[h].at) unlockHero(h); });
+    ROSTER.forEach(function (h) { if (UNLOCK[h] && UNLOCK[h].at && locked(h) && S.dist >= UNLOCK[h].at) unlockHero(h); });
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
     updateRunner(dt);
@@ -576,7 +602,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)

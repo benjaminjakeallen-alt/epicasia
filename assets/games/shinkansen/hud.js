@@ -98,23 +98,27 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     text('DASH', W / 2, 100 * u - wob, 46, '#ffd43b', { depth: 3.5, depthColor: '#b5431f', lw: 9 });
     if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR TRAVELER', W / 2, 140 * u, 14, '#ffffff', { lw: 3.5 });
     // names under the line-up
+    // five across: alternate pills sit a row lower so they never overlap
     game.ROSTER.forEach((k, i) => {
       const q = toScreen(LINEUP[i], ROOF - 0.2, 0), on = S.sel === i, shut = game.locked(k);
-      const name = game.HEROES[k].name, w = (name.length * 9 + 18) * u;
+      if (i % 2) q.y += 30 * u;
+      const name = game.HEROES[k].name, w = (name.length * 8.4 + 14) * u;
       round(q.x - w / 2, q.y, w, 24 * u, 12 * u, on ? (shut ? '#c9ced6' : '#ffd43b') : 'rgba(12,20,44,0.72)', on ? INK : 'rgba(255,255,255,0.5)', on ? 2 : 1);
-      text(name, q.x, q.y + 12.5 * u, 11, on ? '#2b1d00' : shut ? 'rgba(255,255,255,0.75)' : '#ffffff', { stroke: false });
+      text(name, q.x, q.y + 12.5 * u, 10.5, on ? '#2b1d00' : shut ? 'rgba(255,255,255,0.75)' : '#ffffff', { stroke: false });
       if (shut) { // a padlock on the silhouette, and what earns them
-        const c = toScreen(LINEUP[i], ROOF + 0.85, 0);
+        const c = toScreen(LINEUP[i], ROOF + 0.85, 0), lo = toScreen(LINEUP[i], ROOF + 0.32, 0);
         lock(c.x, c.y, '#ffe066', 2.2);
-        text(game.UNLOCK[k].short, q.x, q.y + 36 * u, 8.5, '#ffe066', { lw: 2.4 });
+        const words = game.UNLOCK[k].short, cut = words.lastIndexOf(' '); // two short lines, on the silhouette's legs
+        text(words.slice(0, cut), lo.x, lo.y - 5 * u, 8.5, '#ffe066', { lw: 2.4 });
+        text(words.slice(cut + 1), lo.x, lo.y + 6 * u, 8.5, '#ffe066', { lw: 2.4 });
       }
     });
     if (S.hint) {
       const hy = view.ch - 140 * u;
       ctx.font = `900 ${12 * u}px ${FONT}`;
-      const hw = Math.min(view.cw - 20 * u, ctx.measureText(S.hint.txt).width + 28 * u);
+      const tw = ctx.measureText(S.hint.txt).width, hw = Math.min(view.cw - 20 * u, tw + 28 * u);
       round(W / 2 - hw / 2, hy - 16 * u, hw, 32 * u, 16 * u, 'rgba(12,20,44,0.85)', '#ffe066', 1.5);
-      text(S.hint.txt, W / 2, hy, 12 * Math.min(1, (view.cw - 40 * u) / (hw - 28 * u + 1)), '#ffe066', { stroke: false });
+      text(S.hint.txt, W / 2, hy, 12 * Math.min(1, (hw - 28 * u) / tw), '#ffe066', { stroke: false }); // shrunk to fit a narrow phone
     }
     const by = H - 92 * u;
     round(W / 2 - 110 * u, by, 220 * u, 30 * u, 15 * u, 'rgba(12,20,44,0.6)');

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makePole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makePole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -208,7 +208,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
-    chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), heather: makeHeroine('heather')
+    chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), heather: makeHeroine('heather'),
+    nicole: makeHero('nicole')
   };
   Object.values(heroes).forEach((h) => {
     h.scale.setScalar(HERO_SCALE);
@@ -318,12 +319,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
-  const LINEUP = [-1.42, -0.47, 0.47, 1.42];
+  const LINEUP = [-1.64, -0.82, 0, 0.82, 1.64];
   const cam = { pos: new THREE.Vector3(0, ROOF + 1.3, 7), look: new THREE.Vector3(0, ROOF + 0.85, 0) };
   function camTarget() {
     if (S.mode === 'select') {
       const half = Math.tan((camera.fov / 2) * Math.PI / 180);
-      const dist = Math.max(4.5, 2.45 / (half * Math.min(1, camera.aspect)));
+      const dist = Math.max(4.5, 2.7 / (half * Math.min(1, camera.aspect)));
       return { pos: new THREE.Vector3(0, ROOF + 1.25, dist), look: new THREE.Vector3(0, ROOF + 0.75, 0) };
     }
     const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
@@ -396,7 +397,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       m.visible = true;
       silhouette(k, game.locked(k));
       m.position.set(LINEUP[i], ROOF + (on ? Math.abs(Math.sin(t * 5)) * 0.12 : 0), 0);
-      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 1.5), 0);
+      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 2), 0);
       const ph = t * 9;
       pose(m, on
         ? { armR: -2.7 + Math.sin(ph) * 0.35, armRz: 0.3, armL: -0.2, legL: Math.sin(ph) * 0.2, legR: -Math.sin(ph) * 0.2, look: Math.sin(t * 2) * 0.25 }
@@ -480,6 +481,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
           m.userData.wings[1].rotation.z = -Math.sin(t * 18 + o.d) * 0.7;
           break;
         case 'onigiri': m = take('onigiri', makeOnigiri); m.position.set(x, base + 0.45 + (o.h || 0) + Math.sin(t * 4 + o.d) * 0.08, z(o.d)); m.rotation.y = t * 3 + o.d; break;
+        case 'boba': // floats over head height, bobbing and turning, so you jump for it
+          m = take('boba', makeBoba); m.position.set(x, base + 2.05 + Math.sin(t * 3 + o.d) * 0.1, z(o.d)); m.rotation.y = t * 1.6 + o.d; break;
         case 'neko': m = take('neko', makeNeko); m.position.set(x, base + 0.3, z(o.d)); m.rotation.y = Math.sin(t * 2) * 0.5; break;
       }
       if (!m) return;
@@ -550,7 +553,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // obstacle or tunnel appears mid-run nothing has to be built.
   function prewarm() {
     STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
-    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko);
+    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba);
     take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
     take('nose', () => glossy(makeNose(NOSE, noseHeight)));
     take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));
@@ -603,8 +606,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   function heroAt(clientX) {
     let best = -1, bd = Infinity;
-    for (let i = 0; i < 4; i++) { const d = Math.abs(heroPoint(i).x - clientX); if (d < bd) { bd = d; best = i; } }
-    return bd < view.cw * 0.16 ? best : -1;
+    for (let i = 0; i < LINEUP.length; i++) { const d = Math.abs(heroPoint(i).x - clientX); if (d < bd) { bd = d; best = i; } }
+    return bd < view.cw * 0.12 ? best : -1;
   }
 
   return { hasGL: !!renderer, layout, render, heroAt, heroPoint, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };

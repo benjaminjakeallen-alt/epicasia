@@ -201,6 +201,26 @@ export function makeNeko() {
   return mesh(b.geometry());
 }
 
+/** A boba tea: milk tea in a clear cup, black pearls, a dome lid and a fat straw. Unlocks Nicole. */
+export function makeBoba() {
+  const b = new VoxBuilder();
+  b.add(9, 12, 9, (x, y, z) => {
+    const r = Math.hypot(x - 4, z - 4), rim = 3.4 + y * 0.07;
+    if (y <= 9) { // the cup
+      if (r > rim) return null;
+      if (r > rim - 1) { // its clear wall: tea showing through, a printed band
+        if (y >= 5 && y <= 6) return 0xff8cc6;
+        return y <= 2 ? 0x3a2418 : y === 9 ? 0xf4ead8 : 0xd9b48a;
+      }
+      return y <= 2 ? (hash3(x, y, z) < 0.6 ? 0x24150d : 0x3a2418) : 0xc89b6d; // pearls, then milk tea
+    }
+    if (r <= rim - (y - 9) * 1.3) return 0xf4f7fb; // dome lid
+    return null;
+  }, { size: 0.065, offset: [-0.29, 0, -0.29] });
+  b.add(2, 7, 2, (x, y) => (y === 6 ? 0x2b8a6e : 0x3cc6a0), { size: 0.065, offset: [0.0, 0.7, -0.03] }); // the straw
+  return mesh(b.geometry());
+}
+
 // ---- along the line --------------------------------------------------------------------
 /** A catenary pole with its arm (one each side of the line). */
 export function makePole(side, height) {

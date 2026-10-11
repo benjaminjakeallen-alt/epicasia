@@ -560,7 +560,7 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Source** `assets/games/shinkansen/` (built like Rampage, see its Build
   bullet): `game.js` (logic in metres along the track — `S.dist`; things
   ahead have an absolute `d`, drawn at z = `S.dist − d`), `render3d.js`
-  (chase camera, trains, obstacles, streamed scenery, tunnels, the 4-hero
+  (chase camera, trains, obstacles, streamed scenery, tunnels, the 5-hero
   line-up on the select screen), `models.js` (train car + the long "duck
   bill" nose, roof hazards, pickups, scenery), `hud.js`. **Reuses Rampage's
   `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`); no
@@ -575,6 +575,23 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   the app keeps `epicasia.shinkansen.unlocked` per phone
   (`unlockedHeroes`/`unlockHero` in arcade.ts) and passes
   `INIT.unlocked`. `simulate()` never unlocks anyone (`S.simulating`).
+- **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
+  faster end of the board if you collect a boba drink you unlock Nicole";
+  modelled on her photos as `LOOKS.nicole` in Rampage's models.js — a
+  copper-auburn side-parted bob, teal cat-eye glasses, freckles, white tee,
+  jeans and her rust crossbody belt bag; the glasses/freckles/strap/bag
+  options only switch on for her). A **boba tea** (`makeBoba`, `OBS.boba`)
+  floats above head height (lo 1.9 m), so only a jump collects it; it
+  appears only from **Tea Hills on** (`BOBA_FROM` 3 km — the fast end,
+  and every later round), ~6% of rows, one at a time, over a train with
+  nothing else in that row and never under a gantry. Grabbing one unlocks
+  Nicole ("GRAB A BOBA TEA NEAR KYOTO TO UNLOCK NICOLE" / "FIND BOBA" on
+  her silhouette); after that it's +250. `makeRow` only draws a random
+  number for it past 3 km, so earlier layouts didn't change;
+  `fairnessProblems()` also fails if a boba appears before Tea Hills or
+  fewer than 3 in the next 3 km. Five in the line-up: alternate name pills
+  sit a row lower, unlock goals are written on the silhouettes. Her runs
+  save as hero `nicole` (`0021_shinkansen_nicole.sql`).
 - **Roofs:** fairings (jump), pantographs (too tall — hop trains), signal
   gantries over every train and crows (slide), onigiri (+25), a lucky cat
   (maneki-neko: survives one crash). **Trains end**: a lane's train runs
@@ -638,7 +655,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   in development `debug` adds calm, spawn(type, lane, ahead), gap(lane,
   ahead), lane, setDist, shield, gameOver, pause, go.
 - Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
-  play — tap Emily, swipes and keys, jump/slide counters, onigiri, lucky
+  earning Emily/Heather and Nicole (boba missed without a jump, grabbed
+  with one, remembered, a run saved as her); play — swipes and keys, jump/slide counters, onigiri, lucky
   cat, crash → exact `game_scores` insert, CHANGE HERO, leave; obstacles —
   jump a fairing, slide a gantry and a crow, hop off an ending train, fall
   off one) + axe on the board and inside the game frame.
@@ -1105,7 +1123,8 @@ backend code.
   in the `games` bucket — see Konbini Review),
   `0019_rampage_level5_girl_power.sql` (`game_scores` level 1–5, heroes
   chris/shea/emily/heather — see Godzilla Rampage),
-  `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`).
+  `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`),
+  `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather
