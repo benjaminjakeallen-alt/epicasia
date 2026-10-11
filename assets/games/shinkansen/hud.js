@@ -97,21 +97,15 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     text('SHINKANSEN', W / 2, 56 * u + wob, 40, '#ffffff', { depth: 3.5, depthColor: '#1f4fb5', lw: 8 });
     text('DASH', W / 2, 100 * u - wob, 46, '#ffd43b', { depth: 3.5, depthColor: '#b5431f', lw: 9 });
     if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR TRAVELER', W / 2, 140 * u, 14, '#ffffff', { lw: 3.5 });
-    // names under the line-up
+    // names under the line-up (locked travellers stay a mystery: no name, no clue)
     // five across: alternate pills sit a row lower so they never overlap
     game.ROSTER.forEach((k, i) => {
       const q = toScreen(LINEUP[i], ROOF - 0.2, 0), on = S.sel === i, shut = game.locked(k);
       if (i % 2) q.y += 30 * u;
-      const name = game.HEROES[k].name, w = (name.length * 8.4 + 14) * u;
+      const name = shut ? '???' : game.HEROES[k].name, w = (Math.max(4, name.length) * 8.4 + 14) * u; // a secret until earned
       round(q.x - w / 2, q.y, w, 24 * u, 12 * u, on ? (shut ? '#c9ced6' : '#ffd43b') : 'rgba(12,20,44,0.72)', on ? INK : 'rgba(255,255,255,0.5)', on ? 2 : 1);
       text(name, q.x, q.y + 12.5 * u, 10.5, on ? '#2b1d00' : shut ? 'rgba(255,255,255,0.75)' : '#ffffff', { stroke: false });
-      if (shut) { // a padlock on the silhouette, and what earns them
-        const c = toScreen(LINEUP[i], ROOF + 0.85, 0), lo = toScreen(LINEUP[i], ROOF + 0.32, 0);
-        lock(c.x, c.y, '#ffe066', 2.2);
-        const words = game.UNLOCK[k].short, cut = words.lastIndexOf(' '); // two short lines, on the silhouette's legs
-        text(words.slice(0, cut), lo.x, lo.y - 5 * u, 8.5, '#ffe066', { lw: 2.4 });
-        text(words.slice(cut + 1), lo.x, lo.y + 6 * u, 8.5, '#ffe066', { lw: 2.4 });
-      }
+      if (shut) { const c = toScreen(LINEUP[i], ROOF + 0.85, 0); lock(c.x, c.y, '#ffe066', 2.2); } // a padlock on the silhouette
     });
     if (S.hint) {
       const hy = view.ch - 140 * u;

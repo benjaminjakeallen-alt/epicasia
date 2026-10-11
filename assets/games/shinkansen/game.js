@@ -35,14 +35,15 @@ const ROSTER = ['chris', 'shea', 'emily', 'heather', 'nicole'];
 // Emily and Heather are earned (user, Oct 11 2026): reach Mount Fuji in a
 // run to unlock Emily, Kyoto to unlock Heather. The app remembers unlocks
 // per phone (the game's own storage is off in its sandbox) and passes them
-// back in INIT.unlocked.
+// back in INIT.unlocked. Locked ones are a surprise (user, Oct 11 2026):
+// the line-up shows a silhouette and "???", never their name or how to earn them.
 const UNLOCK = {
-  emily: { at: 2 * STAGE_LEN, goal: 'REACH MOUNT FUJI', short: 'REACH FUJI' },
-  heather: { at: 4 * STAGE_LEN, goal: 'REACH KYOTO', short: 'REACH KYOTO' },
+  emily: { at: 2 * STAGE_LEN },
+  heather: { at: 4 * STAGE_LEN },
   // Nicole (user, Oct 11 2026): grab a boba tea. They only float over the
   // roofs in the fast end of the line (Tea Hills on, every later round) and
   // need a jump.
-  nicole: { item: 'boba', goal: 'GRAB A BOBA TEA NEAR KYOTO', short: 'FIND BOBA' }
+  nicole: { item: 'boba' }
 };
 const BOBA_FROM = 3 * STAGE_LEN, BOBA = 250;
 
@@ -84,10 +85,10 @@ const S = {
   hint: null, simulating: false
 };
 function locked(h) { return !S.unlocked.has(h); }
-/** Start a run as h — or, if h isn't earned yet, say how to earn them. */
+/** Start a run as h — or, if h isn't earned yet, just say it's a secret. */
 function pickHero(h) {
   if (!locked(h)) { newRun(h); return; }
-  S.hint = { txt: UNLOCK[h].goal + ' TO UNLOCK ' + HEROES[h].name, t: 2.4 };
+  S.hint = { txt: 'A SECRET TRAVELER · KEEP PLAYING TO FIND THEM', t: 2.4 }; // no name, no clue (user: "they need to just figure out the secrets")
   SFX.locked(); haptic('error');
 }
 function unlockHero(h) {

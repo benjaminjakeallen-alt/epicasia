@@ -568,9 +568,12 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Emily and Heather are earned** (user, Oct 11 2026: "not have Emily
   immediately playable but you have to earn them"): Chris and Shea from
   the start; **reach Mount Fuji (2 km) in a run → Emily, Kyoto (4 km) →
-  Heather** (`UNLOCK` in game.js). Locked ones stand in the line-up as dark
-  silhouettes with a padlock and "REACH FUJI"/"REACH KYOTO"; picking one
-  says "REACH MOUNT FUJI TO UNLOCK EMILY" (`S.hint`). Unlocking mid-run
+  Heather** (`UNLOCK` in game.js). **Locked ones are a surprise** (user, Oct 11
+  2026: "don't say the character names or tell them how to get the
+  character… they need to just figure out the secrets"): a dark silhouette
+  with a padlock and a "???" pill; picking one only says "A SECRET TRAVELER
+  · KEEP PLAYING TO FIND THEM" (`S.hint`). Never name them or hint at the
+  unlock anywhere in the game or the app's copy. Unlocking mid-run
   shows "EMILY UNLOCKED!". The game posts `{type: 'unlock', key: hero}`;
   the app keeps `epicasia.shinkansen.unlocked` per phone
   (`unlockedHeroes`/`unlockHero` in arcade.ts) and passes
@@ -585,12 +588,11 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   appears only from **Tea Hills on** (`BOBA_FROM` 3 km — the fast end,
   and every later round), ~6% of rows, one at a time, over a train with
   nothing else in that row and never under a gantry. Grabbing one unlocks
-  Nicole ("GRAB A BOBA TEA NEAR KYOTO TO UNLOCK NICOLE" / "FIND BOBA" on
-  her silhouette); after that it's +250. `makeRow` only draws a random
+  Nicole (no clue given beforehand); after that it's +250. `makeRow` only draws a random
   number for it past 3 km, so earlier layouts didn't change;
   `fairnessProblems()` also fails if a boba appears before Tea Hills or
   fewer than 3 in the next 3 km. Five in the line-up: alternate name pills
-  sit a row lower, unlock goals are written on the silhouettes. Her runs
+  sit a row lower. Her runs
   save as hero `nicole` (`0021_shinkansen_nicole.sql`).
 - **Roofs:** fairings (jump), pantographs (too tall — hop trains), signal
   gantries over every train and crows (slide), onigiri (+25), a lucky cat

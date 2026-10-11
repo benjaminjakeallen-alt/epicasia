@@ -35,6 +35,8 @@ const DATA = {
   ],
 };
 
+const SECRET = 'A SECRET TRAVELER · KEEP PLAYING TO FIND THEM'; // never a name or a clue
+
 async function open(page: Page, path: string) {
   await page.goto(path);
   const skip = page.getByLabel('Skip intro');
@@ -99,14 +101,14 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   await page.getByTestId('dash-play').click();
   let f = await game(page);
   expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather', 'nicole']);
-  // Tapping a locked traveler says how to earn them and doesn't start.
+  // Tapping a locked traveler only says it's a secret (no name, no clue) and doesn't start.
   const tap = async (i: number) => {
     const box = (await page.getByTestId('game-frame').boundingBox())!;
     const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
     await page.mouse.click(box.x + pt.x, box.y + pt.y);
   };
   await tap(2);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('REACH MOUNT FUJI TO UNLOCK EMILY');
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   expect((await st(f)).mode).toBe('select');
 
   // Run as Chris past 2,000 m (Mount Fuji): Emily is earned; the app keeps it.
@@ -127,7 +129,7 @@ test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page
   f = await game(page);
   expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['heather', 'nicole']);
   await tap(3);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('REACH KYOTO TO UNLOCK HEATHER');
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   await tap(2);
   await expect.poll(async () => (await st(f)).mode).toBe('ready');
   expect((await st(f)).hero).toBe('emily');
@@ -144,7 +146,7 @@ test('Nicole is earned with a boba tea: only in the fast end, and only with a ju
     await page.mouse.click(box.x + pt.x, box.y + pt.y);
   };
   await tap(4);
-  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('GRAB A BOBA TEA NEAR KYOTO TO UNLOCK NICOLE');
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   expect((await st(f)).mode).toBe('select');
   // (fairnessProblems also checks no boba before Tea Hills, and some after)
   expect(await f.evaluate(() => (window as any).__dash.fairnessProblems())).toEqual([]);
