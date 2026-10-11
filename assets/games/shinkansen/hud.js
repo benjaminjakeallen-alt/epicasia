@@ -31,6 +31,13 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     ctx.fillStyle = '#1f3d2b'; ctx.fillRect(x - s * 0.45, y + s * 0.15, s * 0.9, s * 0.62);
   }
 
+  function lock(x, y, col, k = 1) { // a padlock
+    ctx.strokeStyle = col; ctx.lineWidth = 1.8 * u * k;
+    ctx.beginPath(); ctx.arc(x, y - 2.5 * u * k, 3.4 * u * k, Math.PI, 0); ctx.stroke();
+    ctx.fillStyle = col; ctx.fillRect(x - 5 * u * k, y - 2.5 * u * k, 10 * u * k, 7.5 * u * k);
+    ctx.fillStyle = INK; ctx.fillRect(x - 0.9 * u * k, y - 0.3 * u * k, 1.8 * u * k, 3 * u * k);
+  }
+
   function topBar() {
     const W = view.cw, top = 8 * u, right = W - 62 * u; // leaves the pause button its corner
     round(8 * u, top, right - 8 * u, 50 * u, 16 * u, 'rgba(12,20,44,0.5)');
@@ -92,11 +99,23 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR TRAVELER', W / 2, 140 * u, 14, '#ffffff', { lw: 3.5 });
     // names under the line-up
     game.ROSTER.forEach((k, i) => {
-      const q = toScreen(LINEUP[i], ROOF - 0.2, 0), on = S.sel === i;
+      const q = toScreen(LINEUP[i], ROOF - 0.2, 0), on = S.sel === i, shut = game.locked(k);
       const name = game.HEROES[k].name, w = (name.length * 9 + 18) * u;
-      round(q.x - w / 2, q.y, w, 24 * u, 12 * u, on ? '#ffd43b' : 'rgba(12,20,44,0.72)', on ? INK : 'rgba(255,255,255,0.5)', on ? 2 : 1);
-      text(name, q.x, q.y + 12.5 * u, 11, on ? '#2b1d00' : '#ffffff', { stroke: false });
+      round(q.x - w / 2, q.y, w, 24 * u, 12 * u, on ? (shut ? '#c9ced6' : '#ffd43b') : 'rgba(12,20,44,0.72)', on ? INK : 'rgba(255,255,255,0.5)', on ? 2 : 1);
+      text(name, q.x, q.y + 12.5 * u, 11, on ? '#2b1d00' : shut ? 'rgba(255,255,255,0.75)' : '#ffffff', { stroke: false });
+      if (shut) { // a padlock on the silhouette, and what earns them
+        const c = toScreen(LINEUP[i], ROOF + 0.85, 0);
+        lock(c.x, c.y, '#ffe066', 2.2);
+        text(game.UNLOCK[k].short, q.x, q.y + 36 * u, 8.5, '#ffe066', { lw: 2.4 });
+      }
     });
+    if (S.hint) {
+      const hy = view.ch - 140 * u;
+      ctx.font = `900 ${12 * u}px ${FONT}`;
+      const hw = Math.min(view.cw - 20 * u, ctx.measureText(S.hint.txt).width + 28 * u);
+      round(W / 2 - hw / 2, hy - 16 * u, hw, 32 * u, 16 * u, 'rgba(12,20,44,0.85)', '#ffe066', 1.5);
+      text(S.hint.txt, W / 2, hy, 12 * Math.min(1, (view.cw - 40 * u) / (hw - 28 * u + 1)), '#ffe066', { stroke: false });
+    }
     const by = H - 92 * u;
     round(W / 2 - 110 * u, by, 220 * u, 30 * u, 15 * u, 'rgba(12,20,44,0.6)');
     text('HIGH SCORE ' + pad6(S.hi), W / 2, by + 15.5 * u, 13, '#ffffff', { stroke: false });

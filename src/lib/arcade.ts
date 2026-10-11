@@ -49,6 +49,25 @@ export async function unlockGirlPower(): Promise<void> {
   await AsyncStorage.setItem(GIRL_POWER_KEY, '1').catch(() => {});
 }
 
+/** Travellers earned in a game on this phone (Shinkansen Dash: Emily and Heather). */
+export async function unlockedHeroes(game: ArcadeGame): Promise<Hero[]> {
+  try {
+    const raw = JSON.parse((await AsyncStorage.getItem(`epicasia.${ARCADE[game].slug}.unlocked`)) ?? '[]');
+    return Array.isArray(raw) ? HEROES.filter((h) => raw.includes(h)) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The game says a traveller was earned (ignored unless it's one of ours). */
+export async function unlockHero(game: ArcadeGame, hero: unknown): Promise<void> {
+  const h = HEROES.find((x) => x === hero);
+  if (!h) return;
+  const have = await unlockedHeroes(game);
+  if (have.includes(h)) return;
+  await AsyncStorage.setItem(`epicasia.${ARCADE[game].slug}.unlocked`, JSON.stringify([...have, h])).catch(() => {});
+}
+
 async function readPending(game: ArcadeGame): Promise<Run[]> {
   try {
     const raw = await AsyncStorage.getItem(pendingKey(game));

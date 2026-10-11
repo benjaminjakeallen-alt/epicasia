@@ -32,6 +32,14 @@ const STAGES = [
 ];
 const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, heather: { name: 'HEATHER' } };
 const ROSTER = ['chris', 'shea', 'emily', 'heather'];
+// Emily and Heather are earned (user, Oct 11 2026): reach Mount Fuji in a
+// run to unlock Emily, Kyoto to unlock Heather. The app remembers unlocks
+// per phone (the game's own storage is off in its sandbox) and passes them
+// back in INIT.unlocked.
+const UNLOCK = {
+  emily: { at: 2 * STAGE_LEN, goal: 'REACH MOUNT FUJI', short: 'REACH FUJI' },
+  heather: { at: 4 * STAGE_LEN, goal: 'REACH KYOTO', short: 'REACH KYOTO' }
+};
 
 // ---- the runner -----------------------------------------------------------------
 const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16; // a jump is ~1.37 m high, ~0.74 s long
@@ -65,8 +73,25 @@ const S = {
   stage: 0, lap: 0, maxStage: 0,
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [],
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
-  paused: false, menu: false, sentScore: false, shakeT: 0
+  paused: false, menu: false, sentScore: false, shakeT: 0,
+  unlocked: new Set(['chris', 'shea'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
+  hint: null, simulating: false
 };
+function locked(h) { return !S.unlocked.has(h); }
+/** Start a run as h — or, if h isn't earned yet, say how to earn them. */
+function pickHero(h) {
+  if (!locked(h)) { newRun(h); return; }
+  S.hint = { txt: UNLOCK[h].goal + ' TO UNLOCK ' + HEROES[h].name, t: 2.4 };
+  SFX.locked(); haptic('error');
+}
+function unlockHero(h) {
+  if (S.simulating || !locked(h)) return;
+  S.unlocked.add(h);
+  post({ type: 'unlock', key: h });
+  say(HEROES[h].name + ' UNLOCKED!', 2.6, '#ff8cc6', true);
+  SFX.neko(); haptic('success');
+  if (S.p) burst(S.p.x, S.p.y + 1.2, 0, ['#ff8cc6', '#ffe066', '#ffffff'], 26, 5);
+}
 
 // A small seeded random, so a run's layout can be replayed (tests).
 let seed = 1;
@@ -260,7 +285,8 @@ const SFX = {
   shield: function () { noise(0.3, 0.14, 2400); tone(880, 0.3, 'triangle', 0.05, 220); },
   horn: function () { tone(330, 0.7, 'sawtooth', 0.035); tone(415, 0.7, 'sawtooth', 0.03); },
   chime: function () { [659, 831, 988, 1319].forEach(function (f, i) { tone(f, 0.22, 'sine', 0.06, 0, i * 0.16); }); },
-  count: function (hi) { tone(hi ? 1046 : 523, hi ? 0.35 : 0.14, 'square', 0.045); }
+  count: function (hi) { tone(hi ? 1046 : 523, hi ? 0.35 : 0.14, 'square', 0.045); },
+  locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); }
 };
 // A light chiptune loop while running.
 const MELODY = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1046, 988, 784, 659, 587];
@@ -334,7 +360,7 @@ function act(dir) {
   if (S.mode === 'select') {
     if (dir === 'L') S.sel = (S.sel + 3) % 4;
     else if (dir === 'R') S.sel = (S.sel + 1) % 4;
-    else if (dir === 'U' || dir === 'go') newRun(ROSTER[S.sel]);
+    else if (dir === 'U' || dir === 'go') pickHero(ROSTER[S.sel]);
     return;
   }
   if (S.mode === 'gameover') { if (dir === 'go') newRun(S.hero); return; }
@@ -384,7 +410,7 @@ function touchEnd(e) {
   if (!tapped) return;
   if (S.mode === 'select') {
     const i = R.heroAt(x);
-    if (i >= 0) { S.sel = i; newRun(ROSTER[i]); }
+    if (i >= 0) { S.sel = i; pickHero(ROSTER[i]); }
   } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
 }
 stage.addEventListener('pointerup', touchEnd);
@@ -476,6 +502,7 @@ function nearestLane(x) { let b = 0; for (let i = 1; i < 3; i++) if (Math.abs(LA
 function update(dt) {
   S.t += dt; S.modeT += dt;
   if (S.shakeT > 0) S.shakeT -= dt;
+  if (S.hint && (S.hint.t -= dt) <= 0) S.hint = null;
   for (let i = S.msgs.length - 1; i >= 0; i--) { S.msgs[i].t -= dt; if (S.msgs[i].t <= 0) S.msgs.splice(i, 1); }
   for (let i = S.pops.length - 1; i >= 0; i--) { S.pops[i].t -= dt; S.pops[i].y += dt * 1.5; if (S.pops[i].t <= 0) S.pops.splice(i, 1); }
   for (let i = S.parts.length - 1; i >= 0; i--) {
@@ -495,6 +522,7 @@ function update(dt) {
     const before = S.dist;
     S.dist += S.speed * dt;
     S.score += Math.floor(S.dist) - Math.floor(before);
+    ROSTER.forEach(function (h) { if (UNLOCK[h] && locked(h) && S.dist >= UNLOCK[h].at) unlockHero(h); });
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
     updateRunner(dt);
@@ -523,7 +551,7 @@ function update(dt) {
 // ---- renderer, loop & hooks ---------------------------------------------------------------
 const R = createRenderer({
   glCanvas: document.getElementById('gl'), hudCanvas: document.getElementById('hud'), stage: stage,
-  game: { S: S, LANES: LANES, ROOF: ROOF, noseHeight: noseHeight, NOSE: NOSE, CAR: CAR, LANE_OFF: LANE_OFF, STAGES: STAGES, STAGE_LEN: STAGE_LEN, HEROES: HEROES, ROSTER: ROSTER, OBS: OBS, roofAt: roofAt, inTunnel: inTunnel, SLIDE_TIME: SLIDE_TIME }
+  game: { S: S, UNLOCK: UNLOCK, locked: locked, LANES: LANES, ROOF: ROOF, noseHeight: noseHeight, NOSE: NOSE, CAR: CAR, LANE_OFF: LANE_OFF, STAGES: STAGES, STAGE_LEN: STAGE_LEN, HEROES: HEROES, ROSTER: ROSTER, OBS: OBS, roofAt: roofAt, inTunnel: inTunnel, SLIDE_TIME: SLIDE_TIME }
 });
 window.addEventListener('resize', function () { R.layout(); });
 let last = 0;
@@ -548,8 +576,9 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get jumps() { return S.jumps; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
+  programs: function () { return R.programs(); },
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)
 };
 if (INIT.debug) {
@@ -578,6 +607,7 @@ function simulate(runSeed, metres) {
   newRun('chris');
   S.modeT = 2.4;
   const muteWas = muted; muted = true;
+  S.simulating = true; // (the bot can't earn travellers)
   let steps = 0;
   const lane = function () { return S.p.lane; };
   const blocked = function (l, from, to) { // a pantograph, or no flat train, ahead in lane l
@@ -608,6 +638,7 @@ function simulate(runSeed, metres) {
     steps++;
   }
   muted = muteWas;
+  S.simulating = false;
   INIT.seed = keepSeed;
   const out = { dist: Math.round(S.dist), mode: S.mode, why: S.p.crash || null, stage: S.stage + 1, round: S.lap + 1, at: S.mode === 'crash' ? S.lastCrash : null };
   setMode('select');

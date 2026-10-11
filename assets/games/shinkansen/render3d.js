@@ -44,6 +44,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       if ((window.SHINKANSEN_INIT || {}).quality === 'high') lowPower = false;
     } catch { /* unknown GPU */ }
     if (lowPower) renderer.shadowMap.enabled = false;
+    // Checking every shader for errors forces a wait the first time each is
+    // used; keep that for development only (three.js's advice for production).
+    renderer.debug.checkShaderErrors = !!(window.SHINKANSEN_INIT || {}).shaderChecks;
     // filmic colour: richer light and shade, no blown-out whites
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.98;
@@ -175,10 +178,24 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- pools ------------------------------------------------------------------------
   const pools = {};
   const used = new Set();
+  // Each kind of model is built once (its voxel geometry is the expensive
+  // part); more of the same are cheap copies sharing that geometry. Building
+  // a fresh one whenever scenery streamed in made the game hitch.
+  const protos = {};
+  function copyTree(o) {
+    const c = o.isMesh ? new THREE.Mesh(o.geometry, o.material) : new THREE.Group();
+    c.position.copy(o.position); c.rotation.copy(o.rotation); c.scale.copy(o.scale);
+    o.children.forEach((ch) => c.add(copyTree(ch)));
+    return c;
+  }
+  function instance(kind, make) {
+    if (kind === 'crow') return make(); // (its wings are animated per bird)
+    return copyTree(protos[kind] || (protos[kind] = make()));
+  }
   function take(kind, make) {
     const pool = pools[kind] || (pools[kind] = []);
     let m = pool.find((q) => !q.userData.busy && !q.userData.keep);
-    if (!m) { m = make(); m.userData.kind = kind; pool.push(m); scene.add(m); m.traverse((o) => { if (o.isMesh && o.material !== GLOW) { o.castShadow = true; o.receiveShadow = true; } }); }
+    if (!m) { m = instance(kind, make); m.userData.kind = kind; pool.push(m); scene.add(m); m.traverse((o) => { if (o.isMesh && o.material !== GLOW) { o.castShadow = true; o.receiveShadow = true; } }); }
     m.userData.busy = true; m.visible = true; used.add(m);
     return m;
   }
@@ -195,9 +212,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   };
   Object.values(heroes).forEach((h) => {
     h.scale.setScalar(HERO_SCALE);
-    h.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    h.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.userData.mat = o.material; } });
     scene.add(h);
   });
+  // a traveller you haven't earned yet stands in the line-up as a silhouette
+  const SIL = new THREE.MeshBasicMaterial({ color: 0x1c2333 });
+  function silhouette(h, on) { heroes[h].traverse((o) => { if (o.isMesh) o.material = on ? SIL : o.userData.mat; }); }
   const halo = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 24), new THREE.MeshBasicMaterial({ color: 0xffd43b, fog: false }));
   halo.rotation.x = Math.PI / 2;
   scene.add(halo);
@@ -205,6 +225,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // particles
   const partMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ fog: false }), 200);
   partMesh.frustumCulled = false;
+  partMesh.setColorAt(0, new THREE.Color(0xffffff)); // (per-particle colour from the start, so warm-up compiles the right shader)
   scene.add(partMesh);
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), SC = new THREE.Vector3(), C = new THREE.Color();
 
@@ -238,6 +259,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function spawnScenery() {
     if (S.dist < lastDist - 1) { scen.forEach((s) => (s.m.userData.keep = false)); scen = []; nextScen = [S.dist - 20, S.dist - 20]; }
     lastDist = S.dist;
+    // after a jump ahead (or a long stall), start from here rather than
+    // building every object for the stretch that was skipped
+    for (let side = 0; side < 2; side++) if (nextScen[side] < S.dist - 30) nextScen[side] = S.dist - 20;
     for (let side = 0; side < 2; side++) {
       const sx = side ? 1 : -1;
       while (nextScen[side] < S.dist + AHEAD) {
@@ -368,8 +392,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   function drawLineup(t) {
     game.ROSTER.forEach((k, i) => {
-      const m = heroes[k], on = S.sel === i;
+      const m = heroes[k], on = S.sel === i && !game.locked(k);
       m.visible = true;
+      silhouette(k, game.locked(k));
       m.position.set(LINEUP[i], ROOF + (on ? Math.abs(Math.sin(t * 5)) * 0.12 : 0), 0);
       m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 1.5), 0);
       const ph = t * 9;
@@ -469,6 +494,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     // the runner (or the line-up on the select screen)
     if (S.mode === 'select') drawLineup(t);
     else if (S.p) {
+      silhouette(S.hero, false);
       drawRunner(t, dt);
       if (S.shield && S.mode === 'run') { halo.visible = true; halo.position.set(S.p.x, S.p.y + 0.08, 0); halo.rotation.z = t * 3; }
     }
@@ -518,6 +544,34 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     sun.position.set(px - 10, 32, 14); sun.target.position.set(px, 0, -8);
   }
 
+  // ---- warm-up ------------------------------------------------------------------------------------
+  // On the select screen, before anyone plays: build every model, backdrop and
+  // stage's scenery once and compile their shaders, so the first time a stage,
+  // obstacle or tunnel appears mid-run nothing has to be built.
+  function prewarm() {
+    STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
+    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko);
+    take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
+    take('nose', () => glossy(makeNose(NOSE, noseHeight)));
+    take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));
+    take('ring', () => makeTunnelRing(10, ROOF)); take('portal', () => makePortal(ROOF));
+    // Draw everything once, now, with culling off: that compiles and links
+    // every shader and fetches its uniforms. A shader first used mid-run
+    // stalls the frame it appears in (profiled: seconds in software GL, a
+    // visible hitch on a phone). (compileAsync alone didn't help where the
+    // browser links lazily on first use.)
+    if (renderer) {
+      const culled = [];
+      scene.traverse((o) => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
+      renderer.render(scene, camera);
+      culled.forEach((o) => { o.frustumCulled = true; });
+    }
+    STAGES.forEach((st) => { backdrops[st.key].visible = false; });
+    scen.forEach((q) => { q.m.userData.keep = false; q.m.visible = false; });
+    scen = [];
+  }
+  prewarm();
+
   // ---- HUD & frame --------------------------------------------------------------------------------
   const hud = createHud(hudCanvas, game, view, toScreen, LINEUP);
   let glAge = 1;
@@ -553,5 +607,5 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     return bd < view.cw * 0.16 ? best : -1;
   }
 
-  return { hasGL: !!renderer, layout, render, heroAt, heroPoint };
+  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
 }

@@ -563,8 +563,18 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   (chase camera, trains, obstacles, streamed scenery, tunnels, the 4-hero
   line-up on the select screen), `models.js` (train car + the long "duck
   bill" nose, roof hazards, pickups, scenery), `hud.js`. **Reuses Rampage's
-  `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`) — all
-  four are playable here, no secret needed, no +15%.
+  `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`); no
+  +15% here.
+- **Emily and Heather are earned** (user, Oct 11 2026: "not have Emily
+  immediately playable but you have to earn them"): Chris and Shea from
+  the start; **reach Mount Fuji (2 km) in a run → Emily, Kyoto (4 km) →
+  Heather** (`UNLOCK` in game.js). Locked ones stand in the line-up as dark
+  silhouettes with a padlock and "REACH FUJI"/"REACH KYOTO"; picking one
+  says "REACH MOUNT FUJI TO UNLOCK EMILY" (`S.hint`). Unlocking mid-run
+  shows "EMILY UNLOCKED!". The game posts `{type: 'unlock', key: hero}`;
+  the app keeps `epicasia.shinkansen.unlocked` per phone
+  (`unlockedHeroes`/`unlockHero` in arcade.ts) and passes
+  `INIT.unlocked`. `simulate()` never unlocks anyone (`S.simulating`).
 - **Roofs:** fairings (jump), pantographs (too tall — hop trains), signal
   gantries over every train and crows (slide), onigiri (+25), a lucky cat
   (maneki-neko: survives one crash). **Trains end**: a lane's train runs
@@ -595,7 +605,19 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   take-off; hops ease out (cubic, 0.15 s); the camera follows jumps a
   little, rolls slightly with the lean and **widens the FOV with speed**;
   grabbed onigiri / lucky cats fly up and shrink with a sparkle; fog is
-  complete before the draw distance so nothing pops in.
+  complete before the draw distance so nothing pops in. **No hitches from
+  building things mid-run** (found by profiling, Oct 11 2026): each kind
+  of model is built once and copied (`protos`/`copyTree` in render3d —
+  scenery used to re-run the voxel mesher for every new building/tree);
+  `prewarm()` on the select screen builds every backdrop, stage scenery
+  and obstacle and **draws one frame of everything with culling off**, so
+  every shader is compiled, linked and has its uniforms before you run (a
+  shader first used mid-run stalled that frame for seconds in software
+  GL); the particle mesh has instance colours from the start (a later
+  `setColorAt` needs a different shader variant); shader error checks are
+  off unless `INIT.shaderChecks` (they force a wait per shader).
+  `__dash.programs()` lists the compiled shaders — the count must not grow
+  during play.
 - **Look:** ACES filmic tone mapping; trains in a glossy
   `MeshStandardMaterial` lit by a `RoomEnvironment` reflection map
   (skipped in low-power mode); roofs with grey panels, seams, a darker

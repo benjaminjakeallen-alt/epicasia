@@ -93,6 +93,46 @@ test('the board: each player’s best run, ties share a rank', async ({ page }) 
   await expect(rows.nth(2)).toHaveAccessibleName('3. Test Traveler (you), 800, as Chris · reached Tokyo');
 });
 
+test('Emily and Heather are earned: reach Mount Fuji, then Kyoto', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  let f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
+  // Tapping a locked traveler says how to earn them and doesn't start.
+  const tap = async (i: number) => {
+    const box = (await page.getByTestId('game-frame').boundingBox())!;
+    const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
+    await page.mouse.click(box.x + pt.x, box.y + pt.y);
+  };
+  await tap(2);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('REACH MOUNT FUJI TO UNLOCK EMILY');
+  expect((await st(f)).mode).toBe('select');
+
+  // Run as Chris past 2,000 m (Mount Fuji): Emily is earned; the app keeps it.
+  await tap(0);
+  await expect.poll(async () => (await st(f)).mode).toBe('ready');
+  await debug(f, 'go');
+  await expect.poll(async () => (await st(f)).mode).toBe('run');
+  await debug(f, 'calm');
+  await debug(f, 'setDist', 1990);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 15_000 }).toEqual(['heather']);
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  await ui.getByRole('button', { name: 'Pause' }).click();
+  await ui.getByRole('button', { name: 'Leave the game' }).click();
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15_000 });
+
+  // Next time Emily is playable from the line-up; Heather still needs Kyoto.
+  await page.getByTestId('dash-play').click();
+  f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['heather']);
+  await tap(3);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe('REACH KYOTO TO UNLOCK HEATHER');
+  await tap(2);
+  await expect.poll(async () => (await st(f)).mode).toBe('ready');
+  expect((await st(f)).hero).toBe('emily');
+});
+
 test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash and save', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -110,9 +150,11 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   // trains; the bot's own few misses are late jumps, not unwinnable rows.
   const runs = await f.evaluate(() => [1, 2, 3, 4, 5, 6, 7, 8].map((s) => (window as any).__dash.debug.simulate(s, 6000)));
   expect(runs.filter((r: { dist: number }) => r.dist >= 6000).length, JSON.stringify(runs)).toBeGreaterThanOrEqual(7);
+  // (the bot passing Fuji and Kyoto doesn't earn anyone)
+  expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'heather']);
 
-  await start(page, f, 2); // Emily
-  expect((await st(f)).hero).toBe('emily');
+  await start(page, f, 1); // Shea
+  expect((await st(f)).hero).toBe('shea');
   await debug(f, 'calm');
   expect((await st(f)).lane).toBe(1);
 
@@ -149,7 +191,7 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   await expect(ui.getByRole('button', { name: 'TRY AGAIN' })).toBeVisible();
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBe(1);
   const saved = (backend.inserts.find((i) => i.table === 'game_scores')!.body as unknown as Record<string, unknown>[])[0];
-  expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, level: 1, round: 1, hero: 'emily' });
+  expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, level: 1, round: 1, hero: 'shea' });
   expect(saved.score).toBe((await st(f)).score);
 
   // CHANGE HERO → the line-up; leaving is behind the pause menu.
@@ -190,6 +232,15 @@ test('smooth: every frame moves the world by exactly the time that passed', asyn
   );
   // within 2% every frame (speed changes very slightly during a frame)
   expect(ratios.filter((r) => Math.abs(r - 1) > 0.02), JSON.stringify(ratios.map((r) => r.toFixed(3)))).toEqual([]);
+
+  // No shader is compiled mid-run (each one stalled its frame): the select
+  // screen's warm-up covered everything — speed lines, a new stage, the
+  // particles of an unlock burst.
+  const before = await f.evaluate(() => (window as any).__dash.programs().length);
+  await debug(f, 'setDist', 1990);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.locked), { timeout: 20_000 }).toEqual(['heather']);
+  await page.waitForTimeout(1500);
+  expect(await f.evaluate(() => (window as any).__dash.programs().length)).toBe(before);
 });
 
 test('obstacles: jump a fairing, slide under a gantry, hop off before the train ends', async ({ page }) => {
