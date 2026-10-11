@@ -566,9 +566,17 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   `voxel.js` and the travellers' models** (`makeHero`/`makeHeroine`); no
   +15% here.
 - **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
-  playable but you have to earn them"): Chris and Shea from the start;
+  playable but you have to earn them"): Chris and Bennett from the start;
   **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
-  (`UNLOCK` in game.js; ROSTER chris, shea, emily, miles, nicole).
+  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole).
+  **Bennett replaced Shea** as the second default traveller (user, Oct 11
+  2026: "Replace Shea as a default playable character for Bennett… he
+  should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short
+  tousled light-brown hair, blue-grey eyes, a big smile — with `poncho()`
+  in Rampage's models.js: brown wool, rust and cream bands, teal diamonds,
+  a cream chakana cross front and back, a fringed hem, hanging from the
+  shoulders over the upper arms; `0023_shinkansen_bennett.sql`). Shea's
+  old runs still read "as Shea"; Shea is unchanged in Rampage.
   **Heather is no longer in Shinkansen Dash** (user: "replace Heather as a
   secret character with Miles") — her old runs still show "as Heather";
   she's unchanged in Rampage. **Locked ones are a surprise** (user, Oct 11
@@ -1154,7 +1162,8 @@ backend code.
   chris/shea/emily/heather — see Godzilla Rampage),
   `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`),
   `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`),
-  `0022_shinkansen_miles.sql` (… and `miles`).
+  `0022_shinkansen_miles.sql` (… and `miles`),
+  `0023_shinkansen_bennett.sql` (… and `bennett`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

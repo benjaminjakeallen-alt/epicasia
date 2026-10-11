@@ -208,7 +208,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
-    chris: makeHero('chris'), shea: makeHero('shea'), emily: makeHeroine('emily'), miles: makeHero('miles'),
+    chris: makeHero('chris'), bennett: makeHero('bennett'), emily: makeHeroine('emily'), miles: makeHero('miles'),
     nicole: makeHero('nicole')
   };
   Object.values(heroes).forEach((h) => {

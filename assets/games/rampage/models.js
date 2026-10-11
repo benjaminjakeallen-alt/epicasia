@@ -101,6 +101,26 @@ export const LOOKS = {
       return null;
     }
   },
+  // Bennett (Shinkansen Dash, a default traveller in Shea's place): short
+  // tousled light-brown hair, blue-grey eyes, a big smile; an Ecuadorian
+  // (Otavalo-style) wool poncho — see poncho() — over blue jeans.
+  bennett: {
+    skin: 0xf3cbb0, skinShade: 0xdfad91, eye: 0x5e7f99, brow: 0x7a5536, mouth: 0xb5505a,
+    shirt: 0x6b4226, shirtDark: 0x5a3720, pants: 0x8fb0d3, shoes: 0xf1f3f5, poncho: true,
+    hair: (u, w, d, core) => {
+      const n = hash3(u + 5, w * 2, d + 3);
+      const c = n < 0.3 ? 0xa8754a : n < 0.75 ? 0x8a5a33 : 0x734726;
+      if (core) {
+        if (w >= 12) return c;
+        if (d === 13 && w === 11 && hash3(u, 4, 9) < 0.5) return c; // a few short strands at the hairline
+        if ((u <= 0 || u >= 13) && w >= 10) return c; // short at the sides
+        if (d <= 1 && w >= 2) return c; // down to the nape
+        return null;
+      }
+      if (w === 14) return d >= 3 && d <= 12 && u >= 1 && u <= 12 && hash3(u, w, d) < 0.5 ? c : null; // tousled on top
+      return null;
+    }
+  },
   // Emily: big wavy red hair, blue eyes.
   emily: {
     skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
@@ -191,7 +211,34 @@ function heroParts(look) {
     if (z === 2 && y === 1 && x === 4) return 0x16181c;
     return x === 0 || x === 5 ? look.strap : look.bag;
   }, V, [3, 0, 0]) : null;
-  return { torso, arm, leg, bag, head: head(look) };
+  return { torso, arm, leg, bag, poncho: look.poncho ? poncho() : null, head: head(look) };
+}
+
+/**
+ * An Ecuadorian (Otavalo-style) wool poncho: brown, with rust and cream
+ * bands, teal diamonds, a cream chakana-like cross on the front and a
+ * fringed hem; it hangs from the shoulders over the upper arms to the hips.
+ * Pivot: centre of the hem, like the torso.
+ */
+function poncho() {
+  const BROWN = 0x6b4226, DARK = 0x4f2f1a, RUST = 0xc4502a, CREAM = 0xf2e6cf, TEAL = 0x2fa3a0, GOLD = 0xe0a23a;
+  return vox(17, 10, 10, (x, y, z) => {
+    const cx = x - 8, cz = z - 4.5;
+    const hw = y >= 9 ? 5.6 : y === 8 ? 7 : 8.5; // sloping shoulders
+    if (Math.abs(cx) > hw || Math.abs(cz) > 5) return null;
+    if (Math.abs(cx) < hw - 1.1 && Math.abs(cz) < 3.9 && y < 9) return null; // hollow (the body is inside)
+    if (y === 9 && Math.abs(cx) <= 2 && Math.abs(cz) <= 2.5) return null; // neck opening
+    if (y === 0) return (x + z) % 2 ? CREAM : null; // fringe
+    if (y === 1 || y === 4) return RUST;
+    if (y === 2 || y === 3) { // a band of teal diamonds on cream
+      const k = (Math.abs(cx) + Math.abs(cz) + (y === 3 ? 1 : 0)) % 4;
+      return k === 0 || k === 1 ? TEAL : CREAM;
+    }
+    if (y === 5) return (x + z) % 3 === 0 ? GOLD : DARK;
+    // the chakana cross on the chest (front) and back
+    if ((cz >= 4 || cz <= -4) && y >= 6 && y <= 8 && ((Math.abs(cx) <= 0.5 && y >= 6) || (y === 7 && Math.abs(cx) <= 1.5))) return CREAM;
+    return y === 9 ? DARK : BROWN;
+  }, V, [8.5, 0, 5]);
 }
 
 function wifeParts(look) {
@@ -238,6 +285,7 @@ export function makeHero(key) {
   legR.position.set(1.2, 5, 0);
   root.add(legL, legR);
   if (p.bag) { const bag = mesh(p.bag); bag.position.set(-1.6, 0.3, 1.75); body.add(bag); }
+  if (p.poncho) { const po = mesh(p.poncho); po.position.y = 0.6; body.add(po); } // top just over the shoulders
   root.userData = { body, head: headM, armL, armR, legL, legR, hand };
   return root;
 }

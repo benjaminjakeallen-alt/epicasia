@@ -30,8 +30,9 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, shea: { name: 'SHEA' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' } };
-const ROSTER = ['chris', 'shea', 'emily', 'miles', 'nicole'];
+const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' } };
+const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole'];
+// Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
 // unlock Emily; Miles (who replaced Heather here) needs a golden guitar; Nicole a boba tea. The app remembers unlocks
 // per phone (the game's own storage is off in its sandbox) and passes them
@@ -88,7 +89,7 @@ const S = {
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [],
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
   paused: false, menu: false, sentScore: false, shakeT: 0,
-  unlocked: new Set(['chris', 'shea'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
+  unlocked: new Set(['chris', 'bennett'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
   hint: null, simulating: false
 };
 function locked(h) { return !S.unlocked.has(h); }

@@ -272,8 +272,8 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   // (the bot passing Fuji and Kyoto doesn't earn anyone)
   expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole']);
 
-  await start(page, f, 1); // Shea
-  expect((await st(f)).hero).toBe('shea');
+  await start(page, f, 1); // Bennett (Shea's old place in the line-up)
+  expect((await st(f)).hero).toBe('bennett');
   await debug(f, 'calm');
   expect((await st(f)).lane).toBe(1);
 
@@ -310,7 +310,7 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   await expect(ui.getByRole('button', { name: 'TRY AGAIN' })).toBeVisible();
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBe(1);
   const saved = (backend.inserts.find((i) => i.table === 'game_scores')!.body as unknown as Record<string, unknown>[])[0];
-  expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, level: 1, round: 1, hero: 'shea' });
+  expect(saved).toMatchObject({ game: 'shinkansen_dash', user_id: USER_ID, level: 1, round: 1, hero: 'bennett' });
   expect(saved.score).toBe((await st(f)).score);
 
   // CHANGE HERO → the line-up; leaving is behind the pause menu.
