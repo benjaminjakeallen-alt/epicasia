@@ -339,16 +339,19 @@ test('smooth: every frame moves the world by exactly the time that passed', asyn
     () =>
       new Promise<number[]>((done) => {
         const d = (window as any).__dash, out: number[] = [];
-        let lastT = 0, lastD = 0;
+        let lastT = 0, lastD = 0, startT = 0;
         const tick = (t: number) => {
           // (rAF callbacks run in order, so the game's own frame for t has already run)
-          if (lastT && t - lastT < 200) out.push((d.dist - lastD) / (d.speed * ((t - lastT) / 1000)));
-          lastT = t; lastD = d.dist;
-          if (out.length < 30) requestAnimationFrame(tick); else done(out);
+          // Frames over the game's 0.25 s cap are skipped. A busy CI runner draws
+          // slowly in software GL, so stop after 6 s rather than wait for 30.
+          if (lastT && t - lastT < 240) out.push((d.dist - lastD) / (d.speed * ((t - lastT) / 1000)));
+          lastT = t; lastD = d.dist; startT = startT || t;
+          if (out.length < 30 && t - startT < 6000) requestAnimationFrame(tick); else done(out);
         };
         requestAnimationFrame(tick);
       }),
   );
+  expect(ratios.length).toBeGreaterThanOrEqual(10);
   // within 2% every frame (speed changes very slightly during a frame)
   expect(ratios.filter((r) => Math.abs(r - 1) > 0.02), JSON.stringify(ratios.map((r) => r.toFixed(3)))).toEqual([]);
 
