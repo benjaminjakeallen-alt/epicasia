@@ -667,7 +667,9 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   textures for the ground and the track bed (ballast, sleepers, rails)
   that **scroll with the distance** (`offset.y = dist / tile` — in three.js
   a growing offset slides the pattern toward the camera); a sun glow and
-  drifting soft clouds; speed lines past ~19 m/s.
+  drifting soft clouds; speed lines past ~19 m/s. **No catenary poles**
+  along the line (user, Oct 11 2026: "remove the overhead street lamp like
+  things") — don't add them back; the signal gantries are obstacles and stay.
 - **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
   (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
   Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in

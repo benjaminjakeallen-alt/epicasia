@@ -256,13 +256,6 @@ export function makeGuitar() {
 }
 
 // ---- along the line --------------------------------------------------------------------
-/** A catenary pole with its arm (one each side of the line). */
-export function makePole(side, height) {
-  const b = new VoxBuilder();
-  b.add(1, Math.round(height / 0.3), 1, () => 0x8a939c, { size: 0.3, offset: [side * 6 - 0.15, 0, -0.15] });
-  b.add(Math.round(5.2 / 0.15), 1, 1, () => 0x6c757d, { size: 0.15, offset: [side > 0 ? 0.6 : -5.85, height - 0.3, -0.08] });
-  return mesh(b.geometry());
-}
 /** A ring of tunnel lining (concrete arch over all three tracks). */
 export function makeTunnelRing(len, roof) {
   const b = new VoxBuilder(), glow = new VoxBuilder();

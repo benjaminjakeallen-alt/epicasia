@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makePole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -444,12 +444,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       if (g.g1 < to + NOSE && g.g1 > from) { const n = take('nose', () => glossy(makeNose(NOSE, noseHeight))); n.position.set(LANES[g.lane], 0, z(g.g1)); n.rotation.y = Math.PI; }
     });
 
-    // catenary poles every 30 m
-    for (let d = Math.floor(from / 30) * 30; d < to; d += 30) {
-      if (game.inTunnel(d)) continue;
-      take('poleL', () => makePole(-1, ROOF + 3.9)).position.set(0, 0, z(d));
-      take('poleR', () => makePole(1, ROOF + 3.9)).position.set(0, 0, z(d));
-    }
+    // (no catenary poles along the line: the user found them lamp-like and asked for them gone)
     // tunnels
     S.tunnels.forEach((tn) => {
       for (let d = tn.d0; d < tn.d1; d += 10) {
