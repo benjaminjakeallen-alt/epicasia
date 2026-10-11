@@ -35,7 +35,7 @@ const ROSTER = ['chris', 'shea', 'emily', 'heather'];
 
 // ---- the runner -----------------------------------------------------------------
 const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16; // a jump is ~1.37 m high, ~0.74 s long
-const SLIDE_TIME = 0.72, LANE_TIME = 0.14, JUMP_BUFFER = 0.15;
+const SLIDE_TIME = 0.72, LANE_TIME = 0.15, JUMP_BUFFER = 0.15;
 const STAND_H = 1.7, SLIDE_H = 0.72;
 const COIN = 25, NEKO = 100;
 
@@ -350,7 +350,7 @@ function act(dir) {
     if (p.air) { p.vy = Math.min(p.vy, DIVE_V); p.dive = true; } else { p.slideT = SLIDE_TIME; S.slides++; SFX.slide(); }
   }
 }
-function jump(p) { p.air = true; p.vy = JUMP_V; p.slideT = 0; p.jbuf = 0; S.jumps++; SFX.jump(); }
+function jump(p) { p.air = true; p.vy = JUMP_V; p.slideT = 0; p.jbuf = 0; p.jumpT = S.t; S.jumps++; SFX.jump(); }
 
 const KEYS = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ArrowUp: 'U', w: 'U', W: 'U', ' ': 'U', ArrowDown: 'D', s: 'D', S: 'D' };
 window.addEventListener('keydown', function (e) {
@@ -416,7 +416,7 @@ function updateRunner(dt) {
   // hop between trains
   if (p.laneT < 1) {
     p.laneT = Math.min(1, p.laneT + dt / LANE_TIME);
-    p.x = p.from + (LANES[p.lane] - p.from) * (1 - Math.pow(1 - p.laneT, 2));
+    p.x = p.from + (LANES[p.lane] - p.from) * (1 - Math.pow(1 - p.laneT, 3));
   }
   const lane = nearestLane(p.x);
   const roof = roofAt(lane, S.dist);
@@ -433,7 +433,7 @@ function updateRunner(dt) {
   if (p.air) {
     p.vy -= GRAV * dt; p.y += p.vy * dt;
     if (roof !== null && p.y <= roof && p.vy <= 0) {
-      p.y = roof; p.air = false; p.vy = 0;
+      p.y = roof; p.air = false; p.vy = 0; p.landT = S.t;
       if (p.dive) { p.dive = false; p.slideT = SLIDE_TIME; SFX.slide(); }
       if (p.jbuf > 0) jump(p);
     } else if (p.y < 0.6) return crash('fall');
@@ -459,7 +459,8 @@ function updateRunner(dt) {
     const lo = base + def.lo + (o.h || 0), hi = base + def.hi + (o.h || 0);
     if (p.y + h <= lo || p.y >= hi) continue;
     if (def.pickup) {
-      o.gone = true;
+      o.gone = true; o.gotT = S.t; // (drawn flying off for a moment)
+      burst(LANES[o.lane], lo + 0.5, 0, o.type === 'onigiri' ? ['#ffffff', '#ffe066', '#b2f2bb'] : ['#ffe066', '#ff8787', '#ffffff'], 10, 3);
       if (o.type === 'onigiri') { S.coins++; S.score += COIN; SFX.coin(); S.pops.push({ txt: '+' + COIN, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d }); }
       else { S.shield = true; S.score += NEKO; SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
       continue;
@@ -525,11 +526,15 @@ const R = createRenderer({
   game: { S: S, LANES: LANES, ROOF: ROOF, noseHeight: noseHeight, NOSE: NOSE, CAR: CAR, LANE_OFF: LANE_OFF, STAGES: STAGES, STAGE_LEN: STAGE_LEN, HEROES: HEROES, ROSTER: ROSTER, OBS: OBS, roofAt: roofAt, inTunnel: inTunnel, SLIDE_TIME: SLIDE_TIME }
 });
 window.addEventListener('resize', function () { R.layout(); });
-let last = 0, acc = 0;
+let last = 0;
 const STEP = 1 / 60;
 function frame(ts) {
   const dt = Math.min(0.25, last ? (ts - last) / 1000 : STEP); last = ts;
-  if (!S.paused && !S.menu) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
+  // Advance by exactly the time that passed, in steps of at most 1/60 s. (A
+  // fixed-step accumulator without interpolation made the world move 0 or 2
+  // steps on some frames — a visible stutter at these speeds, worst on 120 Hz
+  // screens where every other frame had no step at all.)
+  if (!S.paused && !S.menu) { let left = dt; while (left > 1e-6) { const h = Math.min(STEP, left); update(h); left -= h; } }
   R.render(dt);
   requestAnimationFrame(frame);
 }

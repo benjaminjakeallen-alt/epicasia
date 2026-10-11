@@ -4,7 +4,8 @@
 // hills, Kyoto), tunnels, and the roof obstacles. Positions come from the
 // game's distances: z = S.dist - d (ahead is -z). hud.js draws text on top.
 import * as THREE from 'three';
-import { makeHero, makeHeroine } from '../rampage/models.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
   GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makePole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
@@ -43,26 +44,133 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       if ((window.SHINKANSEN_INIT || {}).quality === 'high') lowPower = false;
     } catch { /* unknown GPU */ }
     if (lowPower) renderer.shadowMap.enabled = false;
+    // filmic colour: richer light and shade, no blown-out whites
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.98;
   }
 
   const scene = new THREE.Scene();
+  // A soft studio environment for reflections on the glossy trains.
+  if (renderer && !lowPower) {
+    const pm = new THREE.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.4;
+    pm.dispose();
+  }
+  // White Shinkansen paint: a little gloss and sheen (the voxel AO stays in the vertex colours).
+  const TRAIN = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.12 });
   const camera = new THREE.PerspectiveCamera(FOV, 1, 0.3, 900);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x888888, 1.6);
   const sun = new THREE.DirectionalLight(0xffffff, 2.4);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(1024, 1024);
+  sun.shadow.mapSize.set(lowPower ? 512 : 2048, lowPower ? 512 : 2048);
   Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 26, bottom: -20, near: 1, far: 90 });
   sun.shadow.bias = -0.0008;
   sun.shadow.normalBias = 0.04;
   scene.add(hemi, sun, sun.target);
-  scene.fog = new THREE.Fog(0xdcefff, 90, AHEAD + 30);
+  // Fully fogged before the draw distance, so nothing pops into view.
+  scene.fog = new THREE.Fog(0xdcefff, 60, AHEAD - 20);
 
-  // ground and track bed (they don't need to move: everything on them does)
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshLambertMaterial({ color: 0x8fbf6a }));
+  // ---- ground and track (textures scroll with the distance run) --------------------------
+  function canvasTex(w, h, draw, rx, ry) {
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    draw(cv.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx, ry);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = renderer ? Math.min(8, renderer.capabilities.getMaxAnisotropy()) : 1;
+    return t;
+  }
+  let seedTex = 7;
+  const trnd = () => { seedTex = (seedTex * 16807) % 2147483647; return seedTex / 2147483647; };
+  // ground: speckled light/dark (tinted per stage by the material colour)
+  const GROUND_TILE = 12;
+  const groundTex = canvasTex(256, 256, (c, w, h) => {
+    c.fillStyle = '#e6e6e6'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++) {
+      const v = 190 + Math.floor(trnd() * 65);
+      c.fillStyle = `rgb(${v},${v},${v})`;
+      c.fillRect(Math.floor(trnd() * w), Math.floor(trnd() * h), 2 + Math.floor(trnd() * 4), 2 + Math.floor(trnd() * 4));
+    }
+  }, 900 / GROUND_TILE, 900 / GROUND_TILE);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshLambertMaterial({ color: 0x8fbf6a, map: groundTex }));
   ground.rotation.x = -Math.PI / 2; ground.position.set(0, -0.02, -300); ground.receiveShadow = true;
-  const bed = new THREE.Mesh(new THREE.PlaneGeometry(13, 900), new THREE.MeshLambertMaterial({ color: 0x8c8378 }));
-  bed.rotation.x = -Math.PI / 2; bed.position.set(0, 0, -300); bed.receiveShadow = true;
+  // track bed: ballast, sleepers and rails under each of the three trains
+  const BED_W = 14, BED_TILE = 2.4;
+  const bedTex = canvasTex(448, 77, (c, w, h) => {
+    const mx = (x) => ((x + BED_W / 2) / BED_W) * w; // metres → px
+    c.fillStyle = '#8d857a'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2400; i++) {
+      const v = 95 + Math.floor(trnd() * 80);
+      c.fillStyle = `rgb(${v + 8},${v + 2},${v - 6})`;
+      c.fillRect(trnd() * w, trnd() * h, 1.5 + trnd() * 2, 1.5 + trnd() * 2);
+    }
+    LANES.forEach((lx) => {
+      for (let k = 0; k < 4; k++) { // sleepers every 0.6 m
+        const y = (k / 4) * h + 2;
+        c.fillStyle = '#5d4a3a'; c.fillRect(mx(lx - 1.75), y, mx(lx + 1.75) - mx(lx - 1.75), h / 4 * 0.42);
+        c.fillStyle = '#6d5847'; c.fillRect(mx(lx - 1.75), y, mx(lx + 1.75) - mx(lx - 1.75), 2);
+      }
+      [-0.72, 0.72].forEach((r) => { // rails
+        c.fillStyle = '#4a4e55'; c.fillRect(mx(lx + r) - 2.5, 0, 5, h);
+        c.fillStyle = '#c9ced6'; c.fillRect(mx(lx + r) - 1, 0, 2, h);
+      });
+    });
+  }, 1, 900 / BED_TILE);
+  const bed = new THREE.Mesh(new THREE.PlaneGeometry(BED_W, 900), new THREE.MeshLambertMaterial({ map: bedTex }));
+  bed.rotation.x = -Math.PI / 2; bed.position.set(0, 0.01, -300); bed.receiveShadow = true;
   scene.add(ground, bed);
+
+  // ---- sun & clouds ---------------------------------------------------------------------
+  function spriteTex(draw) {
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = 256;
+    draw(cv.getContext('2d'));
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  const sunTex = spriteTex((c) => {
+    const g = c.createRadialGradient(128, 128, 0, 128, 128, 128);
+    g.addColorStop(0, 'rgba(255,255,245,1)'); g.addColorStop(0.12, 'rgba(255,250,220,0.95)');
+    g.addColorStop(0.3, 'rgba(255,236,190,0.35)'); g.addColorStop(1, 'rgba(255,230,180,0)');
+    c.fillStyle = g; c.fillRect(0, 0, 256, 256);
+  });
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, fog: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending, toneMapped: false }));
+  sunGlow.scale.set(150, 150, 1);
+  sunGlow.position.set(-150, 95, -560);
+  scene.add(sunGlow);
+  const cloudTex = spriteTex((c) => {
+    for (let i = 0; i < 14; i++) {
+      const x = 40 + trnd() * 176, y = 110 + (trnd() - 0.5) * 50, r = 26 + trnd() * 34;
+      const g = c.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.6, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+  });
+  const clouds = [];
+  for (let i = 0; i < 9; i++) {
+    const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, fog: false, depthWrite: false, transparent: true, opacity: 0.85 }));
+    const sz = 90 + trnd() * 90;
+    m.scale.set(sz * 1.8, sz, 1);
+    m.position.set(-420 + i * 105 + trnd() * 40, 70 + trnd() * 90, -480 - trnd() * 80);
+    m.userData.drift = 1.5 + trnd() * 2;
+    clouds.push(m); scene.add(m);
+  }
+
+  // ---- speed lines (only when it's really moving) --------------------------------------------
+  const SPEED_N = 46;
+  const speedMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, fog: false, depthWrite: false });
+  const speedMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(0.025, 0.025, 1), speedMat, SPEED_N);
+  speedMesh.frustumCulled = false;
+  const streaks = [];
+  for (let i = 0; i < SPEED_N; i++) {
+    const a = trnd() * Math.PI * 2, r = 3 + trnd() * 6;
+    streaks.push({ x: Math.cos(a) * r * 1.3, y: ROOF + 2.6 + Math.sin(a) * r * 0.8, z: -60 + trnd() * 66, len: 2 + trnd() * 3 });
+  }
+  scene.add(speedMesh);
 
   // ---- pools ------------------------------------------------------------------------
   const pools = {};
@@ -78,6 +186,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function frameEnd() { Object.values(pools).forEach((pool) => pool.forEach((m) => { if (!m.userData.busy && !m.userData.keep) m.visible = false; })); }
 
   const carGeo = makeCar(CAR - 0.02), carEndGeo = makeCar(CAR - 0.02, true);
+  const glossy = (g) => { g.traverse((o) => { if (o.isMesh && o.material === MAT) o.material = TRAIN; }); return g; };
   const noseHeight = game.noseHeight;
 
   // ---- travellers ---------------------------------------------------------------------
@@ -173,6 +282,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // ---- layout & camera -----------------------------------------------------------------------
   const view = { cw: 1, ch: 1, dpr: 1 };
+  let baseFov = FOV;
   function layout() {
     const cw = stage.clientWidth, ch = stage.clientHeight, dpr = Math.min(window.devicePixelRatio || 1, 3);
     Object.assign(view, { cw, ch, dpr });
@@ -180,7 +290,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     hudCanvas.width = Math.round(cw * dpr); hudCanvas.height = Math.round(ch * dpr);
     if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2)); renderer.setSize(cw, ch, false); }
     camera.aspect = cw / ch;
-    camera.fov = cw / ch > 0.9 ? 50 : FOV;
+    baseFov = cw / ch > 0.9 ? 50 : FOV;
+    camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
   const LINEUP = [-1.42, -0.47, 0.47, 1.42];
@@ -191,8 +302,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const dist = Math.max(4.5, 2.45 / (half * Math.min(1, camera.aspect)));
       return { pos: new THREE.Vector3(0, ROOF + 1.25, dist), look: new THREE.Vector3(0, ROOF + 0.75, 0) };
     }
-    const px = S.p ? S.p.x : 0;
-    return { pos: new THREE.Vector3(px * 0.55, ROOF + 4.3, 8.6), look: new THREE.Vector3(px * 0.75, ROOF + 0.3, -18) };
+    const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
+    return { pos: new THREE.Vector3(px * 0.55, ROOF + 4.3 + py * 0.35, 8.6), look: new THREE.Vector3(px * 0.75, ROOF + 0.3 + py * 0.5, -18) };
   }
   const PV = new THREE.Vector3();
   function toScreen(x, y, z) {
@@ -211,29 +322,49 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     u.armR.rotation.set(o.armR || 0, 0, o.armRz || 0);
     u.head.rotation.set(o.nod || 0, o.look || 0, 0);
   }
-  function drawRunner(t) {
+  // The runner's pose eases toward a target every frame (run, jump, slide,
+  // crash), so changes of state blend instead of snapping.
+  const POSE_KEYS = ['bob', 'lean', 'legL', 'legR', 'armL', 'armR', 'armLz', 'armRz', 'nod', 'look', 'rootX', 'rootZ'];
+  const live = {};
+  POSE_KEYS.forEach((k) => { live[k] = 0; });
+  let lastX = 0, tilt = 0;
+  function drawRunner(t, dt) {
     const p = S.p, m = heroes[S.hero];
     m.visible = !(S.invuln > 0 && Math.floor(t * 12) % 2 === 0);
     m.position.set(p.x, p.y, 0);
-    const lean = p.laneT < 1 ? (game.LANES[p.lane] > p.from ? -0.25 : 0.25) : 0;
+    // lean into a hop, from how fast you're moving sideways
+    const vx = dt > 0 ? (p.x - lastX) / dt : 0;
+    lastX = p.x;
+    tilt += (Math.max(-0.4, Math.min(0.4, -vx * 0.018)) - tilt) * (1 - Math.exp(-dt * 14));
+    let target, rate = 18;
     if (S.mode === 'crash' || S.mode === 'gameover') {
       const k = Math.min(1, S.modeT / 0.6);
-      m.rotation.set(-k * 1.4, Math.PI, k * 0.6);
-      pose(m, { armL: -2.8, armR: -2.6, legL: -0.6, legR: 0.4 });
-      return;
+      target = { rootX: -k * 1.4, rootZ: k * 0.6, armL: -2.8, armR: -2.6, legL: -0.6, legR: 0.4 };
+      rate = 10;
+    } else if (p.slideT > 0) {
+      target = { rootX: 1.15, legL: -1.3, legR: -1.1, armL: -2.9, armR: -2.9, nod: -0.6 };
+      rate = 24;
+    } else if (p.air) {
+      const up = p.vy > 0;
+      target = { legL: up ? -1.3 : -0.7, legR: up ? 0.6 : 0.2, armL: -2.6, armR: -2.4, armLz: -0.3, armRz: 0.3, lean: up ? 0.15 : -0.1 };
+    } else {
+      const ph = p.anim, sAmp = S.mode === 'ready' ? Math.min(1, S.modeT) : 1;
+      target = {
+        bob: Math.abs(Math.cos(ph)) * 0.8 * sAmp, lean: -0.15 * sAmp,
+        legL: Math.sin(ph) * 0.9 * sAmp, legR: -Math.sin(ph) * 0.9 * sAmp, armL: -Math.sin(ph) * 0.8 * sAmp, armR: Math.sin(ph) * 0.8 * sAmp
+      };
+      rate = 30;
     }
-    if (p.slideT > 0) {
-      m.rotation.set(1.15, Math.PI, lean);
-      pose(m, { legL: -1.3, legR: -1.1, armL: -2.9, armR: -2.9, nod: -0.6 });
-      return;
-    }
-    m.rotation.set(0, Math.PI, lean);
-    if (p.air) { pose(m, { legL: -1.2, legR: 0.5, armL: -2.6, armR: -2.4, armLz: -0.3, armRz: 0.3 }); return; }
-    const ph = p.anim, s = S.mode === 'ready' ? Math.min(1, S.modeT) : 1;
-    pose(m, {
-      bob: Math.abs(Math.cos(ph)) * 0.8 * s, lean: -0.15 * s,
-      legL: Math.sin(ph) * 0.9 * s, legR: -Math.sin(ph) * 0.9 * s, armL: -Math.sin(ph) * 0.8 * s, armR: Math.sin(ph) * 0.8 * s
-    });
+    const kb = 1 - Math.exp(-dt * rate);
+    POSE_KEYS.forEach((k) => { live[k] += ((target[k] || 0) - live[k]) * kb; });
+    m.rotation.set(live.rootX, Math.PI, live.rootZ + tilt);
+    pose(m, live);
+    // squash on landing, stretch on take-off
+    let sy = 1;
+    const sinceLand = t - (p.landT ?? -9), sinceJump = t - (p.jumpT ?? -9);
+    if (sinceLand < 0.2) sy = 1 - 0.16 * Math.sin((sinceLand / 0.2) * Math.PI);
+    else if (sinceJump < 0.18) sy = 1 + 0.1 * Math.sin((sinceJump / 0.18) * Math.PI);
+    m.scale.set(HERO_SCALE / Math.sqrt(sy), HERO_SCALE * sy, HERO_SCALE / Math.sqrt(sy));
   }
   function drawLineup(t) {
     game.ROSTER.forEach((k, i) => {
@@ -252,7 +383,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function sync(dt) {
     const t = S.t, z = (d) => S.dist - d;
     frameStart();
-    Object.values(heroes).forEach((h) => { h.visible = false; });
+    Object.values(heroes).forEach((h) => { h.visible = false; h.scale.setScalar(HERO_SCALE); });
     halo.visible = false;
 
     // look of the current stage (eased), darker in tunnels
@@ -277,14 +408,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         if (S.gaps.some((g) => g.lane === l && c0 >= g.g0 && c0 < g.g1)) continue;
         const last = S.gaps.some((g) => g.lane === l && c0 + CAR === g.g0);
         const m = last
-          ? take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, carEndGeo.material))
-          : take('car', () => new THREE.Mesh(carGeo.geometry, carGeo.material));
+          ? take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN))
+          : take('car', () => new THREE.Mesh(carGeo.geometry, TRAIN));
         m.position.set(LANES[l], 0, z(c0));
       }
     }
     S.gaps.forEach((g) => {
-      if (g.g0 < to && g.g0 > from) { const n = take('nose', () => makeNose(NOSE, noseHeight)); n.position.set(LANES[g.lane], 0, z(g.g0)); n.rotation.y = 0; }
-      if (g.g1 < to + NOSE && g.g1 > from) { const n = take('nose', () => makeNose(NOSE, noseHeight)); n.position.set(LANES[g.lane], 0, z(g.g1)); n.rotation.y = Math.PI; }
+      if (g.g0 < to && g.g0 > from) { const n = take('nose', () => glossy(makeNose(NOSE, noseHeight))); n.position.set(LANES[g.lane], 0, z(g.g0)); n.rotation.y = 0; }
+      if (g.g1 < to + NOSE && g.g1 > from) { const n = take('nose', () => glossy(makeNose(NOSE, noseHeight))); n.position.set(LANES[g.lane], 0, z(g.g1)); n.rotation.y = Math.PI; }
     });
 
     // catenary poles every 30 m
@@ -309,7 +440,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
     // obstacles and pickups
     S.obs.forEach((o) => {
-      if (o.gone || o.d > to || o.d < from) return;
+      const flying = o.gone && o.gotT !== undefined && t - o.gotT < 0.35; // a pickup you just grabbed
+      if ((o.gone && !flying) || o.d > to || o.d < from) return;
       const def = OBS[o.type], base = def.all ? ROOF : game.roofAt(o.lane, o.d) || ROOF;
       const x = def.all ? 0 : LANES[o.lane];
       let m;
@@ -325,12 +457,19 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         case 'onigiri': m = take('onigiri', makeOnigiri); m.position.set(x, base + 0.45 + (o.h || 0) + Math.sin(t * 4 + o.d) * 0.08, z(o.d)); m.rotation.y = t * 3 + o.d; break;
         case 'neko': m = take('neko', makeNeko); m.position.set(x, base + 0.3, z(o.d)); m.rotation.y = Math.sin(t * 2) * 0.5; break;
       }
+      if (!m) return;
+      if (flying) { // up and toward you, spinning and shrinking
+        const k = (t - o.gotT) / 0.35;
+        m.position.y += k * 1.6; m.position.z = Math.max(m.position.z, 0) + k * 2.5;
+        m.rotation.y += k * 12;
+        m.scale.setScalar(Math.max(0.05, 1.25 - k * 1.2));
+      } else m.scale.setScalar(1);
     });
 
     // the runner (or the line-up on the select screen)
     if (S.mode === 'select') drawLineup(t);
     else if (S.p) {
-      drawRunner(t);
+      drawRunner(t, dt);
       if (S.shield && S.mode === 'run') { halo.visible = true; halo.position.set(S.p.x, S.p.y + 0.08, 0); halo.rotation.z = t * 3; }
     }
 
@@ -348,6 +487,32 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
     frameEnd();
 
+    // the ground and track run past; clouds drift; speed lines at speed
+    // (uv' = uv·repeat + offset, so a growing offset slides the pattern toward the camera)
+    groundTex.offset.y = (S.dist / GROUND_TILE) % 1;
+    bedTex.offset.y = (S.dist / BED_TILE) % 1;
+    clouds.forEach((c) => {
+      c.position.x += c.userData.drift * dt;
+      if (c.position.x > 520) c.position.x -= 1000;
+      c.material.opacity = 0.85 * (1 - cur.dark);
+      c.material.color.copy(cur.bot).lerp(C.setHex(0xffffff), 0.6);
+    });
+    sunGlow.visible = cur.dark < 0.5;
+    const fast = S.mode === 'run' && !lowPower ? Math.max(0, Math.min(1, (S.speed - 19) / 14)) : 0;
+    speedMat.opacity += (fast * 0.42 - speedMat.opacity) * Math.min(1, dt * 3);
+    speedMesh.visible = speedMat.opacity > 0.01;
+    if (speedMesh.visible) {
+      streaks.forEach((q, i) => {
+        q.z += S.speed * 2.1 * dt;
+        if (q.z > 8) q.z -= 70;
+        Q.identity(); P.set(q.x + (S.p ? S.p.x * 0.5 : 0), q.y, q.z); SC.set(1, 1, q.len * (0.6 + fast));
+        M4.compose(P, Q, SC);
+        speedMesh.setMatrixAt(i, M4);
+      });
+      speedMesh.instanceMatrix.needsUpdate = true;
+    }
+    if (scene.environment) scene.environmentIntensity = 0.4 * (1 - 0.7 * cur.dark);
+
     // sun & shadows follow the runner
     const px = S.p && S.mode !== 'select' ? S.p.x : 0;
     sun.position.set(px - 10, 32, 14); sun.target.position.set(px, 0, -8);
@@ -363,11 +528,16 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (drawGL) glAge = 0;
     if (drawGL || !renderer) {
       sync(elapsed);
-      const ct = camTarget(), k = S.mode === 'select' ? 1 - Math.exp(-elapsed * 6) : 1 - Math.exp(-elapsed * 5);
+      const ct = camTarget(), k = 1 - Math.exp(-elapsed * 6);
       cam.pos.lerp(ct.pos, k); cam.look.lerp(ct.look, k);
       const sh = S.shakeT > 0 ? 0.12 : 0;
       camera.position.set(cam.pos.x + (Math.random() - 0.5) * sh, cam.pos.y + (Math.random() - 0.5) * sh, cam.pos.z);
+      // a gentle roll with the runner's lean, and a wider view as the train speeds up
+      const roll = S.mode === 'select' ? 0 : tilt * 0.12;
+      camera.up.set(Math.sin(roll), Math.cos(roll), 0);
       camera.lookAt(cam.look);
+      const fovTarget = baseFov + (S.mode === 'select' ? 0 : Math.max(0, Math.min(1, (S.speed - 15) / 21)) * 8);
+      if (Math.abs(camera.fov - fovTarget) > 0.01) { camera.fov += (fovTarget - camera.fov) * (1 - Math.exp(-elapsed * 2)); camera.updateProjectionMatrix(); }
     }
     if (drawGL) renderer.render(scene, camera);
     hud.draw(!renderer);

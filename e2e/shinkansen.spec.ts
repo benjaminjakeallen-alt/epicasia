@@ -161,6 +161,37 @@ test('play: pick a traveler, swipe between trains, jump, slide, onigiri, crash a
   expect(errors).toEqual([]);
 });
 
+test('smooth: every frame moves the world by exactly the time that passed', async ({ page }) => {
+  // The game used to advance in fixed 1/60 s steps with no blending, so a
+  // frame moved the world 0, 1 or 2 steps — a stutter at 15–36 m/s, worst on
+  // 120 Hz screens. Now each frame moves it by speed × the frame's own time.
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await st(f)).mode).toBe('ready');
+  await debug(f, 'go');
+  await expect.poll(async () => (await st(f)).mode).toBe('run');
+  await debug(f, 'calm');
+  const ratios = await f.evaluate(
+    () =>
+      new Promise<number[]>((done) => {
+        const d = (window as any).__dash, out: number[] = [];
+        let lastT = 0, lastD = 0;
+        const tick = (t: number) => {
+          // (rAF callbacks run in order, so the game's own frame for t has already run)
+          if (lastT && t - lastT < 200) out.push((d.dist - lastD) / (d.speed * ((t - lastT) / 1000)));
+          lastT = t; lastD = d.dist;
+          if (out.length < 30) requestAnimationFrame(tick); else done(out);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+  // within 2% every frame (speed changes very slightly during a frame)
+  expect(ratios.filter((r) => Math.abs(r - 1) > 0.02), JSON.stringify(ratios.map((r) => r.toFixed(3)))).toEqual([]);
+});
+
 test('obstacles: jump a fairing, slide under a gantry, hop off before the train ends', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');

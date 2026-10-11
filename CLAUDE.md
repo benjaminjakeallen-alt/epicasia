@@ -583,6 +583,27 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   train's tail is still rising, left no time to hop — a train only counts
   as open for a row if it's flat from 30 m before to 26 m after
   (`OPEN_BEFORE`/`OPEN_AFTER`). The bot's remaining misses are late jumps.
+- **Smooth motion (Oct 11 2026, user: "make the gameplay and animations
+  smoother"):** the frame loop advances by **exactly the time that
+  passed** in ≤ 1/60 s sub-steps — the old fixed-step accumulator (no
+  interpolation) moved the world 0 or 2 steps on some frames, a stutter at
+  15–36 m/s and worst on 120 Hz screens; `e2e` "smooth" checks every frame
+  moves `speed × dt` (it fails on the old loop: 11 of 30 frames off).
+  `simulate()` still uses fixed steps. The runner's pose **eases toward
+  its target** (run/jump/slide/crash blend instead of snapping), leans
+  into hops from its sideways speed, squashes on landing and stretches on
+  take-off; hops ease out (cubic, 0.15 s); the camera follows jumps a
+  little, rolls slightly with the lean and **widens the FOV with speed**;
+  grabbed onigiri / lucky cats fly up and shrink with a sparkle; fog is
+  complete before the draw distance so nothing pops in.
+- **Look:** ACES filmic tone mapping; trains in a glossy
+  `MeshStandardMaterial` lit by a `RoomEnvironment` reflection map
+  (skipped in low-power mode); roofs with grey panels, seams, a darker
+  walkway, gutters and a blue pinstripe (flat white washed out); canvas
+  textures for the ground and the track bed (ballast, sleepers, rails)
+  that **scroll with the distance** (`offset.y = dist / tile` — in three.js
+  a growing offset slides the pattern toward the camera); a sun glow and
+  drifting soft clouds; speed lines past ~19 m/s.
 - **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
   (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
   Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in

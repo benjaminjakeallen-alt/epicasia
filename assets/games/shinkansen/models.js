@@ -27,8 +27,20 @@ function section(x, y, w, h) {
 function skin(x, y, z, h, len, opts) {
   // y rows: 0-1 skirt, 2-3 stripes, 4-5 body, 6-8 windows, 9-11 body, 12-13 roof
   const front = x === 0 || x === 14;
-  if (y >= h - 2) return y === h - 1 && z % 10 === 0 ? shade(T.roof, 0.85) : T.roof;
+  // Roof: light-grey panels with seams every 2 m, a darker anti-slip
+  // walkway down the middle, and rain gutters along the shoulders — so the
+  // roofs you run on have depth instead of reading as flat white.
+  if (y === h - 1) {
+    const cx = Math.abs(x - 7), seam = z % 10 === 0 ? 0.86 : 1;
+    if (cx <= 2) return shade(z % 3 === 0 ? 0xa3acb6 : 0xb4bcc5, seam);
+    return shade(0xcbd2d9, seam);
+  }
+  if (y === h - 2) {
+    if (x === 1 || x === 13) return 0x8e98a3; // gutters
+    return shade(0xd6dce2, z % 10 === 0 ? 0.88 : 1);
+  }
   if (y <= 1) return T.skirt;
+  if (y === h - 3 && front) return T.stripe2; // a pinstripe under the roofline
   if (!front) return T.body;
   if (y === 2) return T.stripe;
   if (y === 3) return T.stripe2;
