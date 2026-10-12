@@ -5,9 +5,9 @@
 // game's distances: z = S.dist - d (ahead is -z). hud.js draws text on top.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
+import { MAT, makeHero, makeHeroine, makePickaxe } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeShuriken, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeShuriken, makeBoard, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -225,6 +225,18 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // same vertex-coloured Lambert shader, just tinted, so nothing new to compile).
   const SLUDGE = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0x8a5a2e });
   function sludge(h, on) { heroes[h].traverse((o) => { if (o.isMesh) o.material = on ? SLUDGE : o.userData.mat; }); }
+  // skill props: Chris's pickaxe (in his hand while he swings) and miner's lamp beam, Jake's skateboard
+  const pickaxe = makePickaxe();
+  pickaxe.rotation.x = 1.25; // (as Rampage holds it)
+  heroes.chris.userData.hand.add(pickaxe);
+  pickaxe.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.userData.mat = o.material; } }); // (so the silhouette/sludge swaps restore it)
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(2.4, 14, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff1b8, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide }));
+  beam.rotation.x = Math.PI / 2; // apex at the lamp, opening out ahead
+  scene.add(beam);
+  const board = makeBoard();
+  board.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  scene.add(board);
+  let boardYaw = 0;
   const halo = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 24), new THREE.MeshBasicMaterial({ color: 0xffd43b, fog: false }));
   halo.rotation.x = Math.PI / 2;
   scene.add(halo);
@@ -369,6 +381,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const live = {};
   POSE_KEYS.forEach((k) => { live[k] = 0; });
   let lastX = 0, tilt = 0;
+  const lamp = () => S.hero === 'chris' && S.mode === 'run';
   function drawRunner(t, dt) {
     const p = S.p, m = heroes[S.hero];
     m.visible = !(S.invuln > 0 && Math.floor(t * 12) % 2 === 0);
@@ -385,6 +398,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     } else if (p.slideT > 0) {
       target = { rootX: 1.15, legL: -1.3, legR: -1.1, armL: -2.9, armR: -2.9, nod: -0.6 };
       rate = 24;
+    } else if (p.air && p.gliding) { // Bennett's poncho glide: arms spread wide
+      target = { legL: -0.5, legR: 0.3, armL: -0.2, armR: -0.2, armLz: -1.45, armRz: 1.45, lean: 0.25, nod: -0.2 };
     } else if (p.air) {
       const up = p.vy > 0;
       target = { legL: up ? -1.3 : -0.7, legR: up ? 0.6 : 0.2, armL: -2.6, armR: -2.4, armLz: -0.3, armRz: 0.3, lean: up ? 0.15 : -0.1 };
@@ -401,9 +416,22 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       target = Object.assign({}, target, { armR: q < 0.35 ? -2.6 : -1.3, armRz: q < 0.35 ? 0.5 : -0.2 });
       rate = 40;
     }
+    const riding = S.boardT > 0 && S.mode === 'run';
+    if (riding && !p.air && p.slideT <= 0) target = { legL: -0.35, legR: 0.35, armL: -0.3, armR: -0.3, armLz: -1.1, armRz: 1.1, lean: 0.1, bob: 0.3 }; // surfing the manhole cover
+    const swing = S.hero === 'chris' ? t - S.smashT : 9;
+    pickaxe.visible = swing < 0.4;
+    if (swing < 0.4) { target = Object.assign({}, target, { armR: swing < 0.12 ? -2.9 : -0.5, armRz: 0 }); rate = 40; } // the pickaxe comes down
     const kb = 1 - Math.exp(-dt * rate);
     POSE_KEYS.forEach((k) => { live[k] += ((target[k] || 0) - live[k]) * kb; });
-    m.rotation.set(live.rootX, Math.PI, live.rootZ + tilt);
+    boardYaw += ((riding ? 1.15 : 0) - boardYaw) * (1 - Math.exp(-dt * 10));
+    m.rotation.set(live.rootX, Math.PI + boardYaw, live.rootZ + tilt);
+    board.visible = riding;
+    if (riding) {
+      board.position.set(p.x, p.y + 0.02, 0); board.rotation.set(0, boardYaw, tilt * 0.5);
+      if (Math.random() < dt * 14) S.parts.push({ x: p.x + (Math.random() - 0.5) * 0.6, y: p.y + 0.1, z: 0.4, vx: 0, vy: 1, vz: 4, t: 0.4, col: Math.random() < 0.5 ? '#ffd43b' : '#ffffff', s: 0.09 });
+    }
+    beam.visible = lamp() && game.inTunnel(S.dist);
+    if (beam.visible) beam.position.set(p.x, p.y + 1.55, -7);
     pose(m, live);
     // squash on landing, stretch on take-off
     let sy = 1;
@@ -474,13 +502,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const t = S.t, z = (d) => S.dist - d;
     frameStart();
     Object.values(heroes).forEach((h) => { if (h.parent !== scene) scene.add(h); h.visible = false; h.scale.setScalar(HERO_SCALE); }); // (back from the sewer)
-    halo.visible = false;
+    halo.visible = false; board.visible = false; beam.visible = false;
 
     // look of the current stage (eased), darker in tunnels
     const kind = stageAt(S.dist + 40), L = LOOK[kind];
     const k = 1 - Math.exp(-dt * 1.5);
     cur.top.lerp(C.setHex(L.sky[0]), k); cur.bot.lerp(C.setHex(L.sky[1]), k); cur.ground.lerp(C.setHex(L.ground), k);
-    cur.dark += ((S.mode !== 'select' && game.inTunnel(S.dist - 3) ? 1 : 0) - cur.dark) * Math.min(1, dt * 4);
+    const lampLit = S.hero === 'chris' && S.mode !== 'select'; // Chris's miner's lamp lights the tunnels
+    cur.dark += ((S.mode !== 'select' && game.inTunnel(S.dist - 3) ? (lampLit ? 0.5 : 1) : 0) - cur.dark) * Math.min(1, dt * 4);
     paintSky();
     ground.material.color.copy(cur.ground);
     hemi.color.setHex(L.hemi[0]); hemi.groundColor.setHex(L.hemi[1]);

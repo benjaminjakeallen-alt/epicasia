@@ -605,3 +605,107 @@ test('obstacles: jump a fairing, slide under a gantry, hop off before the train 
   await debug(f, 'gap', 2, 15);
   await expect.poll(async () => (await st(f)).mode, { timeout: 20_000 }).not.toBe('run');
 });
+
+// ---- every traveller's special skill (user, Oct 12 2026) --------------------------------------
+const ALL = ['emily', 'miles', 'nicole', 'jake', 'liam'];
+async function everyoneUnlocked(page: Page) {
+  await page.addInitScript((u) => { if (window.top === window) localStorage.setItem('epicasia.shinkansen.unlocked', JSON.stringify(u)); }, ALL);
+}
+const skills = (f: Frame) => f.evaluate(() => { const d = (window as any).__dash; return { mode: d.mode, coins: d.coins, sliding: d.sliding, air: d.air, spring: d.spring, ...d.skills }; });
+/** Ends the run and goes back to the ring. */
+async function changeHero(page: Page, f: Frame) {
+  await debug(f, 'gameOver', 100);
+  await expect.poll(async () => (await st(f)).mode, { timeout: 15_000 }).toBe('gameover');
+  await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'CHANGE HERO' }).click();
+  await expect.poll(async () => (await st(f)).mode).toBe('select');
+}
+
+test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett glides, Miles double-jumps every jump', async ({ page }) => {
+  await everyoneUnlocked(page);
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const fast = { timeout: 10_000, intervals: [50] };
+
+  // Chris: the first fairing in his way is smashed; one straight after, while the pickaxe recovers, isn't.
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  await debug(f, 'spawn', 'hump', 1, 40);
+  await expect.poll(async () => (await skills(f)).smashes, fast).toBe(1);
+  expect((await skills(f)).mode).toBe('run');
+  await debug(f, 'spawn', 'hump', 1, 30);
+  await expect.poll(async () => (await skills(f)).mode, fast).toBe('crash');
+  expect((await skills(f)).smashes).toBe(1);
+  await changeHero(page, f);
+
+  // Bennett: hold the jump and the poncho glides — far longer in the air than a plain jump (~0.74 s).
+  await start(page, f, 1);
+  await debug(f, 'calm');
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(async () => (await skills(f)).gliding, fast).toBe(true);
+  const t0 = Date.now();
+  await expect.poll(async () => (await skills(f)).air, { timeout: 15_000, intervals: [50] }).toBe(false);
+  await page.keyboard.up('ArrowUp');
+  expect(Date.now() - t0).toBeGreaterThan(900);
+  expect((await skills(f)).glides).toBeGreaterThan(0.6);
+  await changeHero(page, f);
+
+  // Miles: a double jump on every jump, no spring needed.
+  await start(page, f, 3);
+  await debug(f, 'calm');
+  for (const n of [1, 2]) {
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await st(f)).y, fast).toBeGreaterThan(0.5); // (up in the air)
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await skills(f)).doubles, fast).toBe(n);
+    await expect.poll(async () => (await skills(f)).air, fast).toBe(false);
+  }
+  expect((await skills(f)).spring).toBe(false);
+});
+
+test('skills: Emily’s endless slide, Nicole’s boba magnet and crow ducking, Jake’s manhole skateboard', async ({ page }) => {
+  await everyoneUnlocked(page);
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const fast = { timeout: 10_000, intervals: [50] };
+
+  // Emily: hold the slide and she keeps sliding; let go and she gets up.
+  await start(page, f, 2);
+  await debug(f, 'calm');
+  await page.keyboard.down('ArrowDown');
+  await expect.poll(async () => (await skills(f)).sliding, fast).toBe(true);
+  await page.waitForTimeout(2500); // (a plain slide lasts 0.72 s)
+  expect((await skills(f)).sliding).toBe(true);
+  await page.keyboard.up('ArrowDown');
+  await expect.poll(async () => (await skills(f)).sliding, fast).toBe(false);
+  await changeHero(page, f);
+
+  // Nicole: an onigiri on the next train over comes to her, and she ducks a crow by herself.
+  await start(page, f, 4);
+  await debug(f, 'calm');
+  await debug(f, 'spawn', 'onigiri', 0, 30);
+  await expect.poll(async () => (await skills(f)).coins, fast).toBe(1);
+  expect((await skills(f)).magnets).toBe(1);
+  await debug(f, 'spawn', 'crow', 1, 40);
+  await expect.poll(async () => (await skills(f)).autoSlides, fast).toBe(1);
+  await page.waitForTimeout(3000);
+  expect((await skills(f)).mode).toBe('run');
+  await changeHero(page, f);
+
+  // Jake: the 30th onigiri brings the skateboard — he ploughs through a pantograph and rolls over a gap.
+  await start(page, f, 5);
+  await debug(f, 'calm');
+  await debug(f, 'boardCount', 29);
+  await debug(f, 'spawn', 'onigiri', 1, 30);
+  await expect.poll(async () => (await skills(f)).boards, fast).toBe(1);
+  expect((await skills(f)).boardCount).toBe(0);
+  await debug(f, 'spawn', 'panto', 1, 40);
+  await debug(f, 'gap', 1, 80);
+  await page.waitForTimeout(7000);
+  const s = await skills(f);
+  expect(s.mode).toBe('run');
+  expect(s.boardT).toBeGreaterThan(0);
+});

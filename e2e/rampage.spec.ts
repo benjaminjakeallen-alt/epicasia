@@ -204,12 +204,13 @@ test('every level can be climbed: a safe ladder up from each girder, none into G
   // Walk to the ledge ladder (x 118). Holding a key and polling overshot on a
   // busy CI runner (56 units/s; the ladder grabs within 9), so close in with
   // short steps sized to the distance left until it's within reach.
-  for (let i = 0; i < 12; i++) {
+  // (A stalled frame under load can still carry a step past; the next ones walk it back.)
+  for (let i = 0; i < 30; i++) {
     const x = (await state(f)).player.x;
     if (Math.abs(x - 118) <= 5) break;
     const key = x < 118 ? 'ArrowRight' : 'ArrowLeft';
     await page.keyboard.down(key);
-    await page.waitForTimeout(Math.max(20, Math.min(600, ((Math.abs(x - 118) - 2) / 56) * 1000 * 0.6)));
+    await page.waitForTimeout(Math.max(15, Math.min(500, ((Math.abs(x - 118) - 2) / 56) * 1000 * 0.4)));
     await page.keyboard.up(key);
     await page.waitForTimeout(80);
   }

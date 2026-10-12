@@ -31,7 +31,19 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' }, liam: { name: 'LIAM', skill: 'NINJA STARS' } };
+// Each traveller's special skill (user, Oct 12 2026), shown under their name on the ring and
+// told once as a run starts. skill(h) is off in simulate(), so the fairness checks stay honest.
+const HEROES = {
+  chris: { name: 'CHRIS', skill: 'MINER\'S LAMP · PICKAXE', hint: 'PICKAXE SMASHES FAIRINGS · LAMP LIGHTS TUNNELS' },
+  bennett: { name: 'BENNETT', skill: 'PONCHO GLIDE', hint: 'SWIPE UP AND HOLD TO GLIDE' },
+  emily: { name: 'EMILY', skill: 'ENDLESS SLIDE', hint: 'SWIPE DOWN AND HOLD TO KEEP SLIDING' },
+  miles: { name: 'MILES', skill: 'DOUBLE JUMPS', hint: 'SWIPE UP AGAIN IN THE AIR' },
+  nicole: { name: 'NICOLE', skill: 'BOBA MAGNET · AUTO SLIDE', hint: 'PICKUPS COME TO YOU · SHE DUCKS CROWS' },
+  jake: { name: 'JAKE', skill: 'MANHOLE SKATEBOARD', hint: 'EVERY 30 ONIGIRI: A SKATEBOARD' },
+  liam: { name: 'LIAM', skill: 'NINJA STARS', hint: 'CROWS DON\'T STAND A CHANCE' }
+};
+const skill = (h) => S.hero === h && !S.simulating;
+const SMASH_EVERY = 8, GLIDE_V = 1.7, BOARD_EVERY = 30, BOARD_TIME = 15;
 const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
@@ -448,9 +460,10 @@ function newRun(hero) {
   Object.assign(S, {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false,
-    sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0, stars: [], throws: 0, kills: 0, throwT: -9
+    sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0, stars: [], throws: 0, kills: 0, throwT: -9,
+    smashReady: 0, smashT: -9, smashes: 0, glides: 0, magnets: 0, autoSlides: 0, boardCount: 0, boardT: 0, boards: 0
   });
-  S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null };
+  S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null, doubled: false, gliding: false };
   S.msgs = [];
   setMode('ready');
   SFX.horn();
@@ -462,7 +475,7 @@ function sendScore(outcome) {
 }
 function crash(why) {
   if (S.mode !== 'run') return;
-  if (S.invuln > 0) return;
+  if (S.invuln > 0 || S.boardT > 0) return;
   if (S.shield && why !== 'fall') {
     S.shield = false; S.invuln = 1.2;
     say('LUCKY CAT SAVED YOU!', 1.6, '#ffe066');
@@ -499,6 +512,7 @@ function act(dir) {
     p.from = p.x; p.lane = to; p.laneT = 0; SFX.hop();
   } else if (dir === 'U') {
     if (!p.air) jump(p);
+    else if (skill('miles') && !p.doubled && p.y > (roofAt(p.lane, S.dist) || ROOF) + 0.3) { p.doubled = true; doubleJump(p, true); }
     else if (S.spring && S.mode === 'run' && p.y > (roofAt(p.lane, S.dist) || ROOF) + 0.3) doubleJump(p);
     else p.jbuf = JUMP_BUFFER;
   } else if (dir === 'D') {
@@ -506,13 +520,17 @@ function act(dir) {
   }
 }
 /** The spring's one double jump: a second full jump from mid-air. */
-function doubleJump(p) {
-  S.spring = false; S.doubles++;
+function doubleJump(p, free) {
+  if (!free) S.spring = false; // (Miles's own double jumps don't use the spring up)
+  S.doubles++;
   p.vy = JUMP_V; p.dive = false; p.jbuf = 0; p.jumpT = S.t;
   SFX.spring(); burst(p.x, p.y, 0, ['#8ce99a', '#ffffff', '#d3f9d8'], 12, 3);
 }
 function jump(p) { p.air = true; p.vy = JUMP_V; p.slideT = 0; p.jbuf = 0; p.jumpT = S.t; S.jumps++; SFX.jump(); }
 
+const keyHeld = {};
+/** Is a swipe (or key) in this direction still being held? (Bennett's glide, Emily's slide) */
+function held(dir) { return !!((touch && touch.fired && touch.dir === dir) || keyHeld[dir]); }
 const KEYS = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ArrowUp: 'U', w: 'U', W: 'U', ' ': 'U', ArrowDown: 'D', s: 'D', S: 'D' };
 window.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { setMenu(!S.menu); e.preventDefault(); return; }
@@ -520,9 +538,10 @@ window.addEventListener('keydown', function (e) {
   if (e.key === 'Enter') { act('go'); e.preventDefault(); return; }
   if (S.mode === 'sewer' && SEWER_KEYS[e.key]) { const k = SEWER_KEYS[e.key]; padKeys[k] = true; if (k === 'J' && !e.repeat) pad.tapped = true; e.preventDefault(); return; }
   const k = KEYS[e.key];
+  if (k) keyHeld[k] = true;
   if (k && !e.repeat) { act(k); e.preventDefault(); }
 });
-window.addEventListener('keyup', function (e) { if (SEWER_KEYS[e.key]) padKeys[SEWER_KEYS[e.key]] = false; });
+window.addEventListener('keyup', function (e) { if (SEWER_KEYS[e.key]) padKeys[SEWER_KEYS[e.key]] = false; if (KEYS[e.key]) keyHeld[KEYS[e.key]] = false; });
 // Swipes anywhere on the screen; one move per swipe (lift and swipe again).
 const stage = document.getElementById('stage');
 const SWIPE = 22; // px
@@ -538,7 +557,8 @@ stage.addEventListener('pointermove', function (e) {
   if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE) return;
   touch.fired = true;
   if (S.mode === 'select' && Math.abs(dx) > Math.abs(dy)) { act(dx < 0 ? 'R' : 'L'); return; } // drag the ring: the one to the right comes round
-  act(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'L' : 'R') : (dy < 0 ? 'U' : 'D'));
+  touch.dir = Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'L' : 'R') : (dy < 0 ? 'U' : 'D');
+  act(touch.dir);
 });
 function touchEnd(e) {
   if (!touch || touch.id !== e.pointerId) return;
@@ -556,7 +576,7 @@ function touchEnd(e) {
 }
 stage.addEventListener('pointerup', touchEnd);
 stage.addEventListener('pointercancel', function () { touch = null; });
-window.addEventListener('blur', function () { touch = null; padRelease(); });
+window.addEventListener('blur', function () { touch = null; padRelease(); Object.keys(keyHeld).forEach(function (k) { keyHeld[k] = false; }); });
 
 // ---- the sewer's pad: a joystick and a jump button, like a Mario game ----------------
 // (user, Oct 12 2026). The stick's x walks; pushed all the way it runs.
@@ -636,21 +656,49 @@ function updateRunner(dt) {
     p.x = p.from + (LANES[p.lane] - p.from) * (1 - Math.pow(1 - p.laneT, 3));
   }
   const lane = nearestLane(p.x);
-  const roof = roofAt(lane, S.dist);
+  const realRoof = roofAt(lane, S.dist);
+  let roof = realRoof;
+  if (S.boardT > 0 && (roof === null || roof < ROOF)) roof = ROOF; // Jake's skateboard rolls right over the gaps
   // warn once when the train you're on is about to end
   S.gaps.forEach(function (g) {
     const ahead = g.g0 - S.dist;
     if (!g.warned && g.lane === p.lane && ahead > 0 && ahead < 15 + S.speed * 2.2) { g.warned = true; say('END OF THE TRAIN — HOP!', 1.5, '#ff9f43'); haptic('light'); }
   });
-  if (p.slideT > 0) p.slideT -= dt;
+  if (p.slideT > 0) {
+    p.slideT -= dt;
+    if (skill('emily') && held('D') && !p.air) p.slideT = Math.max(p.slideT, 0.15); // Emily: hold it and she keeps sliding
+  }
+  if (skill('nicole') && !p.air && p.slideT <= 0.05) { // Nicole ducks crows on her own
+    const crow = S.obs.find(function (o) { const a = o.d - S.dist; return o.type === 'crow' && !o.gone && !o.hit && o.lane === p.lane && a > -0.3 && a < S.speed * 0.22 + 1.4; });
+    if (crow) { p.slideT = SLIDE_TIME; S.slides++; S.autoSlides++; SFX.slide(); }
+  }
+  if (skill('chris') && S.t >= S.smashReady) { // Chris's pickaxe smashes a fairing in his way
+    const hump = S.obs.find(function (o) { const a = o.d - S.dist; return o.type === 'hump' && !o.gone && !o.hit && o.lane === p.lane && a > 0.2 && a < S.speed * 0.12 + 2.2; });
+    if (hump) {
+      hump.gone = true; S.smashReady = S.t + SMASH_EVERY; S.smashT = S.t; S.smashes++; S.score += COIN;
+      const y = (roofAt(hump.lane, hump.d) || ROOF) + 0.4, from = S.parts.length;
+      burst(LANES[hump.lane], y, S.dist - hump.d, ['#c9ced6', '#8e98a3', '#5c636d', '#ffffff'], 18, 4);
+      for (let k = from; k < S.parts.length; k++) S.parts[k].vz += S.speed;
+      S.pops.push({ txt: '+' + COIN, t: 0.7, x: hump.lane, y: y + 0.6, d: hump.d });
+      SFX.thunk(); haptic('light');
+      if (S.smashes === 1) say('PICKAXE SMASH!', 1.1, '#ffd43b');
+    }
+  }
+  if (S.boardT > 0 && (S.boardT -= dt) <= 0) {
+    if (realRoof === null || realRoof < ROOF - 0.05) S.boardT = 0.05; // (never ends over a gap: rolls on to the next roof)
+    else { S.boardT = 0; S.invuln = 1.2; say('BOARD\'S DONE', 1.2, '#ffffff'); }
+  }
   if (p.jbuf > 0) p.jbuf -= dt;
   if (S.invuln > 0) S.invuln -= dt;
   p.anim += dt * (6 + S.speed * 0.25);
 
   if (p.air) {
-    p.vy -= GRAV * dt; p.y += p.vy * dt;
+    p.vy -= GRAV * dt;
+    p.gliding = skill('bennett') && held('U') && !p.dive && p.vy < -GLIDE_V; // Bennett's poncho catches the air
+    if (p.gliding) { p.vy = -GLIDE_V; S.glides += dt; }
+    p.y += p.vy * dt;
     if (roof !== null && p.y <= roof && p.vy <= 0) {
-      p.y = roof; p.air = false; p.vy = 0; p.landT = S.t;
+      p.y = roof; p.air = false; p.vy = 0; p.landT = S.t; p.doubled = false; p.gliding = false;
       if (p.dive) { p.dive = false; p.slideT = SLIDE_TIME; SFX.slide(); }
       if (p.jbuf > 0) jump(p);
     } else if (p.y < ROOF - 1.6 && manholeUnder(lane)) return enterSewer();
@@ -671,15 +719,31 @@ function updateRunner(dt) {
     const o = S.obs[i];
     if (o.gone || o.hit) continue;
     const def = OBS[o.type];
-    if (Math.abs(o.d - S.dist) > def.len / 2 + 0.35) continue;
-    if (!def.all && o.lane !== lane) continue;
+    // Nicole's boba magnet: onigiri, boba, lucky cats and springs on her train or the next come to her
+    const magnet = def.pickup && o.type !== 'guitar' && skill('nicole') && Math.abs(o.lane - lane) <= 1;
+    if (Math.abs(o.d - S.dist) > def.len / 2 + (magnet ? 1.2 : 0.35)) continue;
+    if (!def.all && o.lane !== lane && !magnet) continue;
     const base = def.all ? ROOF : (roofAt(o.lane, o.d) || ROOF);
     const lo = base + def.lo + (o.h || 0), hi = base + def.hi + (o.h || 0);
-    if (p.y + h <= lo || p.y >= hi) continue;
+    if (!magnet && (p.y + h <= lo || p.y >= hi)) continue;
+    if (magnet && (o.lane !== lane || p.y + h <= lo || p.y >= hi)) S.magnets++;
+    if (!def.pickup && S.boardT > 0) { // the skateboard ploughs through
+      o.gone = true; S.score += COIN;
+      burst(LANES[o.lane], lo + 0.4, S.dist - o.d, ['#c9ced6', '#ffd43b', '#ffffff'], 14, 4);
+      SFX.thunk();
+      continue;
+    }
     if (def.pickup) {
       o.gone = true; o.gotT = S.t; // (drawn flying off for a moment)
       burst(LANES[o.lane], lo + 0.5, 0, o.type === 'onigiri' ? ['#ffffff', '#ffe066', '#b2f2bb'] : ['#ffe066', '#ff8787', '#ffffff'], 10, 3);
-      if (o.type === 'onigiri') { S.coins++; S.score += COIN; SFX.coin(); S.pops.push({ txt: '+' + COIN, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d }); }
+      if (o.type === 'onigiri') {
+        const pts = COIN * (skill('chris') && inTunnel(S.dist) ? 2 : 1); // Chris's miner's lamp: double in tunnels
+        S.coins++; S.score += pts; SFX.coin(); S.pops.push({ txt: '+' + pts, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d });
+        if (skill('jake') && S.boardT <= 0 && ++S.boardCount >= BOARD_EVERY) { // Jake: every 30, the manhole skateboard
+          S.boardCount = 0; S.boardT = BOARD_TIME; S.boards++;
+          say('MANHOLE SKATEBOARD!', 1.8, '#ffd43b', true); SFX.neko(); haptic('success');
+        }
+      }
       else if (o.type === 'boba') {
         S.score += BOBA; S.bobas++; SFX.neko(); S.pops.push({ txt: '+' + BOBA, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
         if (locked('nicole')) unlockHero('nicole'); else say('BOBA!', 1.2, '#ffc9a3');
@@ -808,7 +872,7 @@ function update(dt) {
     if (Math.floor(k / 0.8) !== Math.floor((k - dt) / 0.8) && k < 2.4) SFX.count(false);
     S.speed = Math.min(speedFor(0), S.speed + dt * 12);
     S.dist += S.speed * dt * 0.4;
-    if (k >= 2.4) { setMode('run'); SFX.count(true); say('GO!', 0.8, '#69db7c', true); }
+    if (k >= 2.4) { setMode('run'); SFX.count(true); say('GO!', 0.8, '#69db7c', true); if (!S.simulating && HEROES[S.hero].hint) say(HEROES[S.hero].hint, 2.6, '#ffe066'); }
     spawnAhead();
   } else if (S.mode === 'run') {
     S.speed = speedFor(S.dist);
@@ -819,7 +883,7 @@ function update(dt) {
     scoreUnlocks();
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
-    if (S.hero === 'liam') ninjaStars(dt);
+    if (skill('liam')) ninjaStars(dt);
     updateRunner(dt);
     // stages: Tokyo → … → Kyoto, then round again
     const st = Math.floor(S.dist / STAGE_LEN), stage = st % 5, lap = Math.floor(st / 5);
@@ -871,7 +935,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get throws() { return S.throws; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
   get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
   sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
@@ -892,8 +956,9 @@ if (INIT.debug) {
     manhole: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2, manhole: true }); return g0 - S.dist; },
     sewer: function () { enterSewer(); },
     sewerPlan: function (plan) { S.sewerPlan = plan || null; if (S.sewer) S.sewer.plan = S.sewerPlan; }, // [stick, jump] per BLOCK steps
-    gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; crash('hit'); },
+    gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; S.invuln = 0; S.boardT = 0; S.shield = false; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
+    boardCount: function (n) { S.boardCount = n; }, // (tests: onigiri towards Jake's skateboard)
     go: function () { if (S.mode === 'ready') S.modeT = 2.4; },
     simulate: simulate
   };

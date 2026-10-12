@@ -125,6 +125,18 @@ export function makePanto() {
   b.add(16, 2, 2, (x, y) => (y === 1 || x === 0 || x === 15 ? 0x2b3036 : 0x868e96), { size: 0.15, offset: [-1.2, 2.45, -0.15] });
   return mesh(b.geometry());
 }
+/** Jake's skateboard: a manhole cover on four yellow wheels (origin under its middle, on the roof). */
+export function makeBoard() {
+  const b = new VoxBuilder();
+  b.add(15, 1, 15, (x, y, z) => {
+    const r = Math.hypot(x - 7, z - 7);
+    if (r > 7.2) return null;
+    if (r > 6.2) return 0x3e4349; // the rim
+    return (x + z) % 3 === 0 || (x - z + 15) % 3 === 0 ? 0x5b6168 : 0x4a4f56; // cast cross-hatch
+  }, { size: 0.065, offset: [-0.49, 0.1, -0.49] });
+  [[-0.28, -0.3], [0.28, -0.3], [-0.28, 0.3], [0.28, 0.3]].forEach(([wx, wz]) => b.add(2, 2, 2, () => 0xffd43b, { size: 0.06, offset: [wx - 0.06, 0, wz - 0.06] }));
+  return mesh(b.geometry());
+}
 /** Liam's ninja star: four steel blades round a hole, lying flat (it spins about y). */
 export function makeShuriken() {
   const b = new VoxBuilder();

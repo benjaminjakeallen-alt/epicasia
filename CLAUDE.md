@@ -690,6 +690,27 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   ahead)`, `sewer()`, `sewerPlan(plan)`; `__dash.shown(kind)` lists where
   visible models of a kind are. Runs save as hero `jake`
   (`0024_shinkansen_jake.sql`).
+- **Every traveller has a special skill** (the user's picks, Oct 12 2026;
+  `HEROES[k].skill` shown under the name on the ring — never for a locked
+  one — and `hint` said once as the run starts; `skill(h)` is off in
+  `simulate()` so the fairness checks stay honest; counters on
+  `__dash.skills`): **Chris** — pickaxe smashes a fairing in his way
+  (+25, then `SMASH_EVERY` 8 s to recover; HUD "PICKAXE READY"/"4s"; the
+  pickaxe shows in his hand mid-swing) and a miner's lamp (tunnels half as
+  dark for him, a beam ahead, onigiri in tunnels ×2). **Bennett** — poncho
+  glide: swipe up and keep the finger down (or hold ↑) and the fall is
+  capped at `GLIDE_V` 1.7 m/s, arms spread. **Emily** — endless slide:
+  swipe down and hold (or hold ↓) and the slide never runs out. **Miles** —
+  a double jump on every jump, no spring (the spring still works for the
+  guitar). **Nicole** — boba magnet (onigiri, boba, lucky cats and springs
+  on her train or the next, at any height, come to her; not the guitar)
+  and she ducks crows on her own. **Jake** — every 30 onigiri
+  (`BOARD_EVERY`, HUD "ONIGIRI n/30") a manhole-cover skateboard for 15 s
+  (`BOARD_TIME`): invincible, ploughs through anything, rolls over gaps
+  (and never runs out over one), a surfer's stance, a sparkle trail.
+  **Liam** — ninja stars (below). Holds are tracked by `held(dir)` (the
+  swipe's finger still down, or the key). Tests: two "skills:" specs.
+  Debug `boardCount(n)`; `gameOver()` clears the board/shield first.
 - **Liam the ninja — 30,000 points in one run** (user, Oct 12 2026: "dressed
   like a ninja, see his face but has a red headband"; `LOOKS.liam` —
   light-brown swept hair with curtain bangs over the ears, blue-grey eyes,
