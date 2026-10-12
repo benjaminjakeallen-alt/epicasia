@@ -958,6 +958,7 @@ if (INIT.debug) {
     sewerPlan: function (plan) { S.sewerPlan = plan || null; if (S.sewer) S.sewer.plan = S.sewerPlan; }, // [stick, jump] per BLOCK steps
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; S.invuln = 0; S.boardT = 0; S.shield = false; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
+    step: function (n) { for (let i = 0; i < n; i++) update(1 / 60); }, // (tests, while paused: exact game time)
     boardCount: function (n) { S.boardCount = n; }, // (tests: onigiri towards Jake's skateboard)
     go: function () { if (S.mode === 'ready') S.modeT = 2.4; },
     simulate: simulate

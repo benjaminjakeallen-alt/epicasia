@@ -650,16 +650,21 @@ test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett
   expect((await skills(f)).glides).toBeGreaterThan(0.6);
   await changeHero(page, f);
 
-  // Miles: a double jump on every jump, no spring needed.
+  // Miles: a double jump on every jump, no spring needed. (Paused, stepping exact game time, so a slow runner can't miss the moment.)
   await start(page, f, 3);
   await debug(f, 'calm');
+  await debug(f, 'pause', true);
   for (const n of [1, 2]) {
     await page.keyboard.press('ArrowUp');
-    await expect.poll(async () => (await st(f)).y, fast).toBeGreaterThan(0.5); // (up in the air)
+    await debug(f, 'step', 15); // a quarter of a second: up in the air
+    expect((await st(f)).y).toBeGreaterThan(0.5);
     await page.keyboard.press('ArrowUp');
-    await expect.poll(async () => (await skills(f)).doubles, fast).toBe(n);
-    await expect.poll(async () => (await skills(f)).air, fast).toBe(false);
+    await debug(f, 'step', 1);
+    expect((await skills(f)).doubles).toBe(n);
+    await debug(f, 'step', 180); // down again
+    expect((await skills(f)).air).toBe(false);
   }
+  await debug(f, 'pause', false);
   expect((await skills(f)).spring).toBe(false);
 });
 
