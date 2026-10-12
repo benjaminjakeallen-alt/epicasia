@@ -1,6 +1,7 @@
 import { Redirect, Stack, useRouter, type Href } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import UpdateBanner from '../../components/UpdateBanner';
 import YukiVoice from '../../components/yuki/YukiVoice';
 import { useAuth } from '../../lib/AuthProvider';
 import { HEARTBEAT_MS, touchLastSeen } from '../../lib/admin';
@@ -49,6 +50,7 @@ export default function AppLayout() {
     <View style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }} />
       <YukiVoice name={name} />
+      <UpdateBanner />
     </View>
   );
 }

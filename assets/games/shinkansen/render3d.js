@@ -339,7 +339,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- poses ---------------------------------------------------------------------------------
   function pose(m, o) {
     const u = m.userData;
-    u.body.position.y = 5 + (o.bob || 0);
+    u.body.position.y = (u.hip || 5) + (o.bob || 0); // (Miles stands taller)
     u.body.rotation.set(o.lean || 0, 0, 0);
     u.legL.rotation.set(o.legL || 0, 0, 0);
     u.legR.rotation.set(o.legR || 0, 0, 0);

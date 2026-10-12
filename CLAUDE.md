@@ -593,8 +593,11 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   should first be a spring power up you find. With the spring it allows a
   one time double jump to collect a golden guitar which is later past the
   spring… you swipe up twice"; modelled on his photos as `LOOKS.miles` —
-  shaggy dark-brown hair with a heavy fringe, round tortoiseshell glasses
-  (`roundGlasses`), freckles, a forest-green tee, dark jeans). **Springs**
+  shaggy light-brown hair with a heavy fringe, round tortoiseshell glasses
+  (`roundGlasses`), freckles, a forest-green tee, dark jeans; **tall, skinny
+  and lanky** (user: "He should be skinnier and lanky and taller… a little
+  lighter hair") via `build` — longer legs and arms, a slimmer, taller torso;
+  `makeHero` puts the hip at `5 × legs` and the poses use `userData.hip`). **Springs**
   (`makeSpring`, `OBS.spring`) sit on the roof from Rice Fields on
   (`SPRING_FROM` 1 km, ~3.5% of rows, not while you hold one, ≥ 300 m
   apart); grabbing one shows "SPRING! DOUBLE JUMP" and a green HUD badge
@@ -1749,6 +1752,22 @@ manifest error-free. Vercel serves real files before its SPA rewrite, so
 the rewrite doesn't swallow them. `e2e/pwa.spec.ts` checks the links and
 that every icon is served. (The native app icons were removed with the
 move to PWA-only.)
+
+## App updates (Oct 12 2026)
+
+iPhone resumes a Home Screen web app from memory instead of reloading it,
+so a traveller kept the old Shinkansen Dash line-up for days after a deploy.
+`src/lib/appUpdate.ts` compares the running entry script (Expo's file name
+carries a content hash) with the one the site serves now
+(`fetch('/?__v=…', {cache: 'no-store'})`) on open, when the app comes back
+to the front, and every 15 min. A newer build: coming back on home reloads
+straight away; anywhere else `UpdateBanner` (mounted in `(app)/_layout`)
+shows "A new version of Epic Asia is ready · Update" — never over a game
+(`…/play`), so nobody loses a run or a half-typed message. In dev the page's
+entry is Metro's, so nothing ever differs. Tests: `e2e/update.spec.ts`
+(same build → no bar; newer → bar → Update reloads; back on home →
+reloads by itself). Phones still on a build from before this need one
+manual restart (swipe the app away, reopen).
 
 ## Sign-in persistence ("Keep me signed in for 30 days")
 

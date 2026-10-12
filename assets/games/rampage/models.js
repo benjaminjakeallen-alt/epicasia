@@ -28,6 +28,39 @@ export function shade(c, k) {
 }
 
 // ---- looks ---------------------------------------------------------------------------
+/**
+ * A bob haircut for the head grid (see head()): `colors` three shades,
+ * `part` 'left'|'right' (the fringe sweeps away from it, down to `sweep`
+ * rows), `len` the lowest row at the sides (0 = chin), `aline` how much
+ * longer it is at the front, `volume` 0..1 how full the crown is, `tuck`
+ * 'left'|'right' tucks that side behind the ear, `flick` turns the ends out.
+ */
+export function bobHair(o) {
+  const pal = o.colors, partU = o.part === 'right' ? 9 : 4;
+  const away = (u) => (o.part === 'right' ? partU - u : u - partU);
+  const low = (d) => o.len - (d >= 7 ? o.aline || 0 : 0);
+  const tucked = (u, w, d) => ((o.tuck === 'right' && u >= 13) || (o.tuck === 'left' && u <= 0)) && w < 9 && d >= 4;
+  return (u, w, d, core) => {
+    const n = hash3(u + 3, w * 2, d + 5);
+    const c = n < 0.25 ? pal[0] : n < 0.7 ? pal[1] : pal[2];
+    if (core) {
+      if (w >= 12) return c;
+      if (d === 13) return away(u) > 0 && w >= 12 - Math.min(o.sweep || 0, away(u) * 0.6) ? c : null; // the swept fringe
+      if ((u <= 0 || u >= 13) && w >= low(d)) return tucked(u, w, d) ? null : c;
+      if (d <= 1 && w >= low(0)) return c;
+      return null;
+    }
+    if (w === 14) return u >= 0 && u <= 13 && d >= 0 && d <= 13 && (u >= 1 && u <= 12 && d >= 1 ? hash3(u, w, d) < 0.35 + (o.volume || 0) * 0.65 : (o.volume || 0) > 0.5) ? c : null;
+    if (w === 15) return (o.volume || 0) > 0.6 && u >= 3 && u <= 10 && d >= 3 && d <= 10 && hash3(u, w, d) < 0.5 ? c : null;
+    if ((u === -1 || u === 14) && d >= 0 && d <= 13 && w >= low(d) && w <= 14) return tucked(u === -1 ? 0 : 13, w, d) ? null : c;
+    if (o.flick && (u === -2 || u === 15) && w === low(d) && d >= 1 && d <= 12 && !tucked(u === -2 ? 0 : 13, w, d)) return c;
+    if (d === -1 && u >= -1 && u <= 14 && w >= low(0) && w <= 14) return c;
+    if (d === 14 && w >= 12 && w <= 13 && away(u) > 1) return c; // the fringe stands off the forehead a little
+    return null;
+  };
+}
+
+// ---- looks ---------------------------------------------------------------------------
 // skin, eyes; hair(u, w, d, inCore) → colour|null for the head grid (see head()).
 export const LOOKS = {
   // Chris: shaved head with a shine, blue eyes, light stubble.
@@ -81,9 +114,10 @@ export const LOOKS = {
     skin: 0xf4cfb6, skinShade: 0xe0b196, eye: 0x5b7590, brow: 0x4a3221, mouth: 0xb9616a, freckles: 0xdcae92,
     glasses: 0x3a2618, roundGlasses: true,
     shirt: 0x1f5a3c, shirtDark: 0x184a31, pants: 0x2f3a4f, shoes: 0xf1f3f5,
+    build: { legs: 1.32, torso: 1.12, slim: 0.8, arms: 1.18 }, // tall, skinny and lanky (user)
     hair: (u, w, d, core) => {
       const n = hash3(u + 7, w * 3, d + 11);
-      const c = n < 0.25 ? 0x6b4a2e : n < 0.7 ? 0x4e3420 : 0x3b2717;
+      const c = n < 0.3 ? 0xa47a50 : n < 0.75 ? 0x936a43 : 0x825c39; // a lighter brown, straight (low contrast)
       const tip = hash3(u, 0, d + 21) < 0.5; // a ragged edge
       if (core) {
         if (w >= 12) return c;
@@ -93,8 +127,7 @@ export const LOOKS = {
         return null;
       }
       if (w === 14) return d >= 0 && d <= 13 && u >= 0 && u <= 13 ? c : null; // shaggy volume on top
-      if (w === 15) return d >= 1 && d <= 13 && u >= 0 && u <= 13 && hash3(u, w, d) < 0.8 ? c : null;
-      if (w === 16) return d >= 3 && d <= 11 && u >= 2 && u <= 11 && hash3(u, w, d) < 0.35 ? c : null; // messy tufts
+      if (w === 15) return d >= 2 && d <= 12 && u >= 1 && u <= 12 && hash3(u, w, d) < 0.45 ? c : null; // a little messy on top
       if ((u === -1 || u === 14) && d >= 1 && d <= 13 && (w >= 5 || (w === 4 && tip)) && w <= 15) return c;
       if (d === 14 && w >= 9 && w <= 14 && u >= 0 && u <= 13 && (w >= 10 || tip)) return c; // the fringe sticks out a little
       if (d === -1 && w >= (tip ? 2 : 3) && w <= 14 && u >= 0 && u <= 13) return c;
@@ -201,9 +234,12 @@ function heroParts(look) {
     if ((x === 0 || x === 10) && (z === 0 || z === 6)) return null;
     if (y === 10 && z >= 5 && x >= 4 && x <= 6) return look.skin; // neckline
     if (look.strap && (z === 6 || z === 0) && Math.abs(x - (1.2 + y * 0.82)) < 0.75) return look.strap; // crossbody strap
+    const printed = look.print && look.print(x, y, z); // a pattern or a logo on the shirt
+    if (printed) return printed;
     return y === 0 ? look.shirtDark : look.shirt;
   }, V, [5.5, 0, 3.5]);
-  const arm = vox(3, 10, 4, (x, y) => (y >= 6 ? look.shirt : y <= 2 ? look.skinShade : look.skin), V, [1.5, 10, 2]);
+  const sleeve = look.sleeveless ? 9 : 6; // (sleeveless: bare arms up to the shoulder)
+  const arm = vox(3, 10, 4, (x, y) => (y >= sleeve ? look.shirt : y <= 2 ? look.skinShade : look.skin), V, [1.5, 10, 2]);
   const leg = vox(3, 10, 4, (x, y, z) => (y <= 1 ? (z === 3 && y === 0 ? 0xffffff : look.shoes) : look.pants), V, [1.5, 10, 2]);
   // a belt bag at the hip: rust with cream piping, a zip, a little black patch
   const bag = look.bag ? vox(6, 4, 3, (x, y, z) => {
@@ -264,29 +300,34 @@ function wifeParts(look) {
 /** A traveller: root at the feet, parts named for animation. */
 export function makeHero(key) {
   const look = LOOKS[key], p = heroParts(look);
+  // Optional proportions: longer legs/arms, a taller and slimmer torso.
+  const b = Object.assign({ legs: 1, torso: 1, slim: 1, arms: 1 }, look.build), hip = 5 * b.legs;
   const root = new THREE.Group();
   const body = new THREE.Group();
-  body.position.y = 5;
+  body.position.y = hip;
   root.add(body);
   const torso = mesh(p.torso);
+  torso.scale.set(b.slim, b.torso, b.slim < 1 ? 0.92 : 1);
   body.add(torso);
   const headM = mesh(p.head);
-  headM.position.y = 5.5;
+  headM.position.y = 5.5 * b.torso;
   body.add(headM);
   const armL = mesh(p.arm), armR = mesh(p.arm);
-  armL.position.set(-3.5, 5.2, 0);
-  armR.position.set(3.5, 5.2, 0);
+  armL.position.set(-3.5 * b.slim, 5.2 * b.torso, 0);
+  armR.position.set(3.5 * b.slim, 5.2 * b.torso, 0);
+  if (look.build) [armL, armR].forEach((a) => a.scale.set(0.85, b.arms, 0.9));
   body.add(armL, armR);
   const hand = new THREE.Group(); // tool socket in the right hand
   hand.position.set(0, -4.4, 0.6);
   armR.add(hand);
   const legL = mesh(p.leg), legR = mesh(p.leg);
-  legL.position.set(-1.2, 5, 0);
-  legR.position.set(1.2, 5, 0);
+  legL.position.set(-1.2 * b.slim, hip, 0);
+  legR.position.set(1.2 * b.slim, hip, 0);
+  if (look.build) [legL, legR].forEach((l) => l.scale.set(0.85, b.legs, 0.9));
   root.add(legL, legR);
   if (p.bag) { const bag = mesh(p.bag); bag.position.set(-1.6, 0.3, 1.75); body.add(bag); }
   if (p.poncho) { const po = mesh(p.poncho); po.position.y = 0.6; body.add(po); } // top just over the shoulders
-  root.userData = { body, head: headM, armL, armR, legL, legR, hand };
+  root.userData = { body, head: headM, armL, armR, legL, legR, hand, hip };
   return root;
 }
 

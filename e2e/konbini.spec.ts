@@ -8,7 +8,13 @@ import { signInWithFakeBackend, USER_ID } from './support/fakeBackend';
 
 const SARAH = '00000000-0000-4000-8000-0000000000aa';
 const TOM = '00000000-0000-4000-8000-0000000000bb';
-const minsAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
+// "m minutes ago", but always earlier *today* (local time): just after midnight
+// a real "30 minutes ago" is yesterday and loses its "Leading today" badge.
+// Larger m stays earlier, so the order between entries holds.
+const minsAgo = (m: number) => {
+  const now = Date.now(), midnight = new Date(now).setHours(0, 0, 0, 0);
+  return new Date(Math.max(now - m * 60_000, midnight + (now - midnight) / (2 + m))).toISOString();
+};
 
 const review = (id: string, by: string, created_at: string, title: string, rating: number, caption: string | null = null) => ({
   id,
