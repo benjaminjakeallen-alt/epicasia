@@ -63,11 +63,27 @@ const st = (f: Frame) =>
 const debug = (f: Frame, fn: string, ...args: unknown[]) =>
   f.evaluate(([n, a]) => (window as any).__dash.debug[n as string](...(a as unknown[])), [fn, args] as const);
 
-/** Starts a run as the given traveler (tapping them on the line-up) and skips the countdown. */
-async function start(page: Page, f: Frame, i: number) {
+/** Turns the character ring (arrow keys, the short way round) until traveler i is at the front. */
+async function toFront(page: Page, f: Frame, i: number) {
+  const n = 7;
+  for (let k = 0; k < n; k++) {
+    const sel = await f.evaluate(() => (window as any).__dash.sel);
+    if (sel === i) break;
+    await page.keyboard.press(((i - sel + n) % n) <= n / 2 ? 'ArrowRight' : 'ArrowLeft');
+  }
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.sel)).toBe(i);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.ringSettled), { timeout: 10_000 }).toBe(true);
+}
+/** Brings traveler i to the front of the ring and taps them. */
+async function tapFront(page: Page, f: Frame, i: number) {
+  await toFront(page, f, i);
   const box = (await page.getByTestId('game-frame').boundingBox())!;
   const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
   await page.mouse.click(box.x + pt.x, box.y + pt.y);
+}
+/** Starts a run as the given traveler (the ring turned to them, a tap) and skips the countdown. */
+async function start(page: Page, f: Frame, i: number) {
+  await tapFront(page, f, i);
   await expect.poll(async () => (await st(f)).mode).toBe('ready');
   await debug(f, 'go');
   await expect.poll(async () => (await st(f)).mode).toBe('run');
@@ -95,6 +111,30 @@ test('the board: each player’s best run, ties share a rank', async ({ page }) 
   await expect(rows.nth(2)).toHaveAccessibleName('3. Test Traveler (you), 800, as Chris · reached Tokyo');
 });
 
+test('the character ring: swipe or tap a side traveler to turn it, tap the one at the front to play', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const sel = () => f.evaluate(() => (window as any).__dash.sel);
+  expect(await sel()).toBe(0);
+  await swipe(page, -120, 0); // drag left: the next one comes round
+  await expect.poll(sel).toBe(1);
+  await swipe(page, 120, 0);
+  await expect.poll(sel).toBe(0);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.ringSettled)).toBe(true);
+  // Tapping a traveler at the side turns them to the front — it doesn't start.
+  const box = (await page.getByTestId('game-frame').boundingBox())!;
+  const side = await f.evaluate(() => (window as any).__dash.heroPoint(1));
+  await page.mouse.click(box.x + side.x, box.y + side.y);
+  await expect.poll(sel).toBe(1);
+  expect((await st(f)).mode).toBe('select');
+  // The one at the front plays.
+  await tapFront(page, f, 1);
+  await expect.poll(async () => (await st(f)).mode).toBe('ready');
+  expect((await st(f)).hero).toBe('bennett');
+});
+
 test('Emily is earned by reaching Mount Fuji; locked travellers stay a secret', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');
@@ -102,11 +142,7 @@ test('Emily is earned by reaching Mount Fuji; locked travellers stay a secret', 
   let f = await game(page);
   expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole', 'jake', 'liam']);
   // Tapping a locked traveler only says it's a secret (no name, no clue) and doesn't start.
-  const tap = async (i: number) => {
-    const box = (await page.getByTestId('game-frame').boundingBox())!;
-    const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
-    await page.mouse.click(box.x + pt.x, box.y + pt.y);
-  };
+  const tap = (i: number) => tapFront(page, f, i);
   await tap(2);
   await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   expect((await st(f)).mode).toBe('select');
@@ -140,11 +176,7 @@ test('Nicole is earned with a boba tea: only in the fast end, and only with a ju
   await open(page, '/games/shinkansen');
   await page.getByTestId('dash-play').click();
   let f = await game(page);
-  const box = (await page.getByTestId('game-frame').boundingBox())!;
-  const tap = async (i: number) => {
-    const pt = await f.evaluate((n) => (window as any).__dash.heroPoint(n), i);
-    await page.mouse.click(box.x + pt.x, box.y + pt.y);
-  };
+  const tap = (i: number) => tapFront(page, f, i);
   await tap(4);
   await expect.poll(() => f.evaluate(() => (window as any).__dash.hint)).toBe(SECRET);
   expect((await st(f)).mode).toBe('select');

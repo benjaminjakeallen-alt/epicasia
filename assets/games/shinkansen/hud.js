@@ -8,7 +8,7 @@ const FONT = '"Avenir Next", "Arial Rounded MT Bold", "Trebuchet MS", system-ui,
 const INK = 'rgba(12,20,44,0.92)';
 const SHORT = ['TOKYO', 'FIELDS', 'FUJI', 'TEA', 'KYOTO'];
 
-export function createHud(canvas, game, view, toScreen, LINEUP) {
+export function createHud(canvas, game, view, toScreen) {
   const { S, ROOF, STAGES, STAGE_LEN } = game;
   const ctx = canvas.getContext('2d');
   let u = 1; // one design unit (a 360-wide phone = 1)
@@ -104,16 +104,29 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     text('SHINKANSEN', W / 2, 56 * u + wob, 40, '#ffffff', { depth: 3.5, depthColor: '#1f4fb5', lw: 8 });
     text('DASH', W / 2, 100 * u - wob, 46, '#ffd43b', { depth: 3.5, depthColor: '#b5431f', lw: 9 });
     if (Math.floor(S.t * 2.5) % 2) text('CHOOSE YOUR TRAVELER', W / 2, 140 * u, 14, '#ffffff', { lw: 3.5 });
-    // names under the line-up (locked travellers stay a mystery: no name, no clue)
-    // five across: alternate pills sit a row lower so they never overlap
-    game.ROSTER.forEach((k, i) => {
-      const q = toScreen(LINEUP[i], ROOF - 0.2, 0), on = S.sel === i, shut = game.locked(k);
-      if (i % 2) q.y += 30 * u;
-      const name = shut ? '???' : game.HEROES[k].name, w = (Math.max(4, name.length) * 8.4 + 14) * u; // a secret until earned
-      round(q.x - w / 2, q.y, w, 24 * u, 12 * u, on ? (shut ? '#c9ced6' : '#ffd43b') : 'rgba(12,20,44,0.72)', on ? INK : 'rgba(255,255,255,0.5)', on ? 2 : 1);
-      text(name, q.x, q.y + 12.5 * u, 10.5, on ? '#2b1d00' : shut ? 'rgba(255,255,255,0.75)' : '#ffffff', { stroke: false });
-      if (shut) { const c = toScreen(LINEUP[i], ROOF + 0.85, 0); lock(c.x, c.y, '#ffe066', 2.2); } // a padlock on the silhouette
+    // the one at the front of the ring: their name (a locked one stays a
+    // mystery — no name, no clue), and arrows to turn the ring
+    const k = game.ROSTER[S.sel], shut = game.locked(k);
+    const q = toScreen(0, ROOF - 0.3, 0);
+    const name = shut ? '???' : game.HEROES[k].name, w = (Math.max(4, name.length) * 11 + 30) * u;
+    round(W / 2 - w / 2, q.y, w, 34 * u, 17 * u, shut ? '#c9ced6' : '#ffd43b', INK, 2);
+    text(name, W / 2, q.y + 17.5 * u, 15, '#2b1d00', { stroke: false });
+    if (shut) { const c = toScreen(0, ROOF + 0.85, 0); lock(c.x, c.y, '#ffe066', 2.6); }
+    const ay = q.y - 70 * u, pulse = 1 + Math.sin(S.t * 4) * 0.06;
+    [-1, 1].forEach((dir) => {
+      const ax = W / 2 + dir * (W / 2 - 34 * u);
+      ctx.save(); ctx.translate(ax, ay); ctx.scale(pulse, pulse);
+      round(-20 * u, -20 * u, 40 * u, 40 * u, 20 * u, 'rgba(12,20,44,0.62)', 'rgba(255,255,255,0.4)', 1.5);
+      ctx.beginPath(); ctx.moveTo(dir * 6 * u, 0); ctx.lineTo(-dir * 4 * u, -8 * u); ctx.lineTo(-dir * 4 * u, 8 * u); ctx.closePath();
+      ctx.fillStyle = '#ffffff'; ctx.fill();
+      ctx.restore();
     });
+    // a dot for each traveller, the front one bright
+    const n = game.ROSTER.length, dy = q.y + 50 * u;
+    for (let d = 0; d < n; d++) {
+      ctx.beginPath(); ctx.arc(W / 2 + (d - (n - 1) / 2) * 14 * u, dy, (d === S.sel ? 4.5 : 3) * u, 0, Math.PI * 2);
+      ctx.fillStyle = d === S.sel ? '#ffd43b' : game.locked(game.ROSTER[d]) ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.8)'; ctx.fill();
+    }
     if (S.hint) {
       const hy = view.ch - 140 * u;
       ctx.font = `900 ${12 * u}px ${FONT}`;
@@ -124,7 +137,7 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
     const by = H - 92 * u;
     round(W / 2 - 110 * u, by, 220 * u, 30 * u, 15 * u, 'rgba(12,20,44,0.6)');
     text('HIGH SCORE ' + pad6(S.hi), W / 2, by + 15.5 * u, 13, '#ffffff', { stroke: false });
-    text('TAP A TRAVELER TO START', W / 2, by + 52 * u, 13, '#ffffff', { lw: 3.5 });
+    text(shut ? 'SWIPE TO CHOOSE A TRAVELER' : 'SWIPE TO CHOOSE · TAP TO PLAY', W / 2, by + 52 * u, 13, '#ffffff', { lw: 3.5 });
   }
 
   function ready() {

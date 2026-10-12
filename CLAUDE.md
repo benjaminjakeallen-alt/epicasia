@@ -568,8 +568,20 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
   playable but you have to earn them"): Chris and Bennett from the start;
   **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
-  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake, liam — seven in the
-  line-up (`LINEUP` ±2.1 m), alternate name pills a row lower).
+  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake, liam).
+  **The picker is a ring** (user, Oct 12 2026: "rotary style where you can
+  scroll through all character and only play the ones you unlock… Each
+  should have a special dance… Chris should DAP"): everyone stands round a
+  circle (`RING_R` 2.4 m, `ringSpot()`); swipe (drag left brings the next
+  one round), ‹ › / arrow keys, or tap a side traveller to turn it
+  (`turnTo()`, the short way; `S.ring` is the unwrapped target the shown
+  `ringRot` eases toward); tap the one at the front to play. The front one
+  is 35% bigger and dances (`dance()` in render3d): Chris the dap (fist
+  out, bump, hand to heart, double point), Bennett salsa, Emily a twirl,
+  Miles air guitar, Nicole a hip-hand sway and hair flip, Jake disco
+  points, Liam a ninja kata (chops, a high kick, a bow). One name pill
+  ("???" + padlock if locked), dots for the ring. Specs turn it with
+  `toFront()`/`tapFront()`; `__dash.ringSettled`.
   **Bennett replaced Shea** as the second default traveller (user, Oct 11
   2026: "Replace Shea as a default playable character for Bennett… he
   should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short

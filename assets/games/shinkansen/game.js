@@ -106,6 +106,13 @@ const S = {
   hint: null, simulating: false, sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0
 };
 function locked(h) { return !S.unlocked.has(h); }
+/** Turn the character ring so traveller i is at the front (the short way round). */
+function turnTo(i) {
+  const n = ROSTER.length, to = ((i % n) + n) % n;
+  let step = to - S.sel;
+  if (step > n / 2) step -= n; else if (step < -n / 2) step += n;
+  S.ring = (S.ring || 0) + step; S.sel = to;
+}
 /** Start a run as h — or, if h isn't earned yet, just say it's a secret. */
 function pickHero(h) {
   if (!locked(h)) { newRun(h); return; }
@@ -433,7 +440,7 @@ function setMode(m) {
   document.getElementById('over').classList.toggle('show', m === 'gameover');
 }
 function newRun(hero) {
-  S.hero = hero; S.sel = ROSTER.indexOf(hero);
+  S.hero = hero; turnTo(ROSTER.indexOf(hero));
   seed = INIT.seed || (Date.now() % 2147483646) + 1;
   Object.assign(S, {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
@@ -474,8 +481,8 @@ function act(dir) {
   audio();
   if (S.menu) return;
   if (S.mode === 'select') {
-    if (dir === 'L') S.sel = (S.sel + ROSTER.length - 1) % ROSTER.length;
-    else if (dir === 'R') S.sel = (S.sel + 1) % ROSTER.length;
+    if (dir === 'L') { turnTo(S.sel - 1); SFX.hop(); haptic('light'); }
+    else if (dir === 'R') { turnTo(S.sel + 1); SFX.hop(); haptic('light'); }
     else if (dir === 'U' || dir === 'go') pickHero(ROSTER[S.sel]);
     return;
   }
@@ -525,6 +532,7 @@ stage.addEventListener('pointermove', function (e) {
   const dx = e.clientX - touch.x, dy = e.clientY - touch.y;
   if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE) return;
   touch.fired = true;
+  if (S.mode === 'select' && Math.abs(dx) > Math.abs(dy)) { act(dx < 0 ? 'R' : 'L'); return; } // drag the ring: the one to the right comes round
   act(Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'L' : 'R') : (dy < 0 ? 'U' : 'D'));
 });
 function touchEnd(e) {
@@ -534,8 +542,11 @@ function touchEnd(e) {
   touch = null;
   if (!tapped) return;
   if (S.mode === 'select') {
-    const i = R.heroAt(x);
-    if (i >= 0) { S.sel = i; pickHero(ROSTER[i]); }
+    const i = R.heroAt(x, e.clientY);
+    // the one at the front plays; tapping another turns the ring to them
+    if (i === S.sel) pickHero(ROSTER[i]);
+    else if (i >= 0) { turnTo(i); SFX.hop(); haptic('light'); }
+    else act(x < window.innerWidth / 2 ? 'L' : 'R');
   } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
   else if (S.mode === 'sewer') act('tap'); // in the sewer a tap jumps too
 }
@@ -770,7 +781,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
   get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
   sewerRoute: function () { return routeExists(); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,

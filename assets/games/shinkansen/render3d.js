@@ -324,13 +324,21 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
-  const LINEUP = [-2.1, -1.4, -0.7, 0, 0.7, 1.4, 2.1];
+  // The character ring (user, Oct 12 2026: "rotary style where you can scroll
+  // through all characters"): everyone stands round a circle; the one at
+  // the front is chosen and dances.
+  const RING_R = 2.4;
+  let ringRot = 0; // shown turn of the ring, easing toward S.ring
+  function ringSpot(i) {
+    const n = game.ROSTER.length, a = ((i - ringRot) / n) * Math.PI * 2;
+    return { x: RING_R * Math.sin(a), z: -RING_R + RING_R * Math.cos(a), depth: Math.cos(a), a };
+  }
   const cam = { pos: new THREE.Vector3(0, ROOF + 1.3, 7), look: new THREE.Vector3(0, ROOF + 0.85, 0) };
   function camTarget() {
     if (S.mode === 'select') {
       const half = Math.tan((camera.fov / 2) * Math.PI / 180);
-      const dist = Math.max(4.5, 3.3 / (half * Math.min(1, camera.aspect)));
-      return { pos: new THREE.Vector3(0, ROOF + 1.25, dist), look: new THREE.Vector3(0, ROOF + 0.75, 0) };
+      const dist = Math.max(4.5, 2.75 / (half * Math.min(1, camera.aspect)));
+      return { pos: new THREE.Vector3(0, ROOF + 1.6, dist), look: new THREE.Vector3(0, ROOF + 0.7, -RING_R * 0.55) };
     }
     const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
     return { pos: new THREE.Vector3(px * 0.55, ROOF + 4.3 + py * 0.35, 8.6), look: new THREE.Vector3(px * 0.75, ROOF + 0.3 + py * 0.5, -18) };
@@ -396,17 +404,57 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     else if (sinceJump < 0.18) sy = 1 + 0.1 * Math.sin((sinceJump / 0.18) * Math.PI);
     m.scale.set(HERO_SCALE / Math.sqrt(sy), HERO_SCALE * sy, HERO_SCALE / Math.sqrt(sy));
   }
-  function drawLineup(t) {
+  // Each traveller's dance while they wait at the front of the ring.
+  function dance(k, t) {
+    const p = (f) => (t % f) / f, sw = (f, a = 1) => Math.sin(t * Math.PI * 2 / f) * a;
+    switch (k) {
+      case 'chris': { // the dap: reach out a fist, bump it, hand to heart, then point you out
+        const q = p(2.4);
+        if (q < 0.3) return { armR: -1.45 * Math.min(1, q / 0.12), armL: -0.2, look: 0, nod: -0.1, bob: 0.1 * Math.sin(q * 20) };
+        if (q < 0.42) return { armR: -1.45 + Math.sin((q - 0.3) * 52) * 0.25, armL: -0.2, nod: 0.15, bob: 0.15 };
+        if (q < 0.62) return { armR: -0.5, armRz: -0.9, armL: -0.1, nod: 0.12, lean: -0.08 };
+        return { armR: -2.2, armRz: 0.25, armL: -2.2, armLz: -0.25, bob: Math.abs(sw(0.5, 0.3)), nod: sw(0.5, 0.1), lean: -0.12 };
+      }
+      case 'bennett': { // salsa: step side to side, hips and arms swinging, a spin every bar
+        const q = p(3.2), spin = q > 0.8 ? (q - 0.8) / 0.2 * Math.PI * 2 : 0;
+        return { rootX: sw(0.8, 0.18), turn: spin, legL: sw(0.8, 0.35), legR: -sw(0.8, 0.35), armL: -1.1 + sw(0.4, 0.2), armLz: -0.6, armR: -1.1 - sw(0.4, 0.2), armRz: 0.6, lean: sw(0.8, 0.08), bob: Math.abs(sw(0.4, 0.12)) };
+      }
+      case 'emily': // a twirl with her arms up, the gown swirling
+        return { turn: t * 3.2, armL: -2.9, armR: -2.9, armLz: -0.3, armRz: 0.3, bob: Math.abs(sw(0.6, 0.15)), nod: -0.1 };
+      case 'miles': // air guitar: lean back, strum like mad, head-bang
+        return { armL: -1.25, armLz: 0.7, armR: -0.6 + sw(0.18, 0.35), armRz: -0.4, lean: -0.18, nod: sw(0.45, 0.25), legL: 0.25, legR: -0.25, bob: Math.abs(sw(0.45, 0.1)) };
+      case 'nicole': { // a hand on her hip, a sway, a hair flip
+        const q = p(2.8), flip = q > 0.7 ? Math.sin((q - 0.7) / 0.3 * Math.PI) : 0;
+        return { armL: -0.35, armLz: 0.9, armR: -0.4 - flip * 2.3, armRz: -0.2, look: sw(1.4, 0.35) + flip * 0.5, nod: -flip * 0.35, lean: sw(1.4, 0.06), turn: sw(1.4, 0.3), bob: Math.abs(sw(0.7, 0.08)) };
+      }
+      case 'jake': { // disco: point up to the right, down across to the left
+        const up = Math.sin(t * Math.PI * 2 / 0.9) > 0;
+        return { armR: up ? -2.8 : -0.25, armRz: up ? 0.35 : -0.5, armL: -0.3, armLz: 0.4, legL: up ? 0.3 : 0, legR: up ? 0 : 0.3, lean: up ? -0.08 : 0.06, bob: Math.abs(sw(0.45, 0.15)), turn: up ? 0.25 : -0.15 };
+      }
+      case 'liam': { // a ninja kata: chop, chop, high kick, bow
+        const q = p(3);
+        if (q < 0.25) return { armR: -1.6, armRz: 0.6 * Math.sin(q * 50), armL: -0.4, legL: 0.3, legR: -0.3, lean: 0.1 };
+        if (q < 0.5) return { armL: -1.6, armLz: -0.6 * Math.sin(q * 50), armR: -0.4, legL: -0.3, legR: 0.3, lean: 0.1 };
+        if (q < 0.75) { const k2 = Math.sin((q - 0.5) / 0.25 * Math.PI); return { legR: -1.6 * k2, armL: -1.2, armR: -0.2, lean: -0.15 * k2, turn: 0.4, bob: 0.25 * k2 }; }
+        return { nod: 0.5, lean: 0.25, armL: -0.4, armR: -0.4 }; // a bow
+      }
+      default:
+        return { armR: -2.7 + Math.sin(t * 9) * 0.35, armRz: 0.3, armL: -0.2 };
+    }
+  }
+  function drawLineup(t, dt) {
+    ringRot += ((S.ring || 0) - ringRot) * (1 - Math.exp(-(dt || 0.016) * 9));
+    if (Math.abs((S.ring || 0) - ringRot) < 0.002) ringRot = S.ring || 0;
     game.ROSTER.forEach((k, i) => {
-      const m = heroes[k], on = S.sel === i && !game.locked(k);
-      m.visible = true;
-      silhouette(k, game.locked(k));
-      m.position.set(LINEUP[i], ROOF + (on ? Math.abs(Math.sin(t * 5)) * 0.12 : 0), 0);
-      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 3), 0);
-      const ph = t * 9;
-      pose(m, on
-        ? { armR: -2.7 + Math.sin(ph) * 0.35, armRz: 0.3, armL: -0.2, legL: Math.sin(ph) * 0.2, legR: -Math.sin(ph) * 0.2, look: Math.sin(t * 2) * 0.25 }
-        : { armL: -0.1, armR: -0.1, look: Math.sin(t * 0.7 + i) * 0.2 });
+      const m = heroes[k], spot = ringSpot(i), shut = game.locked(k);
+      const front = spot.depth > 0.985 && S.sel === i;
+      m.visible = spot.depth > -0.75; // (the far side of the ring is hidden behind)
+      silhouette(k, shut);
+      const d = front && !shut ? dance(k, t) : { armL: -0.1, armR: -0.1, look: Math.sin(t * 0.7 + i) * 0.2 };
+      m.position.set(spot.x + (d.rootX || 0), ROOF + (d.bob || 0) * 0.3, spot.z);
+      m.rotation.set(0, (d.turn || 0) + (front ? 0 : -spot.a * 0.35), 0);
+      m.scale.setScalar(HERO_SCALE * (1 + 0.35 * Math.pow(Math.max(0, spot.depth), 12))); // the one at the front, bigger
+      pose(m, Object.assign({}, d, { bob: 0 }));
     });
   }
 
@@ -500,7 +548,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     });
 
     // the runner (or the line-up on the select screen)
-    if (S.mode === 'select') drawLineup(t);
+    if (S.mode === 'select') drawLineup(t, dt);
     else if (S.p) {
       sludge(S.hero, S.sludge);
       drawRunner(t, dt);
@@ -581,7 +629,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   prewarm();
 
   // ---- HUD & frame --------------------------------------------------------------------------------
-  const hud = createHud(hudCanvas, game, view, toScreen, LINEUP);
+  const hud = createHud(hudCanvas, game, view, toScreen);
   let glAge = 1;
   function render(dt) {
     glAge += dt;
@@ -606,15 +654,22 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
 
   function heroPoint(i) {
-    const r = hudCanvas.getBoundingClientRect(), q = toScreen(LINEUP[i], ROOF + 0.9, 0);
+    const r = hudCanvas.getBoundingClientRect(), sp = ringSpot(i), q = toScreen(sp.x, ROOF + 0.9, sp.z);
     return { x: r.left + q.x, y: r.top + q.y };
   }
-  function heroAt(clientX) {
+  /** Which traveller is under a tap (the nearest one in front wins), or -1. */
+  function heroAt(clientX, clientY) {
     let best = -1, bd = Infinity;
-    for (let i = 0; i < LINEUP.length; i++) { const d = Math.abs(heroPoint(i).x - clientX); if (d < bd) { bd = d; best = i; } }
-    return bd < view.cw * 0.09 ? best : -1;
+    game.ROSTER.forEach((k, i) => {
+      const sp = ringSpot(i);
+      if (sp.depth < -0.2) return;
+      const p = heroPoint(i), d = Math.hypot(p.x - clientX, (p.y - (clientY ?? p.y)) * 0.5) - sp.depth * 12;
+      if (d < bd) { bd = d; best = i; }
+    });
+    return bd < view.cw * 0.14 ? best : -1;
   }
+  const ringSettled = () => Math.abs((S.ring || 0) - ringRot) < 0.01;
 
   const shown = (kind) => (pools[kind] || []).filter((m) => m.visible).map((m) => [+m.position.x.toFixed(1), +m.position.y.toFixed(2), +m.position.z.toFixed(1)]); // (tests)
-  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, shown, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
+  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, ringSettled, shown, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
 }
