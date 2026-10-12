@@ -179,7 +179,7 @@ export function createHud(canvas, game, view, toScreen) {
       if (noGL) { ctx.fillStyle = '#5aa7f5'; ctx.fillRect(0, 0, view.cw, view.ch); }
       if (S.mode === 'select') { select(); return; }
       if (S.mode === 'gameover') { gameOver(); return; }
-      if (S.mode === 'sewer' && S.sewer) { drawSewer(ctx, view, u, S.sewer, S, text, round); messages(); return; }
+      if (S.mode === 'sewer' && S.sewer) { drawSewer(ctx, view, u, S.sewer, S, text, round, noGL); messages(); return; }
       topBar();
       if (S.mode === 'ready') ready();
       messages();

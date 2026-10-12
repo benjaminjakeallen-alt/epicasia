@@ -142,6 +142,7 @@ export const LOOKS = {
   bennett: {
     skin: 0xf3cbb0, skinShade: 0xdfad91, eye: 0x5e7f99, brow: 0x7a5536, mouth: 0xb5505a,
     shirt: 0x6b4226, shirtDark: 0x5a3720, pants: 0x8fb0d3, shoes: 0xf1f3f5, poncho: true,
+    build: { legs: 1.08, torso: 1.04, slim: 0.84, arms: 1.05 }, // slim (user, Oct 12 2026: "looks fat, make thinner")
     hair: (u, w, d, core) => {
       const n = hash3(u + 5, w * 2, d + 3);
       const c = n < 0.3 ? 0xa8754a : n < 0.75 ? 0x8a5a33 : 0x734726;
@@ -337,9 +338,9 @@ function poncho() {
   const BROWN = 0x6b4226, DARK = 0x4f2f1a, RUST = 0xc4502a, CREAM = 0xf2e6cf, TEAL = 0x2fa3a0, GOLD = 0xe0a23a;
   return vox(17, 10, 10, (x, y, z) => {
     const cx = x - 8, cz = z - 4.5;
-    const hw = y >= 9 ? 5.6 : y === 8 ? 7 : 8.5; // sloping shoulders
-    if (Math.abs(cx) > hw || Math.abs(cz) > 5) return null;
-    if (Math.abs(cx) < hw - 1.1 && Math.abs(cz) < 3.9 && y < 9) return null; // hollow (the body is inside)
+    const hw = y >= 9 ? 5.2 : y === 8 ? 6.2 : 7.2; // sloping shoulders, hanging close to the body (user: Bennett looked fat)
+    if (Math.abs(cx) > hw || Math.abs(cz) > 4.4) return null;
+    if (Math.abs(cx) < hw - 1.1 && Math.abs(cz) < 3.4 && y < 9) return null; // hollow (the body is inside)
     if (y === 9 && Math.abs(cx) <= 2 && Math.abs(cz) <= 2.5) return null; // neck opening
     if (y === 0) return (x + z) % 2 ? CREAM : null; // fringe
     if (y === 1 || y === 4) return RUST;
@@ -349,7 +350,7 @@ function poncho() {
     }
     if (y === 5) return (x + z) % 3 === 0 ? GOLD : DARK;
     // the chakana cross on the chest (front) and back
-    if ((cz >= 4 || cz <= -4) && y >= 6 && y <= 8 && ((Math.abs(cx) <= 0.5 && y >= 6) || (y === 7 && Math.abs(cx) <= 1.5))) return CREAM;
+    if ((cz >= 3.5 || cz <= -3.5) && y >= 6 && y <= 8 && ((Math.abs(cx) <= 0.5 && y >= 6) || (y === 7 && Math.abs(cx) <= 1.5))) return CREAM;
     return y === 9 ? DARK : BROWN;
   }, V, [8.5, 0, 5]);
 }
@@ -403,7 +404,7 @@ export function makeHero(key) {
   if (look.build) [legL, legR].forEach((l) => l.scale.set(0.85, b.legs, 0.9));
   root.add(legL, legR);
   if (p.bag) { const bag = mesh(p.bag); bag.position.set(-1.6, 0.3, 1.75); body.add(bag); }
-  if (p.poncho) { const po = mesh(p.poncho); po.position.y = 0.6; body.add(po); } // top just over the shoulders
+  if (p.poncho) { const po = mesh(p.poncho); po.position.y = 0.6; po.scale.set(b.slim, 1, b.slim < 1 ? 0.92 : 1); body.add(po); } // top just over the shoulders
   root.userData = { body, head: headM, armL, armR, legL, legR, hand, hip };
   return root;
 }

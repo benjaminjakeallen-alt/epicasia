@@ -11,6 +11,7 @@ import {
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
+import { createSewer3D } from './sewer3d.js';
 
 const FOV = 58;
 const AHEAD = 210; // metres drawn ahead
@@ -319,6 +320,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     for (const c of [glCanvas, hudCanvas]) { c.style.width = cw + 'px'; c.style.height = ch + 'px'; }
     hudCanvas.width = Math.round(cw * dpr); hudCanvas.height = Math.round(ch * dpr);
     if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2)); renderer.setSize(cw, ch, false); }
+    if (sewer) sewer.layout(cw, ch);
     camera.aspect = cw / ch;
     baseFov = cw / ch > 0.9 ? 50 : FOV;
     camera.fov = baseFov;
@@ -353,6 +355,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function pose(m, o) {
     const u = m.userData;
     u.body.position.y = (u.hip || 5) + (o.bob || 0); // (Miles stands taller)
+    u.body.position.x = o.sway || 0; // hips swinging side to side
     u.body.rotation.set(o.lean || 0, 0, 0);
     u.legL.rotation.set(o.legL || 0, 0, 0);
     u.legR.rotation.set(o.legR || 0, 0, 0);
@@ -426,8 +429,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       }
       case 'emily': // a twirl with her arms up, the gown swirling
         return { turn: t * 3.2, armL: -2.9, armR: -2.9, armLz: -0.3, armRz: 0.3, bob: Math.abs(sw(0.6, 0.15)), nod: -0.1 };
-      case 'miles': // air guitar: lean back, strum like mad, head-bang
-        return { armL: -1.25, armLz: 0.7, armR: -0.6 + sw(0.18, 0.35), armRz: -0.4, lean: -0.18, nod: sw(0.45, 0.25), legL: 0.25, legR: -0.25, bob: Math.abs(sw(0.45, 0.1)) };
+      case 'miles': { // the floss (user, Oct 12 2026): straight arms swing side to side, one in
+        // front and one behind, swapping every beat, while the hips swing the other way
+        const side = Math.tanh(sw(0.6) * 2.5), cross = Math.tanh(sw(1.2) * 2.5) * 0.75; // snappy, on the beat
+        return { armLz: side * 0.95, armRz: side * 0.95, armL: cross, armR: -cross, sway: -side * 1.8, turn: -side * 0.18, look: side * 0.2, bob: Math.abs(side) * 0.15 };
+      }
       case 'nicole': { // a hand on her hip, a sway, a hair flip
         const q = p(2.8), flip = q > 0.7 ? Math.sin((q - 0.7) / 0.3 * Math.PI) : 0;
         return { armL: -0.35, armLz: 0.9, armR: -0.4 - flip * 2.3, armRz: -0.2, look: sw(1.4, 0.35) + flip * 0.5, nod: -flip * 0.35, lean: sw(1.4, 0.06), turn: sw(1.4, 0.3), bob: Math.abs(sw(0.7, 0.08)) };
@@ -467,7 +473,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function sync(dt) {
     const t = S.t, z = (d) => S.dist - d;
     frameStart();
-    Object.values(heroes).forEach((h) => { h.visible = false; h.scale.setScalar(HERO_SCALE); });
+    Object.values(heroes).forEach((h) => { if (h.parent !== scene) scene.add(h); h.visible = false; h.scale.setScalar(HERO_SCALE); }); // (back from the sewer)
     halo.visible = false;
 
     // look of the current stage (eased), darker in tunnels
@@ -649,13 +655,23 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     scen = [];
   }
   prewarm();
+  // The sewer (Jake's secret) is its own 3D scene, built and warmed up now too.
+  const sewer = renderer ? createSewer3D({ renderer, heroes, pose, heroScale: HERO_SCALE, env: scene.environment, lowPower }) : null;
+  if (sewer) sewer.prewarm('chris');
 
   // ---- HUD & frame --------------------------------------------------------------------------------
   const hud = createHud(hudCanvas, game, view, toScreen);
   let glAge = 1;
   function render(dt) {
     glAge += dt;
-    const drawGL = renderer && S.mode !== 'sewer' && (!lowPower || glAge >= 1 / 12); // (the sewer is all 2D)
+    if (S.mode === 'sewer' && S.sewer && sewer) { // down the manhole: the sewer's own scene
+      if (!lowPower || glAge >= 1 / 12) { sewer.draw(S, Math.min(0.25, glAge)); glAge = 0; }
+      hud.draw(false);
+      return;
+    }
+    const drawGL = renderer && S.mode !== 'sewer' && (!lowPower || glAge >= 1 / 12); // (without WebGL the sewer is drawn in 2D)
+    // build the sewer in the background, a few ms a frame — never during a run
+    if (sewer && !sewer.ready() && S.mode !== 'run') sewer.pump(6);
     const elapsed = Math.min(0.25, glAge);
     if (drawGL) glAge = 0;
     if (drawGL || !renderer) {

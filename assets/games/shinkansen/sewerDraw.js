@@ -15,8 +15,10 @@ const LOOK2D = {
   liam: { skin: '#f4cdb4', hair: '#9a6c40', top: '#1d2027', legs: '#1d2027', headband: '#d62c2c' },
 };
 
-export function drawSewer(ctx, view, u, sw, S, text, round) {
+/** world = false: the 3D sewer (sewer3d.js) draws the level; only the HUD is drawn here. */
+export function drawSewer(ctx, view, u, sw, S, text, round, world = true) {
   const s = sw.s, W = view.cw, H = view.ch;
+  if (!world) { hudOnly(ctx, view, u, s, text, round); return; }
   const T = Math.min(W / 9, H / 11); // one tile in px
   const floorY = H * 0.62; // (the pad sits under the floor)
   // The camera follows like Mario 3's: you stay in a band left of centre,
@@ -152,7 +154,16 @@ export function drawSewer(ctx, view, u, sw, S, text, round) {
     ctx.fillStyle = 'rgba(255,240,170,0.9)'; ctx.beginPath(); ctx.moveTo(gx, gy - T * 0.25); ctx.lineTo(gx + T * 0.08, gy); ctx.lineTo(gx, gy + T * 0.25); ctx.lineTo(gx - T * 0.08, gy); ctx.closePath(); ctx.fill();
   }
 
-  // the HUD: where you are, coins, and how to jump
+  if (s.skid && s.ground) { // dust from a skid
+    ctx.fillStyle = 'rgba(220,220,220,0.6)';
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x0 + pw / 2 - s.face * (pw * 0.5 + i * T * 0.15), Y(0) - T * (0.08 + ((t * 9 + i) % 1) * 0.2), T * 0.08, 0, Math.PI * 2); ctx.fill(); }
+  }
+  hudOnly(ctx, view, u, s, text, round);
+}
+
+// the HUD: where you are, coins, and how to jump
+function hudOnly(ctx, view, u, s, text, round) {
+  const W = view.cw, H = view.ch, t = s.t;
   const top = 16 * u + (view.safeTop || 0);
   round(14 * u, top, W - 92 * u, 46 * u, 23 * u, 'rgba(12,20,44,0.78)', 'rgba(255,255,255,0.25)', 1);
   text('UNDERGROUND', 32 * u, top + 16 * u, 10, '#8ce99a', { align: 'left', stroke: false });
@@ -162,10 +173,6 @@ export function drawSewer(ctx, view, u, sw, S, text, round) {
   round(bx, top + 25 * u, Math.max(8 * u, bw2 * prog), 8 * u, 4 * u, '#69db7c');
   ctx.fillStyle = '#37b24d'; ctx.fillRect(bx + bw2 - 6 * u, top + 17 * u, 10 * u, 22 * u);
   if (t < 4 && s.dead === null) text('HOLD JUMP TO JUMP HIGHER', W / 2, H * 0.3, 15, '#ffffff', { lw: 3.5 });
-  if (s.skid && s.ground) { // dust from a skid
-    ctx.fillStyle = 'rgba(220,220,220,0.6)';
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x0 + pw / 2 - s.face * (pw * 0.5 + i * T * 0.15), Y(0) - T * (0.08 + ((t * 9 + i) % 1) * 0.2), T * 0.08, 0, Math.PI * 2); ctx.fill(); }
-  }
   if (s.dead !== null) text(s.y < -1 ? 'SPLOSH!' : 'THE RATS GOT YOU!', W / 2, H * 0.3, 26, '#ff8787', { lw: 6 });
   if (s.done !== null) text('DOWN THE PIPE!', W / 2, H * 0.3, 24, '#8ce99a', { lw: 6 });
 }

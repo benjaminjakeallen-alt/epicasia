@@ -578,7 +578,7 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   `ringRot` eases toward); tap the one at the front to play. The front one
   is 35% bigger and dances (`dance()` in render3d): Chris the dap (fist
   out, bump, hand to heart, double point), Bennett salsa, Emily a twirl,
-  Miles air guitar, Nicole a hip-hand sway and hair flip, Jake disco
+  Miles the floss (user: the air guitar "seems a bit obscene"), Nicole a hip-hand sway and hair flip, Jake disco
   points, Liam a ninja kata (chops, a high kick, a bow). One name pill
   ("???" + padlock if locked), dots for the ring. Specs turn it with
   `toFront()`/`tapFront()`; `__dash.ringSettled`.
@@ -586,7 +586,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   2026: "Replace Shea as a default playable character for Bennett… he
   should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short
   tousled light-brown hair, blue-grey eyes, a big smile — with `poncho()`
-  in Rampage's models.js: brown wool, rust and cream bands, teal diamonds,
+  in Rampage's models.js; slim `build` and a close-hanging poncho — user,
+  Oct 12 2026: "looks fat, make thinner": brown wool, rust and cream bands, teal diamonds,
   a cream chakana cross front and back, a fringed hem, hanging from the
   shoulders over the upper arms; `0023_shinkansen_bennett.sql`). Shea's
   old runs still read "as Shea"; Shea is unchanged in Rampage.
@@ -641,8 +642,25 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   sloping nose hides the ground just behind it from the chase camera) with
   green steam rising past the roofs (`makeManhole`). Dropping into that gap
   anywhere → `enterSewer()` instead of "MIND THE GAP". **The sewer**
-  (`sewer.js` logic, `sewerDraw.js` drawn on the HUD canvas; 3D isn't
-  redrawn meanwhile): a Mario-style level in tiles —
+  (`sewer.js` logic; **drawn in 3D by `sewer3d.js`** — user, Oct 12 2026:
+  "graphics are worse than the original super Mario… need a 10x
+  improvement" — its own three.js scene on the same renderer, side-on with a
+  diorama tilt, ~8½ tiles across on a phone: stone walkways with recessed
+  mortar and moss, glossy round pipes (the end one hollow, you sink into it,
+  a glowing arrow over it), brick ledges, a brick wall with pilasters,
+  arches onto a second tunnel, lanterns (the 3 nearest are point lights,
+  flickering), copper/steel pipes, outlets pouring sludge into each pit,
+  a vault with grates letting daylight shafts down (and the open manhole
+  you fell through), the earth cut away above; rippling glossy sludge (a
+  window of surface that follows the camera) with bubbles and rubber ducks,
+  a murky cut-away front showing the channel bed and sunken junk; spinning
+  five-yen coins, rats with segmented wiggling tails and red eyes, the
+  traveller's own 3D model running/jumping/skidding; dust, splashes,
+  sparkles, drips. The traveller's model is moved into the sewer scene and
+  back. Only the shader-relevant pieces build at start; walls, vault, earth
+  and most walkways are built in the background (`pump(6)` a frame, never
+  during a run; `draw()` finishes any left). Without WebGL `sewerDraw.js`
+  draws the old 2D version; with it, only the HUD): a Mario-style level in tiles —
   sludge pits, solid green pipes, brick ledges, patrolling rats (land on
   them to stomp, +100; touch them otherwise and you're done), coins (+10),
   and the big end pipe (land on top → down it, +500). **Controls like
