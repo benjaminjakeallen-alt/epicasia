@@ -644,10 +644,9 @@ test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett
   await debug(f, 'calm');
   await page.keyboard.down('ArrowUp');
   await expect.poll(async () => (await skills(f)).gliding, fast).toBe(true);
-  const t0 = Date.now();
   await expect.poll(async () => (await skills(f)).air, { timeout: 15_000, intervals: [50] }).toBe(false);
   await page.keyboard.up('ArrowUp');
-  expect(Date.now() - t0).toBeGreaterThan(900);
+  // (in game time, so a slow runner can't skew it: a plain jump's whole fall takes ~0.37 s)
   expect((await skills(f)).glides).toBeGreaterThan(0.6);
   await changeHero(page, f);
 
