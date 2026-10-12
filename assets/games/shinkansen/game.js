@@ -13,6 +13,7 @@
 // injects window.SHINKANSEN_INIT = { highScore, debug } and listens for
 // messages: ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
+import { createSewer, stepSewer, STEP as SEWER_STEP, sewerPoints, routeExists } from './sewer.js';
 
 const INIT = window.SHINKANSEN_INIT || {};
 
@@ -30,8 +31,8 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' } };
-const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole'];
+const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' } };
+const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
 // unlock Emily; Miles (who replaced Heather here) needs a golden guitar; Nicole a boba tea. The app remembers unlocks
@@ -47,8 +48,18 @@ const UNLOCK = {
   // Nicole (user, Oct 11 2026): grab a boba tea. They only float over the
   // roofs in the fast end of the line (Tea Hills on, every later round) and
   // need a jump.
-  nicole: { item: 'boba' }
+  nicole: { item: 'boba' },
+  // Jake (user, Oct 12 2026): twice a round a gap between trains has an open
+  // manhole; drop in and get through the sewer level (sewer.js) to the pipe.
+  jake: { item: 'sewer' }
 };
+// Where in each 5 km round the manholes come (the first gap past each).
+const MANHOLES = [1300, 3500];
+function manholeAfter(d) {
+  for (let lap = Math.floor(d / (5 * STAGE_LEN)); ; lap++) {
+    for (const m of MANHOLES) { const at = lap * 5 * STAGE_LEN + m; if (at > d + 400) return at; }
+  }
+}
 const BOBA_FROM = 3 * STAGE_LEN, BOBA = 250;
 const SPRING_FROM = STAGE_LEN, GUITAR_AFTER = 200, GUITAR = 500; // springs from Rice Fields on; the guitar ≥ 200 m past one
 
@@ -90,7 +101,7 @@ const S = {
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
   paused: false, menu: false, sentScore: false, shakeT: 0,
   unlocked: new Set(['chris', 'bennett'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
-  hint: null, simulating: false
+  hint: null, simulating: false, sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0
 };
 function locked(h) { return !S.unlocked.has(h); }
 /** Start a run as h — or, if h isn't earned yet, just say it's a secret. */
@@ -149,7 +160,9 @@ function scheduleGap() {
   const lane = Math.floor(rnd() * 3);
   const g0 = gridUp(lane, S.nextGap);
   const g1 = g0 + CAR * 2;
-  S.gaps.push({ lane: lane, g0: g0, g1: g1 });
+  const g = { lane: lane, g0: g0, g1: g1 };
+  if (g0 >= S.nextManhole) { g.manhole = true; S.nextManhole = manholeAfter(g0); } // (no random draw: layouts don't change)
+  S.gaps.push(g);
   // a gap at a time, with breathing room between them
   S.nextGap = g1 + Math.max(110, 260 - S.stage * 25 - S.lap * 30) + rnd() * 140;
 }
@@ -261,7 +274,7 @@ function spawnAhead() {
 }
 /** Checks the row generator: every row must leave a train you can get through. */
 function fairnessProblems() {
-  const keep = { seed: seed, obs: S.obs, gaps: S.gaps, stage: S.stage, lap: S.lap, nextGap: S.nextGap, spring: S.spring, guitarDue: S.guitarDue };
+  const keep = { seed: seed, obs: S.obs, gaps: S.gaps, stage: S.stage, lap: S.lap, nextGap: S.nextGap, spring: S.spring, guitarDue: S.guitarDue, nextManhole: S.nextManhole };
   const out = [];
   S.spring = false; S.guitarDue = 0;
   seed = 4242; S.obs = []; S.gaps = []; S.nextGap = 100;
@@ -298,6 +311,14 @@ function fairnessProblems() {
   if (early) out.push(early + ' boba before Tea Hills');
   if (dry || late < 10) out.push(late + ' boba in 5 × 3 km, ' + dry + ' layouts with none');
   S.spring = false;
+  // Manholes: exactly two a round, the first gaps past 1,300 m and 3,500 m.
+  seed = 5; S.gaps = []; S.nextGap = 100; S.nextManhole = MANHOLES[0];
+  while (S.nextGap < 15000) scheduleGap();
+  for (let r = 0; r < 3; r++) {
+    const m = S.gaps.filter(function (g) { return g.manhole && g.g0 >= r * 5000 && g.g0 < (r + 1) * 5000; });
+    if (m.length !== 2) out.push('round ' + (r + 1) + ' has ' + m.length + ' manholes');
+    else if (m[0].g0 < r * 5000 + 1300 || m[1].g0 < r * 5000 + 3500) out.push('round ' + (r + 1) + ' manholes too early');
+  }
   // Springs: none before Rice Fields, a few after; no guitar without one.
   seed = 91; S.gaps = []; S.nextGap = 100; S.obs = [];
   let springsEarly = 0, springs = 0, guitars = 0;
@@ -330,7 +351,7 @@ function fairnessProblems() {
     again = makeRow(d).some(function (o) { return o.type === 'guitar'; });
   }
   if (at >= 0 && !again) out.push('no second guitar after missing one');
-  Object.assign(S, { obs: keep.obs, gaps: keep.gaps, stage: keep.stage, lap: keep.lap, nextGap: keep.nextGap, spring: keep.spring, guitarDue: keep.guitarDue });
+  Object.assign(S, { obs: keep.obs, gaps: keep.gaps, stage: keep.stage, lap: keep.lap, nextGap: keep.nextGap, spring: keep.spring, guitarDue: keep.guitarDue, nextManhole: keep.nextManhole });
   seed = keep.seed;
   return out.filter(function (x, i, a) { return a.indexOf(x) === i; });
 }
@@ -375,6 +396,8 @@ const SFX = {
   horn: function () { tone(330, 0.7, 'sawtooth', 0.035); tone(415, 0.7, 'sawtooth', 0.03); },
   chime: function () { [659, 831, 988, 1319].forEach(function (f, i) { tone(f, 0.22, 'sine', 0.06, 0, i * 0.16); }); },
   count: function (hi) { tone(hi ? 1046 : 523, hi ? 0.35 : 0.14, 'square', 0.045); },
+  sewer: function () { tone(520, 0.5, 'square', 0.04, 90); noise(0.5, 0.1, 500, 0.15); }, // down the manhole
+  pipe: function () { [392, 330, 262, 196, 131].forEach(function (f, i) { tone(f, 0.09, 'square', 0.04, 0, i * 0.08); }); }, // down the pipe
   spring: function () { tone(300, 0.22, 'triangle', 0.05, 1200); tone(600, 0.16, 'square', 0.025, 1800, 0.05); },
   locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); }
 };
@@ -412,7 +435,8 @@ function newRun(hero) {
   seed = INIT.seed || (Date.now() % 2147483646) + 1;
   Object.assign(S, {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
-    nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false
+    nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false,
+    sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0
   });
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null };
   S.msgs = [];
@@ -454,6 +478,7 @@ function act(dir) {
     return;
   }
   if (S.mode === 'gameover') { if (dir === 'go') newRun(S.hero); return; }
+  if (S.mode === 'sewer') { if (dir === 'U' || dir === 'go' || dir === 'tap') S.sewer.jump = true; return; }
   if (S.mode !== 'run' && S.mode !== 'ready') return;
   const p = S.p;
   if (dir === 'L' || dir === 'R') {
@@ -510,6 +535,7 @@ function touchEnd(e) {
     const i = R.heroAt(x);
     if (i >= 0) { S.sel = i; pickHero(ROSTER[i]); }
   } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
+  else if (S.mode === 'sewer') act('tap'); // in the sewer a tap jumps too
 }
 stage.addEventListener('pointerup', touchEnd);
 stage.addEventListener('pointercancel', function () { touch = null; });
@@ -560,7 +586,8 @@ function updateRunner(dt) {
       p.y = roof; p.air = false; p.vy = 0; p.landT = S.t;
       if (p.dive) { p.dive = false; p.slideT = SLIDE_TIME; SFX.slide(); }
       if (p.jbuf > 0) jump(p);
-    } else if (p.y < 0.6) return crash('fall');
+    } else if (p.y < ROOF - 1.6 && manholeUnder(lane)) return enterSewer();
+    else if (p.y < 0.6) return crash('fall');
   } else if (roof === null) {
     p.air = true; p.vy = 0; // ran off the nose
   } else if (roof > p.y + 0.5) {
@@ -604,6 +631,53 @@ function updateRunner(dt) {
     o.gone = true; // the lucky cat smashed it
   }
 }
+// ---- the sewer (Jake's secret) ------------------------------------------------------
+function manholeUnder(lane) {
+  return !S.simulating && S.gaps.some(function (g) { return g.manhole && g.lane === lane && S.dist > g.g0 - NOSE && S.dist < g.g1; });
+}
+function enterSewer() {
+  S.sewer = { s: createSewer(), acc: 0, jump: false, plan: S.sewerPlan || null };
+  setMode('sewer');
+  SFX.sewer(); haptic('success');
+}
+function updateSewer(dt) {
+  const sw = S.sewer, s = sw.s;
+  sw.acc += dt;
+  while (sw.acc >= SEWER_STEP) { // fixed steps, so a run replays exactly
+    sw.acc -= SEWER_STEP;
+    const jump = sw.jump || (sw.plan ? sw.plan.has(s.steps) : false);
+    sw.jump = false;
+    stepSewer(s, jump);
+    s.events.forEach(function (e) {
+      if (e === 'jump') SFX.jump();
+      else if (e === 'coin') SFX.coin();
+      else if (e === 'stomp') { SFX.hop(); haptic('light'); }
+      else if (e === 'die') { SFX.crash(); haptic('error'); }
+      else if (e === 'exit') { SFX.pipe(); haptic('success'); }
+    });
+  }
+  if (s.done !== null && s.t - s.done > 1.1) exitSewer();
+  else if (s.dead !== null && s.t - s.dead > 1.6) { // into the sludge or caught by a rat: the run is over
+    S.score += sewerPoints(s); if (S.score > S.hi) S.hi = S.score;
+    S.sewer = null; setMode('gameover'); sendScore('gameover');
+  }
+}
+/** Out of the end pipe: back up onto a train, covered in sludge until the run ends. */
+function exitSewer() {
+  const pts = sewerPoints(S.sewer.s);
+  S.score += pts; if (S.score > S.hi) S.hi = S.score;
+  S.sewer = null; S.sewers++; S.sludge = true;
+  setMode('run');
+  const p = S.p, open = [1, 0, 2].filter(function (l) { return flatAt(l, S.dist + 20, 30); });
+  const lane = open.length ? open[0] : 1;
+  Object.assign(p, { lane: lane, from: LANES[lane], x: LANES[lane], laneT: 1, y: ROOF + 3, vy: 0, air: true, slideT: 0, jbuf: 0, dive: false });
+  S.invuln = 2.2;
+  S.obs = S.obs.filter(function (o) { return o.d - S.dist > 45 || o.d < S.dist; }); // a clear stretch to land on
+  say('+' + pts, 1.6, '#ffe066', true);
+  if (locked('jake')) unlockHero('jake'); else say('BACK UP TOP!', 1.6, '#c69a6a');
+  burst(p.x, p.y, 0, ['#7a4e24', '#5a3a1a', '#a0703c'], 26, 5);
+}
+
 function nearestLane(x) { let b = 0; for (let i = 1; i < 3; i++) if (Math.abs(LANES[i] - x) < Math.abs(LANES[b] - x)) b = i; return b; }
 
 function update(dt) {
@@ -617,6 +691,10 @@ function update(dt) {
     if (q.t <= 0) S.parts.splice(i, 1);
   }
 
+  if (S.mode === 'sewer') { updateSewer(dt); return; }
+  if (S.sludge && S.mode === 'run' && S.p && Math.floor(S.t * 8) !== Math.floor((S.t - dt) * 8)) { // sludge drips off you
+    S.parts.push({ x: S.p.x + (Math.random() - 0.5) * 0.6, y: S.p.y + 0.6 + Math.random() * 1.1, z: 0, vx: (Math.random() - 0.5) * 0.6, vy: -0.5, vz: 1.5, t: 0.6, col: Math.random() < 0.5 ? '#6b4423' : '#4a2f16', s: 0.12 });
+  }
   if (S.mode === 'ready') {
     const k = S.modeT;
     if (Math.floor(k / 0.8) !== Math.floor((k - dt) / 0.8) && k < 2.4) SFX.count(false);
@@ -675,7 +753,7 @@ function frame(ts) {
 }
 document.addEventListener('visibilitychange', function () {
   S.paused = document.hidden; last = 0;
-  if (document.hidden && (S.mode === 'run' || S.mode === 'ready')) setMenu(true);
+  if (document.hidden && (S.mode === 'run' || S.mode === 'ready' || S.mode === 'sewer')) setMenu(true);
 });
 
 window.__dash = {
@@ -683,9 +761,12 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
+  sewerRoute: function () { return routeExists(); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
+  shown: function (kind) { return R.shown(kind); }, // where the visible models of a kind are (tests)
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)
 };
 if (INIT.debug) {
@@ -697,6 +778,9 @@ if (INIT.debug) {
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
     spring: function () { S.spring = true; },
+    manhole: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2, manhole: true }); return g0 - S.dist; },
+    sewer: function () { enterSewer(); },
+    sewerPlan: function (steps) { S.sewerPlan = steps ? new Set(steps) : null; if (S.sewer) S.sewer.plan = S.sewerPlan; },
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
     go: function () { if (S.mode === 'ready') S.modeT = 2.4; },

@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -15,6 +15,7 @@ import { createHud } from './hud.js';
 const FOV = 58;
 const AHEAD = 210; // metres drawn ahead
 const HERO_SCALE = 0.092;
+const MANHOLE_AT = 22; // metres into a gap: its middle, where the nose doesn't hide it from the chase camera
 // Per stage: sky top/bottom, ground, light.
 const LOOK = {
   tokyo: { sky: [0x5aa7f5, 0xdcefff], ground: 0x9aa1a6, hemi: [0xe8f3ff, 0x8a8f86, 1.65], sun: [0xfff3df, 2.4] },
@@ -189,7 +190,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     return c;
   }
   function instance(kind, make) {
-    if (kind === 'crow') return make(); // (its wings are animated per bird)
+    if (kind === 'crow' || kind === 'manhole') return make(); // (a bird's wings and a manhole's steam are animated one by one)
     return copyTree(protos[kind] || (protos[kind] = make()));
   }
   function take(kind, make) {
@@ -209,7 +210,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
     chris: makeHero('chris'), bennett: makeHero('bennett'), emily: makeHeroine('emily'), miles: makeHero('miles'),
-    nicole: makeHero('nicole')
+    nicole: makeHero('nicole'), jake: makeHero('jake')
   };
   Object.values(heroes).forEach((h) => {
     h.scale.setScalar(HERO_SCALE);
@@ -219,6 +220,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // a traveller you haven't earned yet stands in the line-up as a silhouette
   const SIL = new THREE.MeshBasicMaterial({ color: 0x1c2333 });
   function silhouette(h, on) { heroes[h].traverse((o) => { if (o.isMesh) o.material = on ? SIL : o.userData.mat; }); }
+  // Back from the sewer: covered in brown sludge for the rest of the run (the
+  // same vertex-coloured Lambert shader, just tinted, so nothing new to compile).
+  const SLUDGE = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0x8a5a2e });
+  function sludge(h, on) { heroes[h].traverse((o) => { if (o.isMesh) o.material = on ? SLUDGE : o.userData.mat; }); }
   const halo = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.05, 6, 24), new THREE.MeshBasicMaterial({ color: 0xffd43b, fog: false }));
   halo.rotation.x = Math.PI / 2;
   scene.add(halo);
@@ -319,12 +324,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
-  const LINEUP = [-1.64, -0.82, 0, 0.82, 1.64];
+  const LINEUP = [-1.8, -1.08, -0.36, 0.36, 1.08, 1.8];
   const cam = { pos: new THREE.Vector3(0, ROOF + 1.3, 7), look: new THREE.Vector3(0, ROOF + 0.85, 0) };
   function camTarget() {
     if (S.mode === 'select') {
       const half = Math.tan((camera.fov / 2) * Math.PI / 180);
-      const dist = Math.max(4.5, 2.7 / (half * Math.min(1, camera.aspect)));
+      const dist = Math.max(4.5, 2.95 / (half * Math.min(1, camera.aspect)));
       return { pos: new THREE.Vector3(0, ROOF + 1.25, dist), look: new THREE.Vector3(0, ROOF + 0.75, 0) };
     }
     const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
@@ -397,7 +402,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       m.visible = true;
       silhouette(k, game.locked(k));
       m.position.set(LINEUP[i], ROOF + (on ? Math.abs(Math.sin(t * 5)) * 0.12 : 0), 0);
-      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 2), 0);
+      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 2.5), 0);
       const ph = t * 9;
       pose(m, on
         ? { armR: -2.7 + Math.sin(ph) * 0.35, armRz: 0.3, armL: -0.2, legL: Math.sin(ph) * 0.2, legR: -Math.sin(ph) * 0.2, look: Math.sin(t * 2) * 0.25 }
@@ -442,6 +447,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     S.gaps.forEach((g) => {
       if (g.g0 < to && g.g0 > from) { const n = take('nose', () => glossy(makeNose(NOSE, noseHeight))); n.position.set(LANES[g.lane], 0, z(g.g0)); n.rotation.y = 0; }
       if (g.g1 < to + NOSE && g.g1 > from) { const n = take('nose', () => glossy(makeNose(NOSE, noseHeight))); n.position.set(LANES[g.lane], 0, z(g.g1)); n.rotation.y = Math.PI; }
+      // an open manhole down on the track bed, where you'd land if you dropped off the end
+      if (g.manhole && g.g0 + MANHOLE_AT < to && g.g0 + MANHOLE_AT > from) { const mh = take('manhole', makeManhole); mh.position.set(LANES[g.lane], 0, z(g.g0 + MANHOLE_AT)); mh.userData.steam.rotation.y = t * 0.8; mh.userData.steam.position.y = (t * 0.6) % 0.5; }
     });
 
     // (no catenary poles along the line: the user found them lamp-like and asked for them gone)
@@ -495,7 +502,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     // the runner (or the line-up on the select screen)
     if (S.mode === 'select') drawLineup(t);
     else if (S.p) {
-      silhouette(S.hero, false);
+      sludge(S.hero, S.sludge);
       drawRunner(t, dt);
       if (S.shield && S.mode === 'run') { halo.visible = true; halo.position.set(S.p.x, S.p.y + 0.08, 0); halo.rotation.z = t * 3; }
     }
@@ -553,7 +560,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
     take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba); take('spring', makeSpring); take('guitar', makeGuitar);
     take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
-    take('nose', () => glossy(makeNose(NOSE, noseHeight)));
+    take('nose', () => glossy(makeNose(NOSE, noseHeight))); take('manhole', makeManhole);
     take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));
     take('ring', () => makeTunnelRing(10, ROOF)); take('portal', () => makePortal(ROOF));
     // Draw everything once, now, with culling off: that compiles and links
@@ -578,7 +585,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   let glAge = 1;
   function render(dt) {
     glAge += dt;
-    const drawGL = renderer && (!lowPower || glAge >= 1 / 12);
+    const drawGL = renderer && S.mode !== 'sewer' && (!lowPower || glAge >= 1 / 12); // (the sewer is all 2D)
     const elapsed = Math.min(0.25, glAge);
     if (drawGL) glAge = 0;
     if (drawGL || !renderer) {
@@ -605,8 +612,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function heroAt(clientX) {
     let best = -1, bd = Infinity;
     for (let i = 0; i < LINEUP.length; i++) { const d = Math.abs(heroPoint(i).x - clientX); if (d < bd) { bd = d; best = i; } }
-    return bd < view.cw * 0.12 ? best : -1;
+    return bd < view.cw * 0.1 ? best : -1;
   }
 
-  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
+  const shown = (kind) => (pools[kind] || []).filter((m) => m.visible).map((m) => [+m.position.x.toFixed(1), +m.position.y.toFixed(2), +m.position.z.toFixed(1)]); // (tests)
+  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, shown, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
 }

@@ -568,7 +568,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
   playable but you have to earn them"): Chris and Bennett from the start;
   **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
-  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole).
+  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake — six in the line-up,
+  alternate name pills a row lower).
   **Bennett replaced Shea** as the second default traveller (user, Oct 11
   2026: "Replace Shea as a default playable character for Bennett… he
   should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short
@@ -612,6 +613,39 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   some after, no guitar without a spring, and that a held spring brings a
   guitar over a clear train soon after it's due. Runs save as hero `miles`
   (`0022_shinkansen_miles.sql`).
+- **Jake — down a manhole, through the sewer** (user, Oct 12 2026: "Twice a
+  round you should have an open manhole the character can jump in. This
+  should spawn a Mario brothers side scroller 2d board… you end at a pipe
+  you jump in. If you get to the pipe without dying you unlock Jake. After
+  getting to ending pipe you drop back into Shinkansen dash but the
+  character should be covered in brown sludge… till they die"; `LOOKS.jake`
+  — shaved head with a shine, chunky black square glasses
+  (`squareGlasses`), his gold metallic bomber with long sleeves, ribbed
+  cuffs/hem and a sheen (`longSleeves`, `sheen`, `print`), dark trousers).
+  **Manholes:** the first train gap past 1,300 m and past 3,500 m of every
+  5 km round carries one (`MANHOLES`, `g.manhole`, set in `scheduleGap`
+  without a random draw, so layouts don't change; `fairnessProblems()`
+  checks exactly two a round). It sits mid-gap (`MANHOLE_AT` 22 m — the
+  sloping nose hides the ground just behind it from the chase camera) with
+  green steam rising past the roofs (`makeManhole`). Dropping into that gap
+  anywhere → `enterSewer()` instead of "MIND THE GAP". **The sewer**
+  (`sewer.js` logic, `sewerDraw.js` drawn on the HUD canvas; 3D isn't
+  redrawn meanwhile): an auto-running Mario-style level in tiles —
+  sludge pits, solid green pipes (a wall just holds you until you jump),
+  brick ledges, patrolling rats (land on them to stomp, +100; touch them
+  otherwise and you're done), coins (+10), and the big end pipe (land on
+  top → down it, +500). Tap / swipe up / ↑ / Space jumps (coyote time and
+  a jump buffer). Fixed 1/60 s steps, so a run replays exactly;
+  `routeExists()` (`__dash.sewerRoute()`) searches every jump timing and
+  returns the jump steps (17 for the current level, ~24 s) — re-run it
+  whenever the level changes. **Dying in the sewer ends the run** (score
+  saved). Out of the pipe: Jake unlocks (first time), you drop back onto
+  an open train with 2.2 s of invulnerability and a clear stretch, and
+  you're **covered in sludge** (`S.sludge`: a brown-tinted copy of the
+  hero's material, drips) **until the run ends**. Debug: `manhole(lane,
+  ahead)`, `sewer()`, `sewerPlan(steps)`; `__dash.shown(kind)` lists where
+  visible models of a kind are. Runs save as hero `jake`
+  (`0024_shinkansen_jake.sql`).
 - **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
   faster end of the board if you collect a boba drink you unlock Nicole";
   modelled on her photos as `LOOKS.nicole` in Rampage's models.js — a
@@ -693,7 +727,9 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   in development `debug` adds calm, spawn(type, lane, ahead), gap(lane,
   ahead), lane, setDist, shield, gameOver, pause, go.
 - Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
-  earning Emily, Miles (no double jump without a spring, a single jump
+  Jake (manhole → sewer, a missed jump ends the run, the full route → back
+  up sludge-covered and unlocked, sludge gone on the next run, saved as
+  him); earning Emily, Miles (no double jump without a spring, a single jump
   passes under the guitar, the double jump gets it, the spring is used up,
   remembered, a run saved as him) and Nicole (boba missed without a jump,
   grabbed with one, remembered, a run saved as her); play — swipes and keys, jump/slide counters, onigiri, lucky
@@ -1166,7 +1202,8 @@ backend code.
   `0020_shinkansen_dash.sql` (`game_scores.game` may be `shinkansen_dash`),
   `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`),
   `0022_shinkansen_miles.sql` (… and `miles`),
-  `0023_shinkansen_bennett.sql` (… and `bennett`).
+  `0023_shinkansen_bennett.sql` (… and `bennett`),
+  `0024_shinkansen_jake.sql` (… and `jake`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

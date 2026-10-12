@@ -2,6 +2,8 @@
 // scene in CSS pixels (scaled for the device). Chunky rounded type with a
 // dark outline, like Godzilla Rampage's.
 
+import { drawSewer } from './sewerDraw.js';
+
 const FONT = '"Avenir Next", "Arial Rounded MT Bold", "Trebuchet MS", system-ui, sans-serif';
 const INK = 'rgba(12,20,44,0.92)';
 const SHORT = ['TOKYO', 'FIELDS', 'FUJI', 'TEA', 'KYOTO'];
@@ -163,6 +165,7 @@ export function createHud(canvas, game, view, toScreen, LINEUP) {
       if (noGL) { ctx.fillStyle = '#5aa7f5'; ctx.fillRect(0, 0, view.cw, view.ch); }
       if (S.mode === 'select') { select(); return; }
       if (S.mode === 'gameover') { gameOver(); return; }
+      if (S.mode === 'sewer' && S.sewer) { drawSewer(ctx, view, u, S.sewer, S, text, round); messages(); return; }
       topBar();
       if (S.mode === 'ready') ready();
       messages();

@@ -154,6 +154,21 @@ export const LOOKS = {
       return null;
     }
   },
+  // Jake (Shinkansen Dash, the sewer secret): shaved head with a shine,
+  // chunky black square glasses, a big smile; his gold metallic bomber
+  // jacket (crinkled sheen, ribbed cuffs and hem) over dark trousers.
+  jake: {
+    skin: 0xf2c1a3, skinShade: 0xdca48a, eye: 0x6c8aa0, brow: 0x8a6a55, mouth: 0xb44a4f, blush: 0xeaa592,
+    glasses: 0x17181b, squareGlasses: true,
+    shirt: 0xe4b53c, shirtDark: 0xc99a24, cuff: 0xd8a326, pants: 0x2b2d31, shoes: 0xd9cfc0, longSleeves: true, sheen: 0xf7dc7a,
+    print: (x, y, z) => { // crinkled metallic sheen, a zip down the front
+      if (z === 6 && x === 5 && y >= 1) return 0xc99a24;
+      if (y === 0) return 0xd8a326; // ribbed hem
+      const n = hash3(x, y, z + 31);
+      return n < 0.18 ? 0xf7dc7a : n > 0.86 ? 0xc0901f : null;
+    },
+    hair: (u, w, d, core) => (core && w === 13 && d >= 7 && d <= 10 && u >= 3 && u <= 6 ? 0xffe2d0 : null) // scalp shine
+  },
   // Emily: big wavy red hair, blue eyes.
   emily: {
     skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
@@ -213,7 +228,8 @@ function head(look) {
       const corner = look.roundGlasses && (w === 5 || w === 8) && (u === 2 || u === 5 || u === 8 || u === 11); // rounded frames
       if (lens && !corner && w >= 5 && w <= 8 && (u === 2 || u === 5 || u === 8 || u === 11 || w === 5 || w === 8)) return look.glasses;
       if (w === 7 && (u === 6 || u === 7)) return look.glasses;
-      if (w === 8 && (u === 1 || u === 12) && !look.roundGlasses) return look.glasses;
+      if (w === 8 && (u === 1 || u === 12) && !look.roundGlasses && !look.squareGlasses) return look.glasses;
+      if (look.squareGlasses && w === 8 && u >= 1 && u <= 12) return look.glasses; // a heavy top bar across
     }
     if (look.freckles && d === 13 && w >= 4 && w <= 5 && (u <= 2 || u >= 11 || u === 6 || u === 7) && hash3(u, w, 77) < 0.45) return look.freckles;
     if (d === 13) {
@@ -238,8 +254,15 @@ function heroParts(look) {
     if (printed) return printed;
     return y === 0 ? look.shirtDark : look.shirt;
   }, V, [5.5, 0, 3.5]);
-  const sleeve = look.sleeveless ? 9 : 6; // (sleeveless: bare arms up to the shoulder)
-  const arm = vox(3, 10, 4, (x, y) => (y >= sleeve ? look.shirt : y <= 2 ? look.skinShade : look.skin), V, [1.5, 10, 2]);
+  const sleeve = look.sleeveless ? 9 : look.longSleeves ? 2 : 6; // (sleeveless: bare arms; long: down to the wrist)
+  const arm = vox(3, 10, 4, (x, y, z) => {
+    if (y >= sleeve) {
+      if (look.longSleeves && y === 2) return look.cuff || look.shirtDark; // ribbed cuff
+      const printed = look.sheen && hash3(x, y + 50, z) < 0.18 ? look.sheen : null; // (a metallic sheen)
+      return printed || look.shirt;
+    }
+    return y <= 2 ? look.skinShade : look.skin;
+  }, V, [1.5, 10, 2]);
   const leg = vox(3, 10, 4, (x, y, z) => (y <= 1 ? (z === 3 && y === 0 ? 0xffffff : look.shoes) : look.pants), V, [1.5, 10, 2]);
   // a belt bag at the hip: rust with cream piping, a zip, a little black patch
   const bag = look.bag ? vox(6, 4, 3, (x, y, z) => {

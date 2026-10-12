@@ -255,6 +255,36 @@ export function makeGuitar() {
   return g;
 }
 
+/** An open manhole on the track bed: an iron rim round a dark hole with a faint green glow down inside, and its cover tipped up beside it. */
+export function makeManhole() {
+  const b = new VoxBuilder(), glow = new VoxBuilder();
+  const R = 7.5;
+  b.add(17, 2, 17, (x, y, z) => {
+    const r = Math.hypot(x - 8, z - 8);
+    if (r > R + 0.6) return null;
+    if (r > R - 1.6) return y === 1 ? (hash3(x, y, z) < 0.3 ? 0x6c737b : 0x4f565e) : 0x3a3f45; // the rim
+    return y === 0 ? 0x050608 : null; // the hole
+  }, { size: 0.15, offset: [-1.275, 0.02, -1.275] });
+  glow.add(17, 1, 17, (x, y, z) => { const r = Math.hypot(x - 8, z - 8); return r > R - 2.6 && r <= R - 1.6 && (x + z) % 2 ? 0x2f9e44 : null; }, { size: 0.15, offset: [-1.275, 0.08, -1.275] });
+  const lid = new VoxBuilder(); // the cover, leaning on its edge
+  lid.add(15, 15, 1, (x, y) => { const r = Math.hypot(x - 7, y - 7); return r > 7.2 ? null : (x % 3 === 0 || y % 3 === 0) && r < 6 ? 0x5f666e : 0x464c53; }, { size: 0.15, offset: [-1.125, 0, 0] });
+  const g = new THREE.Group();
+  g.add(mesh(b.geometry()), new THREE.Mesh(glow.geometry(), GLOW));
+  const lidMesh = mesh(lid.geometry());
+  lidMesh.position.set(1.55, 0, 0.6); lidMesh.rotation.set(-0.25, 1.2, 0.35);
+  g.add(lidMesh);
+  // a faint green steam rising out of it, so you can spot it over a train's nose
+  const steam = new VoxBuilder();
+  for (let i = 0; i < 22; i++) { // up past the train roofs (3.4 m), spreading as it rises
+    const h = 0.3 + i * 0.21, a = i * 2.4, r = 0.2 + (i % 4) * 0.1 + i * 0.03;
+    steam.add(1, 1, 1, () => (i % 3 ? 0x8ce99a : 0xd3f9d8), { size: 0.24 + (i % 3) * 0.08, offset: [Math.cos(a) * r, h, Math.sin(a) * r] });
+  }
+  const steamMesh = new THREE.Mesh(steam.geometry(), GLOW);
+  g.add(steamMesh);
+  g.userData.steam = steamMesh;
+  return g;
+}
+
 // ---- along the line --------------------------------------------------------------------
 /** A ring of tunnel lining (concrete arch over all three tracks). */
 export function makeTunnelRing(len, roof) {

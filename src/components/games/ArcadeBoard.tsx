@@ -20,7 +20,7 @@ import { useTheme } from '../../theme/useTheme';
 // the group's high-score board (each player's best run). The game itself is
 // its ./play screen (full screen, ArcadePlay).
 
-export const HERO = { chris: 'Chris', shea: 'Shea', emily: 'Emily', heather: 'Heather', nicole: 'Nicole', miles: 'Miles', bennett: 'Bennett' } as const;
+export const HERO = { chris: 'Chris', shea: 'Shea', emily: 'Emily', heather: 'Heather', nicole: 'Nicole', miles: 'Miles', bennett: 'Bennett', jake: 'Jake' } as const;
 const fmt = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 export default function ArcadeBoard({
