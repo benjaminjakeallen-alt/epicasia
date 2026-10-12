@@ -285,6 +285,7 @@ test('Miles: a spring gives one double jump, and only a double jump reaches the 
 });
 
 test('Jake: a manhole in a gap drops you into the sewer; reach the pipe to unlock him, sludge-covered until the run ends', async ({ page }) => {
+  test.setTimeout(180_000); // (the route search, then the whole level played)
   const backend = await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');
   await page.getByTestId('dash-play').click();
@@ -387,9 +388,13 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
 
   // A quick tap of jump is a hop; held, the same jump goes well over a pipe's height.
   const jumpBtn = (await ui.locator('#jumpbtn').boundingBox())!;
+  // (pressed and let go at once, in the page, so a slow runner can't hold it down for several steps)
+  await f.evaluate(() => {
+    const b = document.getElementById('jumpbtn')!;
+    b.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 7, bubbles: true, cancelable: true }));
+    b.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
+  });
   await page.mouse.move(jumpBtn.x + jumpBtn.width / 2, jumpBtn.y + jumpBtn.height / 2);
-  await page.mouse.down();
-  await page.mouse.up();
   await expect.poll(async () => (await sw()).y, { timeout: 5_000 }).toBeGreaterThan(0);
   await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
   const hop = (await sw()).peak;
