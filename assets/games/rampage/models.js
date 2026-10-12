@@ -169,6 +169,45 @@ export const LOOKS = {
     },
     hair: (u, w, d, core) => (core && w === 13 && d >= 7 && d <= 10 && u >= 3 && u <= 6 ? 0xffe2d0 : null) // scalp shine
   },
+  // Liam (Shinkansen Dash, a secret at 30,000 points): light-brown swept hair
+  // with curtain bangs, blue-grey eyes, rosy cheeks, freckles — dressed as a
+  // ninja with his face showing: a red headband (tails at the back), a black
+  // crossed-collar top and belt, wrist and shin wraps, split-toe shoes.
+  liam: {
+    skin: 0xf4cdb4, skinShade: 0xe0ae94, eye: 0x6f8fa6, brow: 0x7a5232, mouth: 0xb8505a, blush: 0xeba08f, freckles: 0xdcae92,
+    shirt: 0x1d2027, shirtDark: 0x15171c, cuff: 0x4a505c, pants: 0x1d2027, shoes: 0x101216, legWrap: 0x4a505c, longSleeves: true,
+    print: (x, y, z) => {
+      if (y >= 1 && y <= 2) return y === 2 && z === 6 && (x === 5 || x === 6) ? 0x2c3038 : 0x30343d; // the belt, knotted at the front
+      if (z === 6 && y >= 5 && Math.abs(x - 5) === Math.round((10 - y) * 0.8)) return 0x3a3f4a; // the crossed collar
+      return null;
+    },
+    hair: (u, w, d, core) => {
+      const RED = 0xd62c2c, RED2 = 0xb01e1e;
+      const band = w >= 10 && w <= 11; // the headband, right round the head
+      if (band && (core ? (d === 13 || d === 0 || u === 0 || u === 13) : (u >= -1 && u <= 14 && d >= -1 && d <= 14))) {
+        if (!core && (u === -1 || u === 14 || d === -1 || d === 14)) return w === 10 ? RED2 : RED;
+        if (core) return null; // (inside: the outer ring shows)
+      }
+      if (d === -2 && w >= 5 && w <= 10 && (u === 6 || u === 7 || (u === 8 && w <= 8) || (u === 5 && w >= 8))) return w % 2 ? RED : RED2; // its tails
+      const n = hash3(u + 9, w * 2, d + 4);
+      const c = n < 0.3 ? 0xb58556 : n < 0.72 ? 0x9a6c40 : 0x80572f;
+      if (core) {
+        if (w >= 12) return c;
+        if (d === 13 && w === 9 && (u <= 2 || u >= 11)) return c; // curtain bangs below the band
+        if ((u <= 0 || u >= 13) && w >= 5 && w <= 9) return c;
+        if (d <= 1 && w >= 3 && w <= 9) return c;
+        return null;
+      }
+      if (w === 14) return u >= 0 && u <= 13 && d >= 0 && d <= 13 ? c : null; // fluffy above the band
+      if (w === 15) return u >= 1 && u <= 12 && d >= 2 && d <= 12 && hash3(u, w, d) < 0.5 ? c : null;
+      if ((u === -1 || u === 14) && w >= 12 && w <= 13 && d >= 0 && d <= 13) return c;
+      if ((u === -1 || u === 14) && w >= 4 && w <= 9 && d >= 1 && d <= 12) return c; // over the ears
+      if ((u === -2 || u === 15) && w === 4 && d >= 2 && d <= 11) return c; // flicked out at the ends
+      if (d === -1 && w >= 3 && w <= 9 && u >= 0 && u <= 13) return c;
+      if (d === -1 && w >= 12 && w <= 13 && u >= 0 && u <= 13) return c;
+      return null;
+    }
+  },
   // Emily: big wavy red hair, blue eyes.
   emily: {
     skin: 0xf6d2b8, skinShade: 0xe3b598, eye: 0x2f5f86, brow: 0xa8431f, mouth: 0xc2414f, blush: 0xf0a7a0, shoes: 0x16202c,
@@ -263,7 +302,11 @@ function heroParts(look) {
     }
     return y <= 2 ? look.skinShade : look.skin;
   }, V, [1.5, 10, 2]);
-  const leg = vox(3, 10, 4, (x, y, z) => (y <= 1 ? (z === 3 && y === 0 ? 0xffffff : look.shoes) : look.pants), V, [1.5, 10, 2]);
+  const leg = vox(3, 10, 4, (x, y, z) => {
+    if (y <= 1) return z === 3 && y === 0 ? (look.legWrap ? look.shoes : 0xffffff) : look.shoes;
+    if (look.legWrap && y <= 4) return (y + z) % 2 ? look.legWrap : shade(look.legWrap, 0.85); // wrapped shins
+    return look.pants;
+  }, V, [1.5, 10, 2]);
   // a belt bag at the hip: rust with cream piping, a zip, a little black patch
   const bag = look.bag ? vox(6, 4, 3, (x, y, z) => {
     if (y === 3 && z === 2 && x >= 1 && x <= 4) return 0x8a8f96;

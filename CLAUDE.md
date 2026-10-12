@@ -568,8 +568,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
   playable but you have to earn them"): Chris and Bennett from the start;
   **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
-  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake — six in the line-up,
-  alternate name pills a row lower).
+  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake, liam — seven in the
+  line-up (`LINEUP` ±2.1 m), alternate name pills a row lower).
   **Bennett replaced Shea** as the second default traveller (user, Oct 11
   2026: "Replace Shea as a default playable character for Bennett… he
   should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short
@@ -646,6 +646,15 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   ahead)`, `sewer()`, `sewerPlan(steps)`; `__dash.shown(kind)` lists where
   visible models of a kind are. Runs save as hero `jake`
   (`0024_shinkansen_jake.sql`).
+- **Liam the ninja — 30,000 points in one run** (user, Oct 12 2026: "dressed
+  like a ninja, see his face but has a red headband"; `LOOKS.liam` —
+  light-brown swept hair with curtain bangs over the ears, blue-grey eyes,
+  rosy cheeks, freckles; the red headband and its tails are part of his
+  hair function; black crossed-collar top and belt via `print`, wrist wraps
+  (`cuff`), wrapped shins (`legWrap`), dark split-toe shoes). `UNLOCK.liam
+  = { score: 30000 }`, checked by `scoreUnlocks()` every run step and after
+  the sewer's bonus. Debug `score(n)`. Runs save as hero `liam`
+  (`0025_shinkansen_liam.sql`).
 - **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
   faster end of the board if you collect a boba drink you unlock Nicole";
   modelled on her photos as `LOOKS.nicole` in Rampage's models.js — a
@@ -727,6 +736,7 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   in development `debug` adds calm, spawn(type, lane, ahead), gap(lane,
   ahead), lane, setDist, shield, gameOver, pause, go.
 - Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
+  Liam (not at 29,000, unlocked at 30,000, remembered, saved as him);
   Jake (manhole → sewer, a missed jump ends the run, the full route → back
   up sludge-covered and unlocked, sludge gone on the next run, saved as
   him); earning Emily, Miles (no double jump without a spring, a single jump
@@ -1203,7 +1213,8 @@ backend code.
   `0021_shinkansen_nicole.sql` (`game_scores.hero` may be `nicole`),
   `0022_shinkansen_miles.sql` (… and `miles`),
   `0023_shinkansen_bennett.sql` (… and `bennett`),
-  `0024_shinkansen_jake.sql` (… and `jake`).
+  `0024_shinkansen_jake.sql` (… and `jake`),
+  `0025_shinkansen_liam.sql` (… and `liam`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

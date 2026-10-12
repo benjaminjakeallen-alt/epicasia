@@ -14,7 +14,7 @@ export const ARCADE = {
 } as const;
 export type ArcadeGame = keyof typeof ARCADE;
 
-export const HEROES = ['chris', 'shea', 'emily', 'heather', 'nicole', 'miles', 'bennett', 'jake'] as const;
+export const HEROES = ['chris', 'shea', 'emily', 'heather', 'nicole', 'miles', 'bennett', 'jake', 'liam'] as const;
 export type Hero = (typeof HEROES)[number];
 
 export type Run = { score: number; level: number; round: number; hero: Hero };

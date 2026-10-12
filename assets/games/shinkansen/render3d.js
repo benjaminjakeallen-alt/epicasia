@@ -210,7 +210,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
     chris: makeHero('chris'), bennett: makeHero('bennett'), emily: makeHeroine('emily'), miles: makeHero('miles'),
-    nicole: makeHero('nicole'), jake: makeHero('jake')
+    nicole: makeHero('nicole'), jake: makeHero('jake'), liam: makeHero('liam')
   };
   Object.values(heroes).forEach((h) => {
     h.scale.setScalar(HERO_SCALE);
@@ -324,12 +324,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.fov = baseFov;
     camera.updateProjectionMatrix();
   }
-  const LINEUP = [-1.8, -1.08, -0.36, 0.36, 1.08, 1.8];
+  const LINEUP = [-2.1, -1.4, -0.7, 0, 0.7, 1.4, 2.1];
   const cam = { pos: new THREE.Vector3(0, ROOF + 1.3, 7), look: new THREE.Vector3(0, ROOF + 0.85, 0) };
   function camTarget() {
     if (S.mode === 'select') {
       const half = Math.tan((camera.fov / 2) * Math.PI / 180);
-      const dist = Math.max(4.5, 2.95 / (half * Math.min(1, camera.aspect)));
+      const dist = Math.max(4.5, 3.3 / (half * Math.min(1, camera.aspect)));
       return { pos: new THREE.Vector3(0, ROOF + 1.25, dist), look: new THREE.Vector3(0, ROOF + 0.75, 0) };
     }
     const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
@@ -402,7 +402,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       m.visible = true;
       silhouette(k, game.locked(k));
       m.position.set(LINEUP[i], ROOF + (on ? Math.abs(Math.sin(t * 5)) * 0.12 : 0), 0);
-      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 2.5), 0);
+      m.rotation.set(0, on ? Math.sin(t * 1.4) * 0.35 : 0.15 * (i - 3), 0);
       const ph = t * 9;
       pose(m, on
         ? { armR: -2.7 + Math.sin(ph) * 0.35, armRz: 0.3, armL: -0.2, legL: Math.sin(ph) * 0.2, legR: -Math.sin(ph) * 0.2, look: Math.sin(t * 2) * 0.25 }
@@ -612,7 +612,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function heroAt(clientX) {
     let best = -1, bd = Infinity;
     for (let i = 0; i < LINEUP.length; i++) { const d = Math.abs(heroPoint(i).x - clientX); if (d < bd) { bd = d; best = i; } }
-    return bd < view.cw * 0.1 ? best : -1;
+    return bd < view.cw * 0.09 ? best : -1;
   }
 
   const shown = (kind) => (pools[kind] || []).filter((m) => m.visible).map((m) => [+m.position.x.toFixed(1), +m.position.y.toFixed(2), +m.position.z.toFixed(1)]); // (tests)

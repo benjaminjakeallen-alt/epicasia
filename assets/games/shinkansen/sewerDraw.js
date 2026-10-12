@@ -12,6 +12,7 @@ const LOOK2D = {
   miles: { skin: '#f4cfb6', hair: '#936a43', top: '#1f5a3c', legs: '#2f3a4f', glasses: '#3a2618', tall: true },
   nicole: { skin: '#f3cdb2', hair: '#b5582c', big: true, top: '#f5f2ea', legs: '#7894bb', glasses: '#2c4a55' },
   jake: { skin: '#f2c1a3', hair: null, top: '#e4b53c', legs: '#2b2d31', glasses: '#17181b' },
+  liam: { skin: '#f4cdb4', hair: '#9a6c40', top: '#1d2027', legs: '#1d2027', headband: '#d62c2c' },
 };
 
 export function drawSewer(ctx, view, u, sw, S, text, round) {
@@ -130,6 +131,10 @@ export function drawSewer(ctx, view, u, sw, S, text, round) {
   ctx.fillStyle = L.skin; ctx.fillRect(pw * 0.08, -ph, pw * 0.84, ph * 0.3); // head
   if (L.hair) { ctx.fillStyle = L.hair; ctx.fillRect(pw * (L.big ? -0.04 : 0.06), -ph * 1.04, pw * (L.big ? 1.08 : 0.88), ph * 0.11); ctx.fillRect(pw * (L.big ? -0.04 : 0.06), -ph, pw * 0.2, ph * (L.big ? 0.3 : 0.14)); }
   else { ctx.fillStyle = 'rgba(255,255,255,0.45)'; ctx.fillRect(pw * 0.3, -ph * 0.98, pw * 0.25, ph * 0.04); } // a shiny scalp
+  if (L.headband) { // a ninja's headband, its tail flying out behind
+    ctx.fillStyle = L.headband; ctx.fillRect(pw * 0.04, -ph * 0.95, pw * 0.92, ph * 0.06);
+    ctx.fillRect(-pw * 0.3, -ph * 0.94 + Math.sin(s.t * 14) * ph * 0.02, pw * 0.36, ph * 0.035);
+  }
   ctx.fillStyle = '#1b1d22'; ctx.fillRect(pw * 0.66, -ph * 0.88, pw * 0.1, ph * 0.06); // eye (facing right)
   if (L.glasses) { ctx.strokeStyle = L.glasses; ctx.lineWidth = Math.max(1.5, T * 0.04); ctx.strokeRect(pw * 0.56, -ph * 0.92, pw * 0.3, ph * 0.12); }
   ctx.fillStyle = '#b44a4f'; ctx.fillRect(pw * 0.62, -ph * 0.78, pw * 0.2, ph * 0.03);

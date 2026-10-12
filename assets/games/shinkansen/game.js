@@ -31,8 +31,8 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' } };
-const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake'];
+const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' }, liam: { name: 'LIAM' } };
+const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
 // unlock Emily; Miles (who replaced Heather here) needs a golden guitar; Nicole a boba tea. The app remembers unlocks
@@ -51,7 +51,9 @@ const UNLOCK = {
   nicole: { item: 'boba' },
   // Jake (user, Oct 12 2026): twice a round a gap between trains has an open
   // manhole; drop in and get through the sewer level (sewer.js) to the pipe.
-  jake: { item: 'sewer' }
+  jake: { item: 'sewer' },
+  // Liam (user, Oct 12 2026): score 30,000 points in a run.
+  liam: { score: 30000 }
 };
 // Where in each 5 km round the manholes come (the first gap past each).
 const MANHOLES = [1300, 3500];
@@ -675,7 +677,13 @@ function exitSewer() {
   S.obs = S.obs.filter(function (o) { return o.d - S.dist > 45 || o.d < S.dist; }); // a clear stretch to land on
   say('+' + pts, 1.6, '#ffe066', true);
   if (locked('jake')) unlockHero('jake'); else say('BACK UP TOP!', 1.6, '#c69a6a');
+  scoreUnlocks();
   burst(p.x, p.y, 0, ['#7a4e24', '#5a3a1a', '#a0703c'], 26, 5);
+}
+
+/** Travellers earned with points (Liam: 30,000 in one run). */
+function scoreUnlocks() {
+  ROSTER.forEach(function (h) { if (UNLOCK[h] && UNLOCK[h].score && locked(h) && S.score >= UNLOCK[h].score) unlockHero(h); });
 }
 
 function nearestLane(x) { let b = 0; for (let i = 1; i < 3; i++) if (Math.abs(LANES[i] - x) < Math.abs(LANES[b] - x)) b = i; return b; }
@@ -708,6 +716,7 @@ function update(dt) {
     S.dist += S.speed * dt;
     S.score += Math.floor(S.dist) - Math.floor(before);
     ROSTER.forEach(function (h) { if (UNLOCK[h] && UNLOCK[h].at && locked(h) && S.dist >= UNLOCK[h].at) unlockHero(h); });
+    scoreUnlocks();
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
     updateRunner(dt);
@@ -775,6 +784,7 @@ if (INIT.debug) {
     spawn: function (type, lane, ahead) { add(type, lane, S.dist + ahead); },
     gap: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2 }); return g0 - S.dist; },
     lane: function (l) { const p = S.p; p.lane = l; p.x = LANES[l]; p.laneT = 1; },
+    score: function (n) { S.score = n; }, // (tests: jump to a score)
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
     spring: function () { S.spring = true; },
