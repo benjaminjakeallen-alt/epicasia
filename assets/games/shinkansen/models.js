@@ -125,6 +125,20 @@ export function makePanto() {
   b.add(16, 2, 2, (x, y) => (y === 1 || x === 0 || x === 15 ? 0x2b3036 : 0x868e96), { size: 0.15, offset: [-1.2, 2.45, -0.15] });
   return mesh(b.geometry());
 }
+/** Liam's ninja star: four steel blades round a hole, lying flat (it spins about y). */
+export function makeShuriken() {
+  const b = new VoxBuilder();
+  b.add(7, 1, 7, (x, y, z) => {
+    const cx = x - 3, cz = z - 3, ax = Math.abs(cx), az = Math.abs(cz);
+    if (ax === 0 && az === 0) return null; // the hole
+    if (ax <= 1 && az <= 1) return 0x495057;
+    // a blade along each axis, swept to one side so it reads as spinning
+    if ((az === 0 && ax <= 3) || (ax === 0 && az <= 3)) return 0xdee2e6;
+    if ((cz === 1 && cx >= 2) || (cz === -1 && cx <= -2) || (cx === -1 && cz >= 2) || (cx === 1 && cz <= -2)) return 0xadb5bd;
+    return null;
+  }, { size: 0.065, offset: [-0.2275, -0.0325, -0.2275] });
+  return mesh(b.geometry());
+}
 /** A crow flapping at head height: slide under it. userData.wings flap. */
 export function makeCrow() {
   const g = new THREE.Group(), b = new VoxBuilder();

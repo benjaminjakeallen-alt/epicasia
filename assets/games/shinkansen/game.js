@@ -13,7 +13,7 @@
 // injects window.SHINKANSEN_INIT = { highScore, debug } and listens for
 // messages: ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
-import { createSewer, stepSewer, STEP as SEWER_STEP, sewerPoints, routeExists } from './sewer.js';
+import { createSewer, stepSewer, STEP as SEWER_STEP, BLOCK as SEWER_BLOCK, sewerPoints, routeExists, replay as sewerReplay } from './sewer.js';
 
 const INIT = window.SHINKANSEN_INIT || {};
 
@@ -31,7 +31,7 @@ const STAGES = [
   { key: 'tea', name: 'TEA HILLS' },
   { key: 'kyoto', name: 'KYOTO' }
 ];
-const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' }, liam: { name: 'LIAM' } };
+const HEROES = { chris: { name: 'CHRIS' }, bennett: { name: 'BENNETT' }, emily: { name: 'EMILY' }, miles: { name: 'MILES' }, nicole: { name: 'NICOLE' }, jake: { name: 'JAKE' }, liam: { name: 'LIAM', skill: 'NINJA STARS' } };
 const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
@@ -99,7 +99,7 @@ const S = {
   sel: 0, hero: 'chris', t: 0, modeT: 0,
   dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, hi: Math.max(0, INIT.highScore | 0),
   stage: 0, lap: 0, maxStage: 0,
-  p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [],
+  p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [], stars: [], throws: 0, kills: 0, throwT: -9,
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
   paused: false, menu: false, sentScore: false, shakeT: 0,
   unlocked: new Set(['chris', 'bennett'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
@@ -408,7 +408,9 @@ const SFX = {
   sewer: function () { tone(520, 0.5, 'square', 0.04, 90); noise(0.5, 0.1, 500, 0.15); }, // down the manhole
   pipe: function () { [392, 330, 262, 196, 131].forEach(function (f, i) { tone(f, 0.09, 'square', 0.04, 0, i * 0.08); }); }, // down the pipe
   spring: function () { tone(300, 0.22, 'triangle', 0.05, 1200); tone(600, 0.16, 'square', 0.025, 1800, 0.05); },
-  locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); }
+  locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); },
+  star: function () { noise(0.08, 0.05, 5200); tone(2400, 0.08, 'triangle', 0.025, 3400); }, // a ninja star whips off
+  thunk: function () { noise(0.12, 0.09, 1200); tone(520, 0.1, 'square', 0.03, 180, 0.02); } // …and gets its crow
 };
 // A light chiptune loop while running.
 const MELODY = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1046, 988, 784, 659, 587];
@@ -438,6 +440,7 @@ function burst(x, y, z, cols, n, spd) {
 function setMode(m) {
   S.mode = m; S.modeT = 0;
   document.getElementById('over').classList.toggle('show', m === 'gameover');
+  document.getElementById('pad').classList.toggle('show', m === 'sewer');
 }
 function newRun(hero) {
   S.hero = hero; turnTo(ROSTER.indexOf(hero));
@@ -445,7 +448,7 @@ function newRun(hero) {
   Object.assign(S, {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false,
-    sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0
+    sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0, stars: [], throws: 0, kills: 0, throwT: -9
   });
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null };
   S.msgs = [];
@@ -487,7 +490,7 @@ function act(dir) {
     return;
   }
   if (S.mode === 'gameover') { if (dir === 'go') newRun(S.hero); return; }
-  if (S.mode === 'sewer') { if (dir === 'U' || dir === 'go' || dir === 'tap') S.sewer.jump = true; return; }
+  if (S.mode === 'sewer') return; // the sewer has its own pad (below)
   if (S.mode !== 'run' && S.mode !== 'ready') return;
   const p = S.p;
   if (dir === 'L' || dir === 'R') {
@@ -515,15 +518,17 @@ window.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { setMenu(!S.menu); e.preventDefault(); return; }
   if (S.menu) return;
   if (e.key === 'Enter') { act('go'); e.preventDefault(); return; }
+  if (S.mode === 'sewer' && SEWER_KEYS[e.key]) { const k = SEWER_KEYS[e.key]; padKeys[k] = true; if (k === 'J' && !e.repeat) pad.tapped = true; e.preventDefault(); return; }
   const k = KEYS[e.key];
   if (k && !e.repeat) { act(k); e.preventDefault(); }
 });
+window.addEventListener('keyup', function (e) { if (SEWER_KEYS[e.key]) padKeys[SEWER_KEYS[e.key]] = false; });
 // Swipes anywhere on the screen; one move per swipe (lift and swipe again).
 const stage = document.getElementById('stage');
 const SWIPE = 22; // px
 let touch = null;
 stage.addEventListener('pointerdown', function (e) {
-  if (e.target.closest && e.target.closest('button')) return;
+  if (e.target.closest && (e.target.closest('button') || e.target.closest('#pad'))) return;
   audio();
   touch = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), fired: false };
 });
@@ -548,15 +553,64 @@ function touchEnd(e) {
     else if (i >= 0) { turnTo(i); SFX.hop(); haptic('light'); }
     else act(x < window.innerWidth / 2 ? 'L' : 'R');
   } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
-  else if (S.mode === 'sewer') act('tap'); // in the sewer a tap jumps too
 }
 stage.addEventListener('pointerup', touchEnd);
 stage.addEventListener('pointercancel', function () { touch = null; });
-window.addEventListener('blur', function () { touch = null; });
+window.addEventListener('blur', function () { touch = null; padRelease(); });
+
+// ---- the sewer's pad: a joystick and a jump button, like a Mario game ----------------
+// (user, Oct 12 2026). The stick's x walks; pushed all the way it runs.
+// Arrow keys / A-D run, Space / ↑ / W / Z / K jump (hold it to jump higher).
+const SEWER_KEYS = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ' ': 'J', ArrowUp: 'J', w: 'J', W: 'J', z: 'J', Z: 'J', k: 'J', K: 'J' };
+const padKeys = { L: false, R: false, J: false };
+const padEl = document.getElementById('pad'), stickEl = padEl.querySelector('.stick'), knobEl = padEl.querySelector('.knob'), jumpEl = document.getElementById('jumpbtn');
+const pad = { id: null, x: 0, jumpId: null, tapped: false }; // tapped: a press that's let go before the next step still jumps
+function padInput() {
+  const keys = (padKeys.R ? 1 : 0) - (padKeys.L ? 1 : 0);
+  const jump = padKeys.J || pad.jumpId !== null || pad.tapped;
+  pad.tapped = false;
+  return [keys || pad.x, jump];
+}
+function stickShow(kx, ky, dir) {
+  knobEl.style.transform = 'translate(' + (kx || 0) + 'px,' + (ky || 0) + 'px)';
+  stickEl.classList.toggle('on', pad.id !== null);
+  stickEl.setAttribute('data-dir', dir || '');
+}
+function stickRead(e) {
+  const r = stickEl.getBoundingClientRect(), R = Math.max(1, r.width / 2 - knobEl.offsetWidth / 2);
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy);
+  if (d > R) { dx *= R / d; dy *= R / d; }
+  pad.x = dx / R;
+  stickShow(dx, dy, pad.x > 0.25 ? 'R' : pad.x < -0.25 ? 'L' : '');
+}
+stickEl.addEventListener('pointerdown', function (e) {
+  e.preventDefault(); audio();
+  pad.id = e.pointerId; // a new thumb always takes over, so it can never stick
+  try { stickEl.setPointerCapture(e.pointerId); } catch { /* ok */ }
+  stickRead(e);
+});
+stickEl.addEventListener('pointermove', function (e) { if (e.pointerId === pad.id) stickRead(e); });
+function stickUp(e) { if (e.pointerId === pad.id) { pad.id = null; pad.x = 0; stickShow(0, 0, ''); } }
+function jumpUp(e) { if (e.pointerId === pad.jumpId) { pad.jumpId = null; jumpEl.classList.remove('on'); } }
+jumpEl.addEventListener('pointerdown', function (e) {
+  e.preventDefault(); audio();
+  pad.jumpId = e.pointerId; pad.tapped = true; jumpEl.classList.add('on');
+  try { jumpEl.setPointerCapture(e.pointerId); } catch { /* ok */ }
+});
+['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (t) { stickEl.addEventListener(t, stickUp); jumpEl.addEventListener(t, jumpUp); });
+window.addEventListener('pointerup', function (e) { stickUp(e); jumpUp(e); }, true);
+window.addEventListener('pointercancel', function (e) { stickUp(e); jumpUp(e); }, true);
+['touchend', 'touchcancel'].forEach(function (t) { document.addEventListener(t, function (e) { if (!e.touches.length) padRelease(); }, true); });
+function padRelease() {
+  pad.id = null; pad.x = 0; pad.jumpId = null; pad.tapped = false; padKeys.L = padKeys.R = padKeys.J = false;
+  jumpEl.classList.remove('on'); stickShow(0, 0, '');
+}
 
 const pauseEl = document.getElementById('pause');
 function setMenu(on) {
   S.menu = on; pauseEl.classList.toggle('show', on);
+  padRelease();
   if (on) document.getElementById('resume').focus();
 }
 document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
@@ -644,12 +698,46 @@ function updateRunner(dt) {
     o.gone = true; // the lucky cat smashed it
   }
 }
+// ---- Liam's skill: ninja stars -------------------------------------------------------
+// (user, Oct 12 2026: "Liam … should throw ninja stars at birds and kill them
+// when he gets close to them automatically as his advantage skill"). A crow
+// ahead on his train, once it's close, gets a star: thrown so it lands with
+// room to spare whatever the speed (STAR_TIME at today's speed + 1.5 m), the
+// crow tumbles off in a puff of feathers, +50. Crows on other trains are left
+// alone — hop into one too late and it still gets you.
+const STAR_TIME = 0.16, STAR_REACH = 9, CROW_KILL = 50;
+function ninjaStars(dt) {
+  const p = S.p, near = S.speed * STAR_TIME + 1.5;
+  S.obs.forEach(function (o) {
+    if (o.type !== 'crow' || o.gone || o.hit || o.marked || o.lane !== p.lane) return;
+    const ahead = o.d - S.dist;
+    if (ahead < near || ahead > near + STAR_REACH) return;
+    o.marked = true; S.throws++; S.throwT = S.t;
+    S.stars.push({ o: o, t: 0, x0: p.x, y0: p.y + 1.25 });
+    SFX.star();
+  });
+  for (let i = S.stars.length - 1; i >= 0; i--) {
+    const st = S.stars[i];
+    if ((st.t += dt) < STAR_TIME) continue;
+    S.stars.splice(i, 1);
+    const o = st.o, y = (roofAt(o.lane, o.d) || ROOF) + 1.35, z = S.dist - o.d;
+    o.gone = true; o.killT = S.t; S.kills++; S.score += CROW_KILL;
+    S.pops.push({ txt: '+' + CROW_KILL, t: 0.8, x: o.lane, y: y + 0.5, d: o.d });
+    const from = S.parts.length;
+    burst(LANES[o.lane], y, z, ['#15171c', '#2c313a', '#ffffff'], 14, 3);
+    for (let k = from; k < S.parts.length; k++) S.parts[k].vz += S.speed; // the feathers come past with the train
+    SFX.thunk(); haptic('light');
+    if (S.kills === 1) say('NINJA STAR!', 1.1, '#ff6b6b');
+  }
+}
+
 // ---- the sewer (Jake's secret) ------------------------------------------------------
 function manholeUnder(lane) {
   return !S.simulating && S.gaps.some(function (g) { return g.manhole && g.lane === lane && S.dist > g.g0 - NOSE && S.dist < g.g1; });
 }
 function enterSewer() {
-  S.sewer = { s: createSewer(), acc: 0, jump: false, plan: S.sewerPlan || null };
+  S.sewer = { s: createSewer(), acc: 0, cam: -2.2, plan: S.sewerPlan || null };
+  padRelease();
   setMode('sewer');
   SFX.sewer(); haptic('success');
 }
@@ -658,13 +746,14 @@ function updateSewer(dt) {
   sw.acc += dt;
   while (sw.acc >= SEWER_STEP) { // fixed steps, so a run replays exactly
     sw.acc -= SEWER_STEP;
-    const jump = sw.jump || (sw.plan ? sw.plan.has(s.steps) : false);
-    sw.jump = false;
-    stepSewer(s, jump);
+    let m = padInput();
+    if (sw.plan) m = sw.plan[Math.floor(s.steps / SEWER_BLOCK)] || [0, 0];
+    stepSewer(s, m[0], m[1]);
     s.events.forEach(function (e) {
       if (e === 'jump') SFX.jump();
       else if (e === 'coin') SFX.coin();
       else if (e === 'stomp') { SFX.hop(); haptic('light'); }
+      else if (e === 'skid') SFX.slide();
       else if (e === 'die') { SFX.crash(); haptic('error'); }
       else if (e === 'exit') { SFX.pipe(); haptic('success'); }
     });
@@ -730,6 +819,7 @@ function update(dt) {
     scoreUnlocks();
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
+    if (S.hero === 'liam') ninjaStars(dt);
     updateRunner(dt);
     // stages: Tokyo → … → Kyoto, then round again
     const st = Math.floor(S.dist / STAGE_LEN), stage = st % 5, lap = Math.floor(st / 5);
@@ -781,9 +871,9 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
-  get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
-  sewerRoute: function () { return routeExists(); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get throws() { return S.throws; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
+  sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
   shown: function (kind) { return R.shown(kind); }, // where the visible models of a kind are (tests)
@@ -801,7 +891,7 @@ if (INIT.debug) {
     spring: function () { S.spring = true; },
     manhole: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2, manhole: true }); return g0 - S.dist; },
     sewer: function () { enterSewer(); },
-    sewerPlan: function (steps) { S.sewerPlan = steps ? new Set(steps) : null; if (S.sewer) S.sewer.plan = S.sewerPlan; },
+    sewerPlan: function (plan) { S.sewerPlan = plan || null; if (S.sewer) S.sewer.plan = S.sewerPlan; }, // [stick, jump] per BLOCK steps
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
     go: function () { if (S.mode === 'ready') S.modeT = 2.4; },

@@ -15,6 +15,33 @@ Every game scores into the shared points / leaderboards (`game_entries`,
 - **Trip leaderboard** across every game (placings → trip points).
 - **Shinkansen Dash:** endless runner on three bullet trains, Tokyo → Kyoto.
 
+**Shinkansen Dash — a special skill for every traveler (brainstorm, Oct 12 2026)**
+The user asked for each character to have an "advantage skill"; Liam's is
+built (auto ninja stars at crows on his train). Proposals, first pick
+first — each fits the person and a hazard the game already has:
+- **Chris — Pickaxe:** smashes straight through a roof fairing instead of
+  jumping it (every ~8 s, rubble flies). Alt: *Miner's lamp*: tunnels lit,
+  onigiri in tunnels count double.
+- **Bennett — Poncho glide:** hold the jump and the poncho catches the air:
+  a slow float, so long jumps and train-end gaps are easier. Alt: *Andes
+  lungs*: the run starts at a slower speed and speeds up later.
+- **Emily — Speed reader:** just before a crash, a beat of slow motion to
+  react (once per stage). Alt: *Hardcover*: the book blocks one crash per
+  stage, like the lucky cat.
+- **Miles — Encore:** a double jump on every jump, no spring needed (he still
+  needs the spring for the guitar's height? — decide). Alt: *Power chord*: a
+  strum knocks the pantograph ahead flat.
+- **Nicole — Boba magnet:** onigiri and boba on the next train over fly to
+  her. Alt: *Cat-eye specs*: train ends and gaps flash earlier.
+- **Jake — Manhole master:** falling into a gap doesn't end the run: he drops
+  into a short sewer stretch and pops back up (once per stage). Alt: *Sludge
+  armour*: while sludge-covered, one crash is shrugged off.
+- **Liam — Ninja stars (built):** crows on his train are felled before they
+  reach him, +50 each.
+Balance: skills make the high-score board uneven between travelers (the
+Rampage girls' +15% already does). Options: keep each small, or show each
+traveler's best on the board.
+
 **Chosen — to build (Oct 3 2026)**
 - **Sushi Conveyor:** catch and match plates as the belt speeds up. Short
   rounds for train rides.

@@ -32,6 +32,27 @@
   #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 16%; gap: 12px; z-index: 3; pointer-events: none; }
   #over.show { display: flex; }
   #over button { pointer-events: auto; box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #1d6b2d, 0 8px 18px rgba(0,0,0,0.45); }
+  /* The sewer's pad (only in the sewer): a joystick on the left, a big
+     jump button on the right, like a Mario game. --u sizes it from the width. */
+  #pad { --u: clamp(46px, calc((100vw - 60px) / 6.6), 66px); position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: none;
+    align-items: center; justify-content: space-between; padding: 0 18px 18px; pointer-events: none; }
+  #pad.show { display: flex; }
+  .stick { position: relative; width: calc(var(--u) * 2.8 + 18px); height: calc(var(--u) * 2.8 + 18px); border-radius: 50%; touch-action: none; pointer-events: auto;
+    background: radial-gradient(circle, rgba(6,10,20,0.6) 0 55%, rgba(255,255,255,0.08) 72%, rgba(255,255,255,0.03));
+    box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.18), inset 0 8px 18px rgba(0,0,0,0.5); }
+  .stick .mark { position: absolute; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.35); font-size: 15px; line-height: 1; pointer-events: none; }
+  .stick .ml { left: 11px; } .stick .mr { right: 11px; }
+  .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr { color: #ffd43b; }
+  .knob { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 1.3); height: calc(var(--u) * 1.3); margin: calc(var(--u) * -0.65) 0 0 calc(var(--u) * -0.65);
+    border-radius: 50%; pointer-events: none; transition: transform 0.14s cubic-bezier(.3,1.6,.5,1);
+    background: radial-gradient(circle at 36% 30%, #8a96a8, #4a5568 55%, #2d3748);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), inset 0 -4px 8px rgba(0,0,0,0.25), 0 6px 0 #161c27, 0 10px 16px rgba(0,0,0,0.45); }
+  .stick.on .knob { transition: none; background: radial-gradient(circle at 36% 30%, #a3aec0, #5a667b 55%, #3a4558); }
+  #jumpbtn { pointer-events: auto; touch-action: none; width: calc(var(--u) * 1.75); height: calc(var(--u) * 1.75); margin-bottom: calc(var(--u) * 0.35); border-radius: 50%; border: 0; padding: 0;
+    color: #fff; font: 900 calc(var(--u) * 0.5) "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif; letter-spacing: 0.5px;
+    background: radial-gradient(circle at 38% 30%, #ff8787, #e03131 60%, #a51d1d);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 6px 0 #6b1111, 0 10px 18px rgba(0,0,0,0.45); }
+  #jumpbtn.on { transform: translateY(4px); box-shadow: inset 0 3px 0 rgba(255,255,255,0.3), 0 2px 0 #6b1111, 0 4px 10px rgba(0,0,0,0.4); }
 </style>
 </head>
 <body>
@@ -46,6 +67,13 @@
       <button id="psound" class="alt" type="button">SOUND: ON</button>
       <button id="exit" class="quit" type="button" aria-label="Leave the game">LEAVE GAME</button>
     </div>
+  </div>
+  <div id="pad">
+    <div class="stick" role="img" aria-label="Joystick: push left or right to walk, all the way to run (arrow keys work too)">
+      <span class="mark ml" aria-hidden="true">◀</span><span class="mark mr" aria-hidden="true">▶</span>
+      <div class="knob"></div>
+    </div>
+    <button id="jumpbtn" type="button" aria-label="Jump (hold to jump higher)">JUMP</button>
   </div>
   <div id="over">
     <button id="again" type="button">TRY AGAIN</button>

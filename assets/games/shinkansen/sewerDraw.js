@@ -18,8 +18,12 @@ const LOOK2D = {
 export function drawSewer(ctx, view, u, sw, S, text, round) {
   const s = sw.s, W = view.cw, H = view.ch;
   const T = Math.min(W / 9, H / 11); // one tile in px
-  const floorY = H * 0.74;
-  const camX = s.x - 2.2;
+  const floorY = H * 0.62; // (the pad sits under the floor)
+  // The camera follows like Mario 3's: you stay in a band left of centre,
+  // and it scrolls back when you run back.
+  const span = W / T;
+  sw.cam = Math.max(LEVEL.FLOORS[0][0], Math.min(LEVEL.LENGTH - span, Math.max(s.x - span * 0.45, Math.min(sw.cam, s.x - span * 0.25))));
+  const camX = sw.cam;
   const X = (x) => (x - camX) * T, Y = (y) => floorY - y * T;
   const t = s.t;
 
@@ -120,8 +124,10 @@ export function drawSewer(ctx, view, u, sw, S, text, round) {
   if (s.dead !== null) { const k = s.t - s.dead; py = s.y + 2.5 * k - 9 * k * k; rot = Math.min(Math.PI, k * 6); }
   if (s.done !== null) py = s.y - Math.min(PH + 0.2, (s.t - s.done) * 1.6); // down the pipe
   const pw = PW * T, ph = PH * T * (L.tall ? 1.08 : 1), x0 = X(s.x), y0 = Y(py);
-  ctx.save(); ctx.translate(x0 + pw / 2, y0 - ph / 2); ctx.rotate(rot); ctx.translate(-pw / 2, ph / 2);
-  const run = s.ground && s.dead === null ? Math.sin(s.steps * 0.45) : 0, air = !s.ground;
+  ctx.save(); ctx.translate(x0 + pw / 2, y0 - ph / 2); ctx.rotate(rot); ctx.scale(s.face, 1);
+  if (s.skid) ctx.rotate(-0.18); // leaning back into a skid
+  ctx.translate(-pw / 2, ph / 2);
+  const run = s.ground && s.dead === null && Math.abs(s.vx) > 0.3 ? Math.sin(s.stride * 2.6) : 0, air = !s.ground;
   ctx.fillStyle = L.legs;
   ctx.fillRect(pw * 0.14 + (air ? -pw * 0.08 : run * pw * 0.12), -ph * 0.4, pw * 0.3, ph * 0.4);
   ctx.fillRect(pw * 0.56 + (air ? pw * 0.1 : -run * pw * 0.12), -ph * 0.4 - (air ? ph * 0.06 : 0), pw * 0.3, ph * 0.4);
@@ -155,7 +161,11 @@ export function drawSewer(ctx, view, u, sw, S, text, round) {
   round(bx, top + 25 * u, bw2, 8 * u, 4 * u, 'rgba(255,255,255,0.2)');
   round(bx, top + 25 * u, Math.max(8 * u, bw2 * prog), 8 * u, 4 * u, '#69db7c');
   ctx.fillStyle = '#37b24d'; ctx.fillRect(bx + bw2 - 6 * u, top + 17 * u, 10 * u, 22 * u);
-  if (t < 3 && s.dead === null) text('TAP OR SWIPE UP TO JUMP', W / 2, H * 0.3, 15, '#ffffff', { lw: 3.5 });
+  if (t < 4 && s.dead === null) text('HOLD JUMP TO JUMP HIGHER', W / 2, H * 0.3, 15, '#ffffff', { lw: 3.5 });
+  if (s.skid && s.ground) { // dust from a skid
+    ctx.fillStyle = 'rgba(220,220,220,0.6)';
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(x0 + pw / 2 - s.face * (pw * 0.5 + i * T * 0.15), Y(0) - T * (0.08 + ((t * 9 + i) % 1) * 0.2), T * 0.08, 0, Math.PI * 2); ctx.fill(); }
+  }
   if (s.dead !== null) text(s.y < -1 ? 'SPLOSH!' : 'THE RATS GOT YOU!', W / 2, H * 0.3, 26, '#ff8787', { lw: 6 });
   if (s.done !== null) text('DOWN THE PIPE!', W / 2, H * 0.3, 24, '#8ce99a', { lw: 6 });
 }

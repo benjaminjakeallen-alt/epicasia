@@ -290,17 +290,21 @@ test('Jake: a manhole in a gap drops you into the sewer; reach the pipe to unloc
   await page.getByTestId('dash-play').click();
   let f = await game(page);
   const dash = () => f.evaluate(() => { const d = (window as any).__dash; return { mode: d.mode, sludge: d.sludge, locked: d.locked, score: d.score, sewer: d.sewer }; });
-  // The level can be finished (a search over every jump timing finds a route)…
-  const plan: number[] = await f.evaluate(() => (window as any).__dash.sewerRoute());
-  expect(plan && plan.length).toBeGreaterThan(5);
+  // The level can be finished (a search over stick and jump-button inputs finds a route)…
+  const plan: [number, number][] = await f.evaluate(() => (window as any).__dash.sewerRoute());
+  expect(plan && plan.length).toBeGreaterThan(20);
+  expect(await f.evaluate((p) => (window as any).__dash.sewerReplay(p), plan)).toMatchObject({ done: true, dead: false });
+  // …but not by holding right and hopping.
+  const hop = Array.from({ length: 400 }, (_, i) => [1, i % 8 < 4 ? 1 : 0]);
+  expect(await f.evaluate((p) => (window as any).__dash.sewerReplay(p), hop)).toMatchObject({ done: false, dead: true });
   // …and the manholes come twice a round.
   expect(await f.evaluate(() => (window as any).__dash.fairnessProblems())).toEqual([]);
 
   // Fall into a gap with a manhole: the sewer, not "mind the gap".
   await start(page, f, 0);
   await debug(f, 'calm');
-  // (playing the route but missing the second jump, over the first sludge pit)
-  await debug(f, 'sewerPlan', plan.filter((_, i) => i !== 1));
+  // (bunny-hopping: short jumps, into the first sludge pit)
+  await debug(f, 'sewerPlan', hop);
   await debug(f, 'manhole', 1, 8);
   await expect.poll(async () => (await dash()).mode, { timeout: 20_000 }).toBe('sewer');
   // Splosh: the run is over — no Jake.
@@ -346,6 +350,64 @@ test('Jake: a manhole in a gap drops you into the sewer; reach the pipe to unloc
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').some((i) => (i.body as unknown as Record<string, unknown>[])[0].hero === 'jake')).toBe(true);
 });
 
+test('the sewer plays like Mario 3: a joystick that walks and runs, a jump button that goes higher when held', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  const sw = () => f.evaluate(() => (window as any).__dash.sewer);
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  await expect(ui.locator('#pad')).toBeHidden();
+  await debug(f, 'sewer');
+  await expect.poll(async () => (await st(f)).mode).toBe('sewer');
+  await expect(ui.locator('#pad')).toBeVisible();
+  await expect(ui.getByRole('button', { name: 'Jump (hold to jump higher)' })).toBeVisible();
+
+  // The stick pushed all the way runs; speed builds up rather than snapping.
+  const box = (await ui.locator('.stick').boundingBox())!;
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  await page.mouse.move(cx + box.width, cy, { steps: 3 });
+  const fast = { timeout: 5_000, intervals: [50] };
+  await expect.poll(async () => (await sw()).vx, fast).toBeGreaterThan(8.5);
+  await expect.poll(async () => (await sw()).x, fast).toBeGreaterThan(10); // up to the first pipe
+  // Back the other way, part way: you skid, turn round and walk left.
+  await page.mouse.move(cx - box.width * 0.2, cy, { steps: 2 });
+  await expect.poll(async () => (await sw()).vx, fast).toBeCloseTo(-5.5, 1);
+  expect((await sw()).face).toBe(-1);
+  // All the way: a run.
+  await page.mouse.move(cx - box.width, cy, { steps: 2 });
+  await expect.poll(async () => (await sw()).vx, fast).toBeLessThan(-8.5);
+  // Let go: you slow to a stop.
+  await page.mouse.up();
+  await expect.poll(async () => (await sw()).vx, { timeout: 5_000 }).toBe(0);
+
+  // A quick tap of jump is a hop; held, the same jump goes well over a pipe's height.
+  const jumpBtn = (await ui.locator('#jumpbtn').boundingBox())!;
+  await page.mouse.move(jumpBtn.x + jumpBtn.width / 2, jumpBtn.y + jumpBtn.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect.poll(async () => (await sw()).y, { timeout: 5_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
+  const hop = (await sw()).peak;
+  expect(hop).toBeLessThan(1.5);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+  await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
+  expect((await sw()).peak).toBeGreaterThan(2.3);
+
+  // Keys too: → runs, Space jumps.
+  await page.keyboard.down('ArrowRight');
+  await expect.poll(async () => (await sw()).vx, { timeout: 5_000 }).toBeGreaterThan(8.5);
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.press(' ');
+  await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(false);
+});
+
 test('Liam the ninja: score 30,000 in a run', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');
@@ -367,6 +429,21 @@ test('Liam the ninja: score 30,000 in a run', async ({ page }) => {
   expect(await f.evaluate(() => (window as any).__dash.locked)).toEqual(['emily', 'miles', 'nicole', 'jake']);
   await start(page, f, 6);
   expect((await st(f)).hero).toBe('liam');
+
+  // His skill: a crow ahead on his train gets a ninja star before it reaches him (+50)…
+  await debug(f, 'calm');
+  const ninja = () => f.evaluate(() => { const d = (window as any).__dash; return { mode: d.mode, throws: d.throws, kills: d.kills, score: d.score }; });
+  const before = await ninja();
+  await debug(f, 'spawn', 'crow', 1, 45);
+  await expect.poll(async () => (await ninja()).kills, { timeout: 10_000 }).toBe(1);
+  await page.waitForTimeout(2500);
+  const after = await ninja();
+  expect(after).toMatchObject({ mode: 'run', throws: 1, kills: 1 });
+  expect(after.score).toBeGreaterThanOrEqual(before.score + 50);
+  // …but a crow on another train is left alone.
+  await debug(f, 'spawn', 'crow', 0, 45);
+  await page.waitForTimeout(4000);
+  expect(await ninja()).toMatchObject({ mode: 'run', throws: 1, kills: 1 });
   await debug(f, 'gameOver', 31_000);
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').some((i) => (i.body as unknown as Record<string, unknown>[])[0].hero === 'liam')).toBe(true);
 });

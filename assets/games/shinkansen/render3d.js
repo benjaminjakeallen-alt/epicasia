@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeShuriken, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -393,6 +393,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       };
       rate = 30;
     }
+    if (S.hero === 'liam' && t - S.throwT < 0.22 && S.mode === 'run') { // the throw: a flick of the right arm
+      const q = (t - S.throwT) / 0.22;
+      target = Object.assign({}, target, { armR: q < 0.35 ? -2.6 : -1.3, armRz: q < 0.35 ? 0.5 : -0.2 });
+      rate = 40;
+    }
     const kb = 1 - Math.exp(-dt * rate);
     POSE_KEYS.forEach((k) => { live[k] += ((target[k] || 0) - live[k]) * kb; });
     m.rotation.set(live.rootX, Math.PI, live.rootZ + tilt);
@@ -517,7 +522,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     // obstacles and pickups
     S.obs.forEach((o) => {
       const flying = o.gone && o.gotT !== undefined && t - o.gotT < 0.35; // a pickup you just grabbed
-      if ((o.gone && !flying) || o.d > to || o.d < from) return;
+      const felled = o.gone && o.killT !== undefined && t - o.killT < 0.7; // a crow Liam's star just got
+      if ((o.gone && !flying && !felled) || o.d > to || o.d < from) return;
       const def = OBS[o.type], base = def.all ? ROOF : game.roofAt(o.lane, o.d) || ROOF;
       const x = def.all ? 0 : LANES[o.lane];
       let m;
@@ -529,6 +535,13 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
           m = take('crow', makeCrow); m.position.set(x, base + 1.35 + Math.sin(t * 6 + o.d) * 0.08, z(o.d));
           m.userData.wings[0].rotation.z = Math.sin(t * 18 + o.d) * 0.7;
           m.userData.wings[1].rotation.z = -Math.sin(t * 18 + o.d) * 0.7;
+          m.rotation.set(0, 0, 0);
+          if (felled) { // tumbling off the roof, wings limp
+            const k = t - o.killT;
+            m.position.y -= k * 1.5 + k * k * 9; m.position.x += (o.lane === 2 ? 1 : -1) * k * 3;
+            m.rotation.set(k * 9, 0, k * 6);
+            m.userData.wings[0].rotation.z = 1.2; m.userData.wings[1].rotation.z = -1.2;
+          }
           break;
         case 'onigiri': m = take('onigiri', makeOnigiri); m.position.set(x, base + 0.45 + (o.h || 0) + Math.sin(t * 4 + o.d) * 0.08, z(o.d)); m.rotation.y = t * 3 + o.d; break;
         case 'boba': // floats over head height, bobbing and turning, so you jump for it
@@ -545,6 +558,15 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         m.rotation.y += k * 12;
         m.scale.setScalar(Math.max(0.05, 1.25 - k * 1.2));
       } else m.scale.setScalar(1);
+    });
+
+    // Liam's ninja stars, spinning flat from his hand to their crow
+    S.stars.forEach((st) => {
+      const o = st.o, k = Math.min(1, st.t / 0.16), m = take('star', makeShuriken);
+      const tx = LANES[o.lane], ty = (game.roofAt(o.lane, o.d) || ROOF) + 1.35, tz = z(o.d);
+      m.position.set(st.x0 + (tx - st.x0) * k, st.y0 + (ty - st.y0) * k + Math.sin(k * Math.PI) * 0.25, tz * k);
+      m.rotation.set(0.25, t * 40, 0);
+      m.scale.setScalar(1.3);
     });
 
     // the runner (or the line-up on the select screen)
@@ -606,7 +628,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // obstacle or tunnel appears mid-run nothing has to be built.
   function prewarm() {
     STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
-    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba); take('spring', makeSpring); take('guitar', makeGuitar);
+    take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('star', makeShuriken); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba); take('spring', makeSpring); take('guitar', makeGuitar);
     take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
     take('nose', () => glossy(makeNose(NOSE, noseHeight))); take('manhole', makeManhole);
     take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));

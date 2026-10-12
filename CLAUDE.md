@@ -642,20 +642,34 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   green steam rising past the roofs (`makeManhole`). Dropping into that gap
   anywhere → `enterSewer()` instead of "MIND THE GAP". **The sewer**
   (`sewer.js` logic, `sewerDraw.js` drawn on the HUD canvas; 3D isn't
-  redrawn meanwhile): an auto-running Mario-style level in tiles —
-  sludge pits, solid green pipes (a wall just holds you until you jump),
-  brick ledges, patrolling rats (land on them to stomp, +100; touch them
-  otherwise and you're done), coins (+10), and the big end pipe (land on
-  top → down it, +500). Tap / swipe up / ↑ / Space jumps (coyote time and
-  a jump buffer). Fixed 1/60 s steps, so a run replays exactly;
-  `routeExists()` (`__dash.sewerRoute()`) searches every jump timing and
-  returns the jump steps (17 for the current level, ~24 s) — re-run it
+  redrawn meanwhile): a Mario-style level in tiles —
+  sludge pits, solid green pipes, brick ledges, patrolling rats (land on
+  them to stomp, +100; touch them otherwise and you're done), coins (+10),
+  and the big end pipe (land on top → down it, +500). **Controls like
+  Super Mario Bros. 3** (user, Oct 12 2026: "a joystick, jump button just
+  like a Mario game"): a DOM pad shown only in the sewer (`#pad` — a
+  joystick bottom-left, a red JUMP button bottom-right; the floor is drawn
+  at 62% height so the pad sits under it). The stick's x walks (`WALK`
+  5.5 tiles/s), pushed past 85% it runs (`RUN` 9); speed builds and eases
+  off, reversing at speed skids (lean + dust); held jump rises on low
+  gravity (`G_HOLD` 32) until let go or the peak, then falls on `G` 85, so
+  a tap is a ~1-tile hop and a hold ~2.6 tiles (more at a run); a little
+  air steering, never faster than take-off; hold jump on a stomp to bounce
+  higher; walls on both sides; the camera follows in a band and scrolls
+  back. Keys: ←/→ (A/D) run, Space/↑/W/Z/K jump. A press let go before the
+  next step still jumps (`pad.tapped`); the pad releases on blur, pause and
+  when no finger is left (never sticks). Fixed 1/60 s steps
+  (`stepSewer(s, stick, jumpHeld)`), so a run replays exactly;
+  `routeExists()` (`__dash.sewerRoute()`) searches stick + button inputs
+  (one of `MOVES` every `BLOCK` 5 steps, bucketed, furthest 200 kept) and
+  returns that plan (~17 s for the current level); `replay(plan)`
+  (`__dash.sewerReplay`) plays one headless — re-run both
   whenever the level changes. **Dying in the sewer ends the run** (score
   saved). Out of the pipe: Jake unlocks (first time), you drop back onto
   an open train with 2.2 s of invulnerability and a clear stretch, and
   you're **covered in sludge** (`S.sludge`: a brown-tinted copy of the
   hero's material, drips) **until the run ends**. Debug: `manhole(lane,
-  ahead)`, `sewer()`, `sewerPlan(steps)`; `__dash.shown(kind)` lists where
+  ahead)`, `sewer()`, `sewerPlan(plan)`; `__dash.shown(kind)` lists where
   visible models of a kind are. Runs save as hero `jake`
   (`0024_shinkansen_jake.sql`).
 - **Liam the ninja — 30,000 points in one run** (user, Oct 12 2026: "dressed
@@ -667,6 +681,16 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   = { score: 30000 }`, checked by `scoreUnlocks()` every run step and after
   the sewer's bonus. Debug `score(n)`. Runs save as hero `liam`
   (`0025_shinkansen_liam.sql`).
+  **His skill — ninja stars** (user: "throw ninja stars at birds and kill
+  them when he gets close to them automatically as his advantage skill";
+  `ninjaStars()`): a crow ahead **on his own train** inside
+  `speed × STAR_TIME + 1.5` … `+ STAR_REACH` (9) m gets a star
+  (`S.stars`, `makeShuriken`, a 0.16 s flight that always lands with
+  room to spare at any speed), his right arm flicks, the crow tumbles off
+  (`o.killT`) in a puff of feathers, +50. Crows on other trains are left
+  alone. `__dash.throws` / `kills`. The ring shows "★ NINJA STARS" under
+  his name (`HEROES[k].skill`) — the other travelers' skills are only
+  proposals so far (`docs/ideas.md`).
 - **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
   faster end of the board if you collect a boba drink you unlock Nicole";
   `LOOKS.nicole` in Rampage's models.js, redesigned Oct 12 2026 — user:
