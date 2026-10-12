@@ -620,8 +620,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   getting to ending pipe you drop back into Shinkansen dash but the
   character should be covered in brown sludge… till they die"; `LOOKS.jake`
   — shaved head with a shine, chunky black square glasses
-  (`squareGlasses`), his gold metallic bomber with long sleeves, ribbed
-  cuffs/hem and a sheen (`longSleeves`, `sheen`, `print`), dark trousers).
+  (`squareGlasses`), a navy blazer over a white shirt and pink-striped tie
+  (`longSleeves`, `print`; user: not the gold jacket), navy trousers).
   **Manholes:** the first train gap past 1,300 m and past 3,500 m of every
   5 km round carries one (`MANHOLES`, `g.manhole`, set in `scheduleGap`
   without a random draw, so layouts don't change; `fairnessProblems()`
@@ -657,10 +657,13 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   (`0025_shinkansen_liam.sql`).
 - **Nicole — unlocked with a boba tea** (user, Oct 11 2026: "If in the
   faster end of the board if you collect a boba drink you unlock Nicole";
-  modelled on her photos as `LOOKS.nicole` in Rampage's models.js — a
-  copper-auburn side-parted bob, teal cat-eye glasses, freckles, white tee,
-  jeans and her rust crossbody belt bag; the glasses/freckles/strap/bag
-  options only switch on for her). A **boba tea** (`makeBoba`, `OBS.boba`)
+  `LOOKS.nicole` in Rampage's models.js, redesigned Oct 12 2026 — user:
+  "look cooler… not dark glasses but glasses you can see eyes through":
+  a glossy copper bob (`bobHair`) tucked behind one ear with a gold
+  earring, clear teal browline glasses (`browlineGlasses` — frames along the
+  brows only), lashes and winged liner (`lashes`), freckles; a cropped rust
+  suede moto jacket over a white top with a gold pendant, high-waisted
+  light jeans and belt, white sneakers; slimmer and longer-legged (`build`)). A **boba tea** (`makeBoba`, `OBS.boba`)
   floats above head height (lo 1.9 m), so only a jump collects it; it
   appears only from **Tea Hills on** (`BOBA_FROM` 3 km — the fast end,
   and every later round), ~6% of rows, one at a time, over a train with

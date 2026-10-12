@@ -84,28 +84,30 @@ export const LOOKS = {
       return null;
     }
   },
-  // Nicole (Shinkansen Dash, unlocked with a boba tea): a copper-auburn
-  // chin-length bob with a side part, blue-green eyes, freckles, dark teal
-  // cat-eye glasses; white tee, jeans, and her rust crossbody belt bag.
+  // Nicole (Shinkansen Dash, unlocked with a boba tea; user Oct 12 2026: "look
+  // cooler… glasses you can see eyes through… cool"): a glossy copper bob
+  // tucked behind one ear with a gold earring, clear teal browline glasses
+  // (only along the brows, so her eyes show), lashes and a little winged
+  // liner, berry lips, freckles; a cropped rust suede moto jacket over a white
+  // top and a gold necklace, high-waisted light jeans, white sneakers; a
+  // slimmer, longer-legged build.
   nicole: {
-    skin: 0xf3cdb2, skinShade: 0xdfae90, eye: 0x4f7f86, brow: 0x9a4a28, mouth: 0xc0505a, blush: 0xf0a99e,
-    freckles: 0xcf8f69, glasses: 0x2c4a55,
-    shirt: 0xf5f2ea, shirtDark: 0xe2ddd2, pants: 0x7894bb, shoes: 0xf1f3f5,
-    strap: 0xe9e2d0, bag: 0xa65a3c,
-    hair: (u, w, d, core) => {
-      const n = hash3(u + 3, w * 2, d + 5);
-      const c = n < 0.22 ? 0xd27c46 : n < 0.62 ? 0xb5582c : 0x9f4a26;
-      if (core) {
-        if (w >= 12) return c;
-        if (d === 13 && w >= 11 && u <= 4) return c; // swept from a side part
-        if (d <= 1 && w >= 1) return c;
-        return null;
-      }
-      if (w >= 14) return d >= 1 && d <= 12 && u >= 1 && u <= 12 ? c : null;
-      if ((u === -1 || u === 14) && w >= 1 && w <= 13 && d >= 0 && d <= 12) return c; // to the chin
-      if (d === -1 && w >= 1 && w <= 13 && u >= 0 && u <= 13) return c;
+    skin: 0xf4cfb6, skinShade: 0xe0b098, eye: 0x2f6b72, brow: 0x9a4a28, mouth: 0xc8546a, blush: 0xf0a3a0,
+    freckles: 0xd99a78, glasses: 0x8fd0cc, browlineGlasses: true, lashes: 0x2b1a14,
+    shirt: 0xb4532a, shirtDark: 0x8f3f1e, cuff: 0x8f3f1e, pants: 0x9cb9dc, shoes: 0xf4f4f4, longSleeves: true,
+    build: { legs: 1.1, torso: 1, slim: 0.88, arms: 1.06 },
+    print: (x, y, z) => {
+      if (y <= 1) return 0x9cb9dc; // high-waisted jeans
+      if (y === 2) return z === 6 && x === 5 ? 0xf2c14e : 0x5a3a22; // belt and buckle
+      if (z === 6 && x >= 4 && x <= 6) return y === 9 && x === 5 ? 0xf2c14e : 0xf7f3ea; // white top, a gold pendant
+      if (z === 6 && (x === 3 || x === 7) && y >= 5) return 0x8f3f1e; // lapels
+      if (y === 3 && z === 6) return 0xc9c3b8; // the jacket's zip end
       return null;
-    }
+    },
+    hair: (() => {
+      const bob = bobHair({ colors: [0xe08a4e, 0xc8682f, 0xa9532a], part: 'right', len: 1, aline: 2, volume: 0.45, sweep: 4, tuck: 'left' });
+      return (u, w, d, core) => (u === -1 && w === 4 && d === 7 ? 0xf2c14e : bob(u, w, d, core)); // a gold earring on the tucked side
+    })()
   },
   // Miles (Shinkansen Dash, unlocked with a golden guitar): shaggy dark-brown
   // hair with a heavy fringe over the brows and over the ears, round
@@ -154,18 +156,19 @@ export const LOOKS = {
       return null;
     }
   },
-  // Jake (Shinkansen Dash, the sewer secret): shaved head with a shine,
-  // chunky black square glasses, a big smile; his gold metallic bomber
-  // jacket (crinkled sheen, ribbed cuffs and hem) over dark trousers.
+  // Jake (Shinkansen Dash, the sewer secret): shaved head with a shine, chunky
+  // black square glasses, a big smile; a navy blazer over a white shirt and
+  // a pink-striped tie (user: not the gold jacket), navy trousers, brown shoes.
   jake: {
     skin: 0xf2c1a3, skinShade: 0xdca48a, eye: 0x6c8aa0, brow: 0x8a6a55, mouth: 0xb44a4f, blush: 0xeaa592,
     glasses: 0x17181b, squareGlasses: true,
-    shirt: 0xe4b53c, shirtDark: 0xc99a24, cuff: 0xd8a326, pants: 0x2b2d31, shoes: 0xd9cfc0, longSleeves: true, sheen: 0xf7dc7a,
-    print: (x, y, z) => { // crinkled metallic sheen, a zip down the front
-      if (z === 6 && x === 5 && y >= 1) return 0xc99a24;
-      if (y === 0) return 0xd8a326; // ribbed hem
-      const n = hash3(x, y, z + 31);
-      return n < 0.18 ? 0xf7dc7a : n > 0.86 ? 0xc0901f : null;
+    shirt: 0x23365e, shirtDark: 0x1b2a4a, cuff: 0xf3f3f3, pants: 0x23365e, shoes: 0x5a3b26, longSleeves: true,
+    print: (x, y, z) => {
+      if (z === 6 && x === 5 && y >= 3 && y <= 9) return y % 2 ? 0xd98aa0 : 0xf3d6dd; // the striped tie
+      if (z === 6 && x >= 4 && x <= 6 && y >= 6) return 0xf7f7f5; // white shirt in the open collar
+      if (z === 6 && (x === 3 || x === 7) && y >= 5) return 0x1b2a4a; // lapels
+      if (z === 6 && x === 4 && (y === 2 || y === 4)) return 0xc9ccd4; // buttons
+      return null;
     },
     hair: (u, w, d, core) => (core && w === 13 && d >= 7 && d <= 10 && u >= 3 && u <= 6 ? 0xffe2d0 : null) // scalp shine
   },
@@ -262,7 +265,15 @@ function head(look) {
       return null;
     }
     if (edges >= 2) return null; // rounded edges
-    if (look.glasses && d === 13) { // frames round each eye, a bridge, cat-eye corners (or round)
+    if (look.browlineGlasses && d === 13) { // clear browline frames: along the brows only, the eyes show through
+      if (w === 9 && ((u >= 2 && u <= 5) || (u >= 8 && u <= 11))) return look.glasses;
+      if (w === 8 && (u === 6 || u === 7)) return look.glasses; // the bridge
+      if (w === 10 && (u === 1 || u === 12)) return look.glasses; // a little lift at the corners
+      if ((u === 2 || u === 11) && w === 8) return look.glasses;
+    }
+    if (look.lashes && d === 13 && w === 8 && ((u >= 3 && u <= 4) || (u >= 9 && u <= 10))) return look.lashes; // lashes
+    if (look.lashes && d === 13 && w === 7 && (u === 2 || u === 11)) return look.lashes; // a little winged liner, out at the corners
+    if (look.glasses && !look.browlineGlasses && d === 13) { // frames round each eye, a bridge, cat-eye corners (or round)
       const lens = (u >= 2 && u <= 5) || (u >= 8 && u <= 11);
       const corner = look.roundGlasses && (w === 5 || w === 8) && (u === 2 || u === 5 || u === 8 || u === 11); // rounded frames
       if (lens && !corner && w >= 5 && w <= 8 && (u === 2 || u === 5 || u === 8 || u === 11 || w === 5 || w === 8)) return look.glasses;
