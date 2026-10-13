@@ -22,6 +22,33 @@ manhole skateboard every 30 onigiri, Liam ninja stars — see CLAUDE.md).
 Not picked: Emily's "speed reader"/"hardcover", Miles's "power chord",
 Nicole's "cat-eye specs", Jake's "manhole master"/"sludge armour".
 
+**Planned (user, Oct 13 2026): a 4-player co-op on the Great Wall** — a
+take on *Chained Together*: four travellers chained to each other must get
+along the Great Wall through 3 levels of creative obstacles; Sunset
+Overdrive-style art (punchy sunset colours, cel shading with bold outlines,
+graffiti energy); pick from Chris, Jake, Bennett and Miles (the girls later).
+- **Connecting:** the user asked for local Bluetooth "if possible" — it
+  isn't from a web app: browsers' Web Bluetooth can only connect *to*
+  gadgets (heart-rate straps, etc.), a phone page can't advertise itself for
+  other phones to join. Options: (1) room code over the internet via
+  Supabase Realtime (simplest, reliable; one phone runs the physics, the
+  others send their inputs); (2) phone-to-phone WebRTC on one Wi-Fi or
+  hotspot, paired by scanning QR codes (works with no internet at all, but
+  more fragile, especially on iPhone).
+- **Name ideas:** The Great Fall of China, Chain Gang Dynasty, Dragon's
+  Tail, Wall Crawlers, Shackled Summit, Four Links Up, The Great Haul.
+- **Icon options** (generated Oct 13 2026, prompts in
+  `tools/menu-icons/README.md` style): A a winding wall over a grassy hill
+  to a watchtower with a sage banner; B a watchtower wrapped in a heavy
+  sage-and-iron chain; C a steep stretch up a ridge with red lanterns and
+  sage pines.
+- **Level ideas:** 1 Sunset Ramparts (crumbling battlements, swinging
+  lanterns, firecracker barrels rolling down the steps); 2 Dragon Festival
+  (a giant parade dragon slithering along the wall as moving platforms,
+  fireworks launchers, spinning prayer wheels); 3 Storm Peak (a steep
+  switchback climb at dusk, wind gusts, a collapsing tower, a zip line, ring
+  the gong at the top).
+
 **Chosen — to build (Oct 3 2026)**
 - **Sushi Conveyor:** catch and match plates as the belt speeds up. Short
   rounds for train rides.
