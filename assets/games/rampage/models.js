@@ -158,17 +158,19 @@ export const LOOKS = {
     }
   },
   // Jake (Shinkansen Dash, the sewer secret): shaved head with a shine, chunky
-  // black square glasses, a big smile; a navy blazer over a white shirt and
-  // a pink-striped tie (user: not the gold jacket), navy trousers, brown shoes.
+  // black square glasses, a big smile; a heather-grey hoodie with drawstrings
+  // and a kangaroo pocket, black joggers, white sneakers (user picked
+  // option C, Oct 13 2026 — not the suit, not the gold jacket).
   jake: {
     skin: 0xf2c1a3, skinShade: 0xdca48a, eye: 0x6c8aa0, brow: 0x8a6a55, mouth: 0xb44a4f, blush: 0xeaa592,
     glasses: 0x17181b, squareGlasses: true,
-    shirt: 0x23365e, shirtDark: 0x1b2a4a, cuff: 0xf3f3f3, pants: 0x23365e, shoes: 0x5a3b26, longSleeves: true,
+    shirt: 0x8f959c, shirtDark: 0x70767e, cuff: 0x70767e, pants: 0x2a2d33, shoes: 0xf1f3f5, longSleeves: true,
     print: (x, y, z) => {
-      if (z === 6 && x === 5 && y >= 3 && y <= 9) return y % 2 ? 0xd98aa0 : 0xf3d6dd; // the striped tie
-      if (z === 6 && x >= 4 && x <= 6 && y >= 6) return 0xf7f7f5; // white shirt in the open collar
-      if (z === 6 && (x === 3 || x === 7) && y >= 5) return 0x1b2a4a; // lapels
-      if (z === 6 && x === 4 && (y === 2 || y === 4)) return 0xc9ccd4; // buttons
+      if (y === 0) return 0x70767e; // ribbed hem
+      if (z === 6 && y >= 1 && y <= 4 && x >= 2 && x <= 8) return y === 4 || x === 2 || x === 8 ? 0x7c828a : null; // kangaroo pocket
+      if (z === 6 && (x === 4 || x === 6) && y >= 6 && y <= 9) return 0xf3f3f3; // drawstrings
+      if (z === 6 && x >= 4 && x <= 6 && y === 10) return 0x70767e; // the hood's neckline
+      if (hash3(x, y, z + 9) < 0.12) return 0x9aa0a7; // heather
       return null;
     },
     hair: (u, w, d, core) => (core && w === 13 && d >= 7 && d <= 10 && u >= 3 && u <= 6 ? 0xffe2d0 : null) // scalp shine

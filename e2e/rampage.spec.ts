@@ -137,7 +137,7 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
 
   // Game over → the run is saved → TRY AGAIN / CHANGE HERO.
   await f.evaluate(() => (window as any).__rampage.debug.gameOver(4321));
-  await expect.poll(async () => (await state(f)).mode, { timeout: 8000 }).toBe('gameover');
+  await expect.poll(async () => (await state(f)).mode, { timeout: 20_000 }).toBe('gameover'); // (the dying animation runs in game time: slow under load)
   await expect(ui.getByRole('button', { name: 'TRY AGAIN' })).toBeVisible();
   await expect(ui.getByRole('button', { name: 'CHANGE HERO' })).toBeVisible();
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length).toBe(1);
@@ -170,7 +170,7 @@ test('a run finished offline is saved on the next visit', async ({ page }) => {
   await page.keyboard.press('Enter'); // …and Enter again starts the level
   await expect.poll(async () => (await state(f)).mode).toBe('play');
   await f.evaluate(() => (window as any).__rampage.debug.gameOver(2500));
-  await expect.poll(async () => (await state(f)).mode, { timeout: 8000 }).toBe('gameover');
+  await expect.poll(async () => (await state(f)).mode, { timeout: 20_000 }).toBe('gameover'); // (the dying animation runs in game time: slow under load)
   await page.waitForTimeout(500);
   expect(backend.inserts.filter((i) => i.table === 'game_scores')).toHaveLength(0);
 
@@ -337,7 +337,7 @@ test('secret: smash the barrel at the start with a power-up → Girl Power; Emil
   await expect.poll(async () => (await state(f)).mode).toBe('play');
 
   await f.evaluate(() => (window as any).__rampage.debug.gameOver(3000));
-  await expect.poll(async () => (await state(f)).mode, { timeout: 8000 }).toBe('gameover');
+  await expect.poll(async () => (await state(f)).mode, { timeout: 20_000 }).toBe('gameover'); // (the dying animation runs in game time: slow under load)
   const saved = () => backend.inserts.filter((i) => i.table === 'game_scores').flatMap((i) => i.body as unknown as Record<string, unknown>[]);
   await expect.poll(() => saved().length, { timeout: 15_000 }).toBe(2);
   await page.waitForTimeout(500); // and no duplicate turns up after

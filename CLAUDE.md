@@ -633,8 +633,9 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   getting to ending pipe you drop back into Shinkansen dash but the
   character should be covered in brown sludge… till they die"; `LOOKS.jake`
   — shaved head with a shine, chunky black square glasses
-  (`squareGlasses`), a navy blazer over a white shirt and pink-striped tie
-  (`longSleeves`, `print`; user: not the gold jacket), navy trousers).
+  (`squareGlasses`), a heather-grey hoodie with drawstrings and a kangaroo
+  pocket (`longSleeves`, `print`), black joggers, white sneakers — option C
+  of three, picked by the user Oct 13 2026, after "not gold" and "no suit").
   **Manholes:** the first train gap past 1,300 m and past 3,500 m of every
   5 km round carries one (`MANHOLES`, `g.manhole`, set in `scheduleGap`
   without a random draw, so layouts don't change; `fairnessProblems()`
