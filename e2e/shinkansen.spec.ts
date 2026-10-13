@@ -416,6 +416,52 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await expect.poll(async () => { const pk = (await sw()).peak; return pk > 0.3 && pk < 2; }, { timeout: 5_000 }).toBe(true);
 });
 
+test('the sewer: a head-butt breaks a brick and lets out a feather; the feather gives a tanuki suit that floats you down', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const sw = () => f.evaluate(() => (window as any).__dash.sewer);
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  await debug(f, 'sewer');
+  await expect.poll(async () => (await st(f)).mode).toBe('sewer');
+  await debug(f, 'pause', true); // (stepped by hand from here: exact game time)
+
+  // Under the first brick row (52–58, 1.7 up): jump into it.
+  await debug(f, 'sewerPut', 53.2, 0);
+  await debug(f, 'step', 5);
+  await page.keyboard.down(' ');
+  await debug(f, 'step', 14);
+  await page.keyboard.up(' ');
+  await debug(f, 'step', 10);
+  let s = await sw();
+  expect(s.bricks).toBe(1);
+  expect(s.feathers).toHaveLength(1);
+  expect(s.suit).toBe(false);
+
+  // Catch the feather: the suit.
+  await debug(f, 'step', 40);
+  const fe = (await sw()).feathers[0];
+  await debug(f, 'sewerPut', fe.x - 0.37, Math.max(0, fe.y - 0.7));
+  await debug(f, 'step', 1);
+  s = await sw();
+  expect(s.suit).toBe(true);
+  expect(s.feathers).toHaveLength(0);
+
+  // Falling from 4 tiles takes ~20 steps; tapping jump on the way down wags the tail and floats you.
+  await debug(f, 'sewerPut', 40, 4);
+  await debug(f, 'step', 12); // (well off the ground, so the tap can't be a jump)
+  let n = 12;
+  for (; n < 400 && !(await sw()).ground; n += 6) {
+    await page.keyboard.press(' ');
+    await debug(f, 'step', 6);
+  }
+  expect((await sw()).wags).toBeGreaterThan(3);
+  expect(n).toBeGreaterThan(60);
+  await debug(f, 'pause', false);
+});
+
 test('Liam the ninja: score 30,000 in a run', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen');

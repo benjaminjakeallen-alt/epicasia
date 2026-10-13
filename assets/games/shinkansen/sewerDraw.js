@@ -2,7 +2,7 @@
 // side-scroller in the game's chunky style — brick walls and lamps, stone
 // floors over sludge pits, brick ledges, green pipes, coins, rats, and a
 // little 2D version of whoever you're playing.
-import { LEVEL, PW, PH, ratAt, RAT_W, RAT_H } from './sewer.js';
+import { LEVEL, PW, PH, ratAt, RAT_W, RAT_H, featherAt } from './sewer.js';
 
 // Each traveller in 2D: skin, hair (null = bald), top, trousers, glasses.
 const LOOK2D = {
@@ -24,7 +24,7 @@ export function drawSewer(ctx, view, u, sw, S, text, round, world = true) {
   // The camera follows like Mario 3's: you stay in a band left of centre,
   // and it scrolls back when you run back.
   const span = W / T;
-  sw.cam = Math.max(LEVEL.FLOORS[0][0], Math.min(LEVEL.LENGTH - span, Math.max(s.x - span * 0.45, Math.min(sw.cam, s.x - span * 0.25))));
+  sw.cam = Math.max(LEVEL.FLOORS[0][0], Math.min(LEVEL.LENGTH - span, Math.max(s.x - span * 0.32, Math.min(sw.cam, s.x - span * 0.22))));
   const camX = sw.cam;
   const X = (x) => (x - camX) * T, Y = (y) => floorY - y * T;
   const t = s.t;
@@ -78,13 +78,23 @@ export function drawSewer(ctx, view, u, sw, S, text, round, world = true) {
     for (let r = 1; Y(-r) < H; r++) for (let x = Math.floor(a) + (r % 2) * 0.5; x < b; x++) ctx.fillRect(X(Math.max(a, x)), Y(-r) + T * 0.04, 2, T * 0.9);
   });
   // brick ledges
-  LEVEL.LEDGES.forEach(([x, w, bot, top]) => {
-    for (let i = 0; i < w; i++) {
-      const bx = X(x + i), by = Y(top), bh2 = (top - bot) * T;
+  LEVEL.BRICKS.forEach(([x, , bot, top], i) => {
+    if (s.broken[i]) return;
+    {
+      const bx = X(x), by = Y(top), bh2 = (top - bot) * T;
       ctx.fillStyle = '#b5562b'; ctx.fillRect(bx, by, T, bh2);
       ctx.fillStyle = '#7a3416'; ctx.fillRect(bx, by + bh2 / 2 - 1, T, 2); ctx.fillRect(bx + T / 2 - 1, by, 2, bh2 / 2); ctx.fillRect(bx, by, 2, bh2);
       ctx.fillStyle = 'rgba(255,220,180,0.25)'; ctx.fillRect(bx, by, T, 3);
     }
+  });
+  // feathers
+  s.feathers.forEach((f) => {
+    if (f.got) return;
+    const p = featherAt(f, t);
+    ctx.save(); ctx.translate(X(p.x), Y(p.y)); ctx.rotate(p.tilt);
+    ctx.fillStyle = '#f7dca0'; ctx.beginPath(); ctx.ellipse(0, 0, T * 0.16, T * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f08c2a'; ctx.beginPath(); ctx.ellipse(0, -T * 0.3, T * 0.1, T * 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
   });
   // pipes (the end pipe is drawn after the player, so you sink into it)
   const pipe = (x, w, h, big) => {
@@ -133,7 +143,13 @@ export function drawSewer(ctx, view, u, sw, S, text, round, world = true) {
   ctx.fillStyle = L.legs;
   ctx.fillRect(pw * 0.14 + (air ? -pw * 0.08 : run * pw * 0.12), -ph * 0.4, pw * 0.3, ph * 0.4);
   ctx.fillRect(pw * 0.56 + (air ? pw * 0.1 : -run * pw * 0.12), -ph * 0.4 - (air ? ph * 0.06 : 0), pw * 0.3, ph * 0.4);
-  ctx.fillStyle = L.top; ctx.fillRect(pw * 0.06, -ph * 0.74, pw * 0.88, ph * 0.38);
+  if (s.suit) { // the tanuki suit's striped tail
+    ctx.save(); ctx.translate(0, -ph * 0.5); ctx.rotate(s.wagT > 0 ? Math.sin(t * 40) * 0.8 : 0.4);
+    ctx.fillStyle = '#b07440'; ctx.fillRect(-pw * 0.7, -ph * 0.06, pw * 0.75, ph * 0.13);
+    ctx.fillStyle = '#4a2f1a'; ctx.fillRect(-pw * 0.5, -ph * 0.06, pw * 0.1, ph * 0.13); ctx.fillRect(-pw * 0.25, -ph * 0.06, pw * 0.1, ph * 0.13);
+    ctx.restore();
+  }
+  ctx.fillStyle = s.suit ? '#b07440' : L.top; ctx.fillRect(pw * 0.06, -ph * 0.74, pw * 0.88, ph * 0.38);
   if (L.band) { ctx.fillStyle = L.band; ctx.fillRect(pw * 0.06, -ph * 0.48, pw * 0.88, ph * 0.05); }
   ctx.fillStyle = L.skin; ctx.fillRect(pw * 0.78, -ph * 0.66 - (air ? ph * 0.18 : 0), pw * 0.2, ph * 0.22); // a hand (up when jumping)
   ctx.fillStyle = L.skin; ctx.fillRect(pw * 0.08, -ph, pw * 0.84, ph * 0.3); // head

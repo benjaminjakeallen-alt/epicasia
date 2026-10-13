@@ -674,8 +674,20 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   gravity (`G_HOLD` 32) until let go or the peak, then falls on `G` 85, so
   a tap is a ~1-tile hop and a hold ~2.6 tiles (more at a run); a little
   air steering, never faster than take-off; hold jump on a stomp to bounce
-  higher; walls on both sides; the camera follows in a band and scrolls
-  back. Keys: ←/→ (A/D) run, Space/↑/W/Z/K jump. A press let go before the
+  higher; walls on both sides; the camera keeps you on the **left third**
+  (28–38% across — user, Oct 13 2026: "too far right… so you can see enemies
+  coming") and scrolls back with you. **Bricks break** when you head-butt
+  them (`LEVEL.BRICKS`, one per tile of a ledge, +50, chunks fly); the first
+  broken in each row lets out a **feather** (`featherAt()`: pops up, then
+  drifts down swaying) — catch it for the **tanuki suit** (user: "like Mario
+  three where you can tap jump and your tail wags and you float down
+  slower"): tap jump while falling → `WAG` 0.32 s with the fall capped at
+  `SUIT_FALL` 2.2 tiles/s; a rat knocks the suit off instead of killing you
+  (`HURT` 1.6 s blinking). In 3D the suit is a tan tint over the clothes
+  (`TANUKI`), round ears on the head and a big striped tail that wags;
+  `sewer.cleanup()` takes it off back on the trains. Solids are cached per
+  state and the new arrays are copy-on-write, so `routeExists()` stays
+  ~6 s. Debug `sewerPut(x, y)`, `step(n)` (while paused). Keys: ←/→ (A/D) run, Space/↑/W/Z/K jump. A press let go before the
   next step still jumps (`pad.tapped`); the pad releases on blur, pause and
   when no finger is left (never sticks). Fixed 1/60 s steps
   (`stepSewer(s, stick, jumpHeld)`), so a run replays exactly;
@@ -692,8 +704,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   visible models of a kind are. Runs save as hero `jake`
   (`0024_shinkansen_jake.sql`).
 - **Every traveller has a special skill** (the user's picks, Oct 12 2026;
-  `HEROES[k].skill` shown under the name on the ring — never for a locked
-  one — and `hint` said once as the run starts; `skill(h)` is off in
+  **not** shown on the ring (user, Oct 13 2026: "Don't say the characters
+  special ability under them"); `hint` is said once as the run starts; `skill(h)` is off in
   `simulate()` so the fairness checks stay honest; counters on
   `__dash.skills`): **Chris** — pickaxe smashes a fairing in his way
   (+25, then `SMASH_EVERY` 8 s to recover; HUD "PICKAXE READY"/"4s"; the

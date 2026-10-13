@@ -501,7 +501,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function sync(dt) {
     const t = S.t, z = (d) => S.dist - d;
     frameStart();
-    Object.values(heroes).forEach((h) => { if (h.parent !== scene) scene.add(h); h.visible = false; h.scale.setScalar(HERO_SCALE); }); // (back from the sewer)
+    Object.values(heroes).forEach((h) => { if (h.parent !== scene) { scene.add(h); if (sewer) sewer.cleanup(); } h.visible = false; h.scale.setScalar(HERO_SCALE); }); // (back from the sewer)
     halo.visible = false; board.visible = false; beam.visible = false;
 
     // look of the current stage (eased), darker in tunnels

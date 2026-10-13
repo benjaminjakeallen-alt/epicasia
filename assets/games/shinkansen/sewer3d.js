@@ -16,7 +16,7 @@
 import * as THREE from 'three';
 import { VoxBuilder, hash3 } from '../rampage/voxel.js';
 import { MAT, mesh, shade } from '../rampage/models.js';
-import { LEVEL, PW, PH, ratAt, RAT_W } from './sewer.js';
+import { LEVEL, PW, PH, ratAt, RAT_W, featherAt } from './sewer.js';
 
 const X0 = LEVEL.FLOORS[0][0] - 6, X1 = LEVEL.LENGTH + 10; // how far the tunnel is built
 const WALL_Z = -2.75, CEIL = 9.5, SLUDGE_Y = -0.75;
@@ -373,10 +373,9 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
     if (i === 0) make(); else jobs.push(make);
   });
   jobs.push(() => { const m = pipeMesh(LEVEL.EXIT.w, LEVEL.EXIT.h, true); m.position.set(LEVEL.EXIT.x + LEVEL.EXIT.w / 2, 0, 0); place(m); });
-  LEVEL.LEDGES.forEach(([x, w, b, t], i) => {
-    const make = () => { const m = ledgeMesh(w, b, t); m.position.x = x; place(m); };
-    if (i === 0) make(); else jobs.push(make);
-  });
+  // each brick on its own, so a head-butt can break it
+  const brickGeo = ledgeMesh(1, LEVEL.BRICKS[0][2], LEVEL.BRICKS[0][3]).geometry;
+  const bricks = LEVEL.BRICKS.map(([x0]) => { const m = new THREE.Mesh(brickGeo, MAT); m.position.x = x0; return place(m); });
   // round pipes along the wall: copper and steel, glossy
   [[7.4, 0.24, 0xc8743a, 0.55], [6.7, 0.13, 0x9aa3ad, 0.6]].forEach(([y, r, col, metal]) => {
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, X1 - X0, 12, 1), new THREE.MeshStandardMaterial({ color: col, roughness: 0.32, metalness: metal }));
@@ -445,6 +444,49 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
   // coins and rats
   const coins = LEVEL.COINS.map(([x, y]) => { const c = coinMesh(); c.position.set(x, y, 0); scene.add(c); return c; });
   const rats = LEVEL.RATS.map(() => { const r = ratModel(); scene.add(r); return r; });
+  // the feather a brick lets out (it drifts down, swaying), with a soft glow
+  function featherModel() {
+    const g = new THREE.Group(), b = new VoxBuilder(), S = 0.06;
+    b.add(7, 16, 1, (x, y) => {
+      const w = Math.sin((y / 15) * Math.PI) * 3.2; // a vane, widest in the middle
+      if (x === 3) return y < 2 ? 0x9a6b2f : 0xf3e2b8; // the quill
+      if (Math.abs(x - 3) > w || y < 2) return null;
+      return y > 12 ? 0xf08c2a : (x + y) % 4 === 0 ? 0xe9c27a : 0xf7dca0; // golden, with an orange tip
+    }, { size: S, offset: [-3.5 * S, -8 * S, -S / 2] });
+    g.add(mesh(b.geometry(), MAT));
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: 0xffe08a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8 }));
+    halo.scale.set(1.6, 1.6, 1); g.add(halo);
+    return g;
+  }
+  const feathers = [0, 1].map(() => { const f = featherModel(); f.visible = false; scene.add(f); return f; });
+  // the tanuki suit (Super Mario Bros. 3): a brown suit over the clothes, round ears, a striped tail
+  const TANUKI = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xf4b878 });
+  const earGeo = new VoxBuilder().add(6, 6, 2, (x, y) => (Math.hypot(x - 2.5, y - 2) > 3 ? null : z0(x, y) ? 0x4a2f1a : 0xa86b3a), { size: 0.5, offset: [-1.5, 0, -0.5] }).geometry();
+  function z0(x, y) { return Math.hypot(x - 2.5, y - 2) < 1.6 && y > 0; } // the dark inner ear
+  const ears = [-1, 1].map((sx) => { const e = mesh(earGeo, MAT); e.position.set(sx * 3, 6.6, 0); e.rotation.z = -sx * 0.3; return e; });
+  const tail = new THREE.Group();
+  tail.add(mesh(new VoxBuilder().add(4, 4, 12, (x, y, z) => {
+    const r = Math.hypot(x - 1.5, y - 1.5); if (r > 2.1 - (z > 9 ? (z - 9) * 0.5 : 0)) return null;
+    return z > 10 ? 0xf3e2c8 : z % 3 === 0 ? 0x4a2f1a : 0xb07440; // dark rings, a pale tip
+  }, { size: 0.5, offset: [-1, -1, -6] }).geometry(), MAT));
+  tail.position.set(0, 1.4, -1.8); tail.rotation.x = -0.7; tail.scale.setScalar(1.5);
+  let suited = null; // the hero wearing it, if any
+  function wearSuit(hero, on) {
+    if (on && suited !== hero) {
+      wearSuit(suited, false);
+      const u = hero.userData;
+      [u.body.children[0], u.armL, u.armR, u.legL, u.legR].forEach((m) => { if (m && m.isMesh) m.material = TANUKI; });
+      ears.forEach((e) => u.head.add(e)); u.body.add(tail);
+      suited = hero;
+    } else if (!on && hero && suited === hero) {
+      const u = hero.userData;
+      [u.body.children[0], u.armL, u.armR, u.legL, u.legR].forEach((m) => { if (m && m.isMesh) m.material = m.userData.mat || MAT; });
+      ears.forEach((e) => e.removeFromParent()); tail.removeFromParent();
+      suited = null;
+    }
+  }
+  /** Back on the trains: the suit comes off. */
+  function cleanup() { if (suited) wearSuit(suited, false); }
   const ratDead = LEVEL.RATS.map(() => null);
 
   rats.forEach((r) => r.traverse((o) => { if (o.isMesh) o.castShadow = true; }));
@@ -488,13 +530,15 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
     if (hero.parent !== scene) scene.add(hero);
     Object.values(heroes).forEach((h) => { if (h !== hero) h.visible = false; });
     if (sw !== last) { // a fresh trip down: reset the camera and the bookkeeping
-      last = sw; camX = s.x - span * 0.3; shownT = -1;
+      last = sw; camX = s.x + span * 0.2; shownT = -1; cleanup();
       ratDead.fill(null); parts.length = 0;
       coins.forEach((c) => { c.visible = true; c.scale.setScalar(1); });
-      sw.seen = { coins: s.coins.slice(), rats: s.rats.slice(), ground: true, skid: false, dead: false, done: false };
+      sw.seen = { coins: s.coins.slice(), rats: s.rats.slice(), broken: s.broken.slice(), feathers: 0, got: 0, ground: true, skid: false, dead: false, done: false };
     }
-    // the camera keeps you in a band left of centre, and scrolls back with you
-    camX = Math.max(X0 + span / 2, Math.min(X1 - span / 2, Math.max(s.x - span * 0.08, Math.min(camX, s.x + span * 0.05))));
+    // the camera keeps you in a band on the left third (user, Oct 13 2026: "too far right… so you can see
+    // enemies coming"), and scrolls back with you
+    const cx = s.x + PW / 2;
+    camX = Math.max(X0 + span / 2, Math.min(X1 - span / 2, Math.max(cx + span * 0.12, Math.min(camX, cx + span * 0.22))));
     sw.cam = camX - span / 2;
     // a diorama's tilt: looking a little down onto the walkway, the floor about 60% down the screen
     const vh = dist * Math.tan((camera.fov / 2) * Math.PI / 180), cy = 0.2 * vh;
@@ -564,8 +608,31 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
       u.tail.forEach((sg, k) => { sg.rotation.y = Math.sin(t * 7 - k * 0.7) * 0.35; sg.rotation.z = k === 0 ? 0.3 : -0.05; });
     });
 
+    // bricks: gone when broken, in a burst of brick chunks
+    const seenB = sw.seen;
+    bricks.forEach((m, i) => {
+      m.visible = !s.broken[i];
+      if (s.broken[i] && !seenB.broken[i]) {
+        seenB.broken[i] = true;
+        const [x0, , b, top] = LEVEL.BRICKS[i];
+        puff(x0 + 0.5, (b + top) / 2, 0, ['#bd5a2c', '#a94d24', '#e9925a', '#6e2f12'], 16, 3.2, 5, 0.16, 0.9, 18);
+      }
+    });
+    // feathers: drifting down, swaying; a sparkle when caught
+    feathers.forEach((m, k) => {
+      const f = s.feathers[k];
+      m.visible = !!f && !f.got;
+      if (f && f.got && seenB.got <= k) { seenB.got = k + 1; puff(m.position.x, m.position.y, 0, ['#ffe066', '#ffffff', '#f08c2a'], 18, 2.5, 3, 0.08, 0.7); }
+      if (!m.visible) return;
+      const p = featherAt(f, t);
+      m.position.set(p.x, p.y, 0.3); m.rotation.set(0, Math.sin(t * 1.7) * 0.6, p.tilt);
+    });
+    // the tanuki suit, its tail wagging when you float
+    wearSuit(hero, s.suit);
+    if (s.suit) { tail.rotation.y = s.wagT > 0 ? Math.sin(t * 46) * 0.9 : Math.sin(t * 4) * 0.25; tail.rotation.x = s.wagT > 0 ? -0.2 : -0.7; }
+
     // the traveller
-    hero.visible = true;
+    hero.visible = !(s.hurtT > 0 && Math.floor(t * 14) % 2 === 0); // blinking after a rat knocks the suit off
     hero.scale.setScalar(HERO_K);
     let hy = s.y, spin = 0;
     if (t < 0.45) hy += Math.pow(1 - t / 0.45, 2) * 9; // dropping in from the manhole
@@ -580,6 +647,7 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
     let target;
     if (s.dead !== null && s.y >= -1) target = { armL: -2.9, armR: -2.9, legL: -0.4, legR: 0.4, nod: 0.3 };
     else if (s.skid && s.ground) target = { lean: -0.35, armL: -1.4, armR: -1.2, legL: -0.7, legR: 0.5, nod: -0.2 };
+    else if (!s.ground && s.wagT > 0) target = { legL: -0.6, legR: 0.4, armL: -1.5, armR: -1.5, armLz: -0.9, armRz: 0.9, lean: 0.1 }; // floating on the tail
     else if (!s.ground || t < 0.45) { const up = s.vy > 0; target = { legL: up ? -1.4 : -0.8, legR: up ? 0.7 : 0.3, armL: up ? -2.9 : -2.2, armR: up ? 0.4 : -0.6, lean: up ? 0.12 : -0.05 }; }
     else {
       const sp = Math.min(1, Math.abs(s.vx) / 9), ph = s.stride * 2.4;
@@ -623,13 +691,17 @@ export function createSewer3D({ renderer, heroes, pose, heroScale, env, lowPower
   function prewarm(heroKey) {
     const hero = heroes[heroKey], home = hero.parent;
     scene.add(hero);
+    wearSuit(hero, true); // (the suit's shader too)
+    feathers.forEach((f) => { f.visible = true; });
     const culled = [];
     scene.traverse((o) => { if (o.frustumCulled) { culled.push(o); o.frustumCulled = false; } });
     camera.position.set(20, 4, 30); camera.lookAt(20, 2, 0);
     renderer.render(scene, camera);
     culled.forEach((o) => { o.frustumCulled = true; });
+    wearSuit(hero, false);
+    feathers.forEach((f) => { f.visible = false; });
     if (home) home.add(hero);
   }
 
-  return { layout, draw, prewarm, pump, ready, scene, get span() { return span; } };
+  return { layout, draw, prewarm, pump, ready, cleanup, scene, get span() { return span; } };
 }

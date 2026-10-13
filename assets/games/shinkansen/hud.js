@@ -115,7 +115,7 @@ export function createHud(canvas, game, view, toScreen) {
     round(W / 2 - w / 2, q.y, w, 34 * u, 17 * u, shut ? '#c9ced6' : '#ffd43b', INK, 2);
     text(name, W / 2, q.y + 17.5 * u, 15, '#2b1d00', { stroke: false });
     if (shut) { const c = toScreen(0, ROOF + 0.85, 0); lock(c.x, c.y, '#ffe066', 2.6); }
-    else if (game.HEROES[k].skill) text('★ ' + game.HEROES[k].skill, W / 2, q.y + 50 * u + 20 * u, 12, '#ffffff', { lw: 3.5 }); // their special skill
+    // (no skill text here — user, Oct 13 2026: "Don't say the characters special ability under them"; it's told as the run starts)
     const ay = q.y - 70 * u, pulse = 1 + Math.sin(S.t * 4) * 0.06;
     [-1, 1].forEach((dir) => {
       const ax = W / 2 + dir * (W / 2 - 34 * u);

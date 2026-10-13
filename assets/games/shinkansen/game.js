@@ -13,7 +13,7 @@
 // injects window.SHINKANSEN_INIT = { highScore, debug } and listens for
 // messages: ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
-import { createSewer, stepSewer, STEP as SEWER_STEP, BLOCK as SEWER_BLOCK, sewerPoints, routeExists, replay as sewerReplay } from './sewer.js';
+import { createSewer, stepSewer, featherAt, STEP as SEWER_STEP, BLOCK as SEWER_BLOCK, sewerPoints, routeExists, replay as sewerReplay } from './sewer.js';
 
 const INIT = window.SHINKANSEN_INIT || {};
 
@@ -818,6 +818,12 @@ function updateSewer(dt) {
       else if (e === 'coin') SFX.coin();
       else if (e === 'stomp') { SFX.hop(); haptic('light'); }
       else if (e === 'skid') SFX.slide();
+      else if (e === 'brick') { SFX.thunk(); haptic('light'); }
+      else if (e === 'feather') SFX.spring();
+      else if (e === 'suit') { SFX.neko(); haptic('success'); say('TANUKI SUIT!', 1.6, '#ffd43b', true); say('TAP JUMP IN THE AIR TO FLOAT', 2.4, '#ffffff'); }
+      else if (e === 'feather-again') SFX.coin();
+      else if (e === 'wag') tone(700, 0.08, 'triangle', 0.025, 500);
+      else if (e === 'shrink') { SFX.shield(); haptic('error'); say('SUIT LOST!', 1.2, '#ff8787'); }
       else if (e === 'die') { SFX.crash(); haptic('error'); }
       else if (e === 'exit') { SFX.pipe(); haptic('success'); }
     });
@@ -936,7 +942,7 @@ window.__dash = {
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
   get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
-  get sewer() { const w = S.sewer && S.sewer.s; return w ? { x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
+  get sewer() { const w = S.sewer && S.sewer.s; return w ? { bricks: w.bricks, suit: w.suit, wags: w.wags, hurt: w.hurtT > 0, feathers: w.feathers.filter(function (f) { return !f.got; }).map(function (f) { return featherAt(f, w.t); }), x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
   sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
@@ -955,6 +961,7 @@ if (INIT.debug) {
     spring: function () { S.spring = true; },
     manhole: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2, manhole: true }); return g0 - S.dist; },
     sewer: function () { enterSewer(); },
+    sewerPut: function (x, y) { const w = S.sewer && S.sewer.s; if (w) Object.assign(w, { x: x, y: y, vx: 0, vy: 0, ground: y <= 0 }); }, // (tests)
     sewerPlan: function (plan) { S.sewerPlan = plan || null; if (S.sewer) S.sewer.plan = S.sewerPlan; }, // [stick, jump] per BLOCK steps
     gameOver: function (score) { S.score = score | 0; if (S.score > S.hi) S.hi = S.score; S.invuln = 0; S.boardT = 0; S.shield = false; crash('hit'); },
     pause: function (on) { S.paused = !!on; },
