@@ -913,7 +913,9 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   Esc/P pauses (solo pauses the game; online it's only a menu).
 - `window.__chain`: mode, net, me, level, total, scores, falls, cp, players,
   roster, simulate, screenPoint; in development `debug.auto(on)`,
-  `finishLevel()`, `setLevel(n)`, `fall()`, `skipTitle()`, `warp(x, y)`.
+  `finishLevel()`, `setLevel(n)`, `fall()` (the whole gang), `skipTitle()`, `warp(x, y)`.
+  The game keeps ticking on a timer while its page is hidden (no animation
+  frames there), so a host in the background doesn't freeze the room.
 - Tests: `e2e/chaingang.spec.ts` (board; bots win every stretch; practise —
   roster, stick, GRAB, a fall, clear all three → exact `game_scores`
   insert, leave; **two pages in one room** — code, join, traveller clash,

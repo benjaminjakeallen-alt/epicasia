@@ -455,7 +455,7 @@ if (INIT.debug) {
     auto(on) { S.auto = on !== false; if (S.sim) S.sim.players[S.me].bot = S.auto || S.roster[S.me].bot; },
     finishLevel() { if (S.sim && S.mode === 'play') { S.sim.players.forEach((p) => { p.x = S.sim.level.finish + 1; p.y = 30; }); } },
     setLevel(n) { if (S.net !== 'client') startLevel(n); },
-    fall() { if (S.sim) S.sim.players[S.me].y = S.sim.level.fallY - 5; },
+    fall() { if (S.sim) S.sim.players.forEach((p) => { p.y = S.sim.level.fallY - 5; p.vy = 0; }); }, // the whole gang off the wall
     warp(x, y) { if (S.sim) S.sim.players.forEach((p, i) => { p.x = x - i * 1.3; p.y = y; p.vx = p.vy = 0; }); },
     skipTitle() { if (S.mode === 'title') S.modeT = TITLE_T + 1; if (S.mode === 'clear') S.modeT = CLEAR_T + 1; },
   };
