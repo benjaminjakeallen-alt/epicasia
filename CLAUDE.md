@@ -306,8 +306,12 @@ Oct 3 2026: "we don't want to do another rotary menu… a cool hero
 animation… have the user select the icons"): the picked game's 3D icon
 floats large on a white halo with a sage glow (bob + sway + breathing floor
 shadow, off under Reduce Motion), then the title, one line and a Play pill;
-a row of icon tiles (`role="tab"`, selected one raised with a sage ring)
-picks the game, or swipe across the stage; switching springs the new icon
+a **carousel of icon tiles along the bottom** (user, Oct 14 2026: with five
+games they no longer fit — a horizontal `ScrollView`, `role="tab"` tiles,
+the one in the middle full size with a sage ring, the others 80%; when a
+scroll comes to rest the middle one is chosen and snapped to; tapping one
+or swiping the stage scrolls it to the middle; `games-carousel`) picks the
+game, or swipe across the stage; switching springs the new icon
 in with a sparkle burst and a haptic tick. Tapping the big icon also plays.
 Each game in `GAMES` (`src/lib/games.ts`) has an `image` —
 `assets/images/games/*.png`, generated like the menu icons (Higgsfield Qwen
@@ -592,6 +596,11 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   points, Liam a ninja kata (chops, a high kick, a bow). One name pill
   ("???" + padlock if locked), dots for the ring. Specs turn it with
   `toFront()`/`tapFront()`; `__dash.ringSettled`.
+  Mei's hair was redrawn (user, Oct 14 2026: "weird hair, let's try
+  again"): straight vertical strands (the shade follows u/d, not w), a
+  middle parting, curtain bangs down to the brows at the sides only, hair
+  straight down past the chin, a narrower ragged back panel; the churro ears
+  are round ridged discs (no longer rings) on a headband.
   **Bennett replaced Shea** as the second default traveller (user, Oct 11
   2026: "Replace Shea as a default playable character for Bennett… he
   should be wearing ecuadorian poncho style"; `LOOKS.bennett` — short
@@ -914,6 +923,29 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   been within 3.2 m of it. Crumbling stones hold **one** traveller (two at
   once → gone in 0.3 s, one lingering 2.5 s), back after 3 s. Leaving a
   moving platform keeps its motion.
+- **Nothing passes through anything** (user, Oct 14 2026: "characters move
+  through objects as does the chain… tighten up the controls"). Everything
+  drawn with a shape is a box in `L.solids` (`furnish()` in levels.js):
+  battlements (`merlon`, 0.55 m — above a walkable step), the rock under
+  each floating piece as three tiers stepping inward (`under`: flush, then
+  in ≥ 0.75 m, then ≥ 1.4 m — narrower cracks wedged people in), pines on
+  the islands (`tree`; you slide off the tip), the barrel stack beside
+  where barrels start (`barrels`) and the finish gate's posts (`post`); the
+  renderer draws exactly those boxes. Bots never aim at them (`FURNITURE`).
+  The push-out after the chain runs up to four passes. Barrels on stairs
+  now start at the top (they used to drop through the steps). The **drawn
+  chain is a rope of beads** (verlet, 18 per link of chain) pinned to each
+  waist, a bit longer than the gap (never more than 5 m), pushed out of
+  every box — so it drapes over edges instead of cutting through stone.
+  A watchtower counts once everyone has been there **or somewhere further
+  on** (`p.got`), so one someone went round never holds the gang up. A gang
+  with nobody holding on to anything for 2 s can't climb its own chain any
+  more (it used to juggle itself in mid-air for ever). **Tighter controls:**
+  `ACC` 62, `FRICTION` 58, `AIR_ACC` 20 (were 40/36/14); the model turns to
+  face the stick ~2× faster; the camera only drifts round behind you while
+  the stick points forward (drifting while steering sideways bent a held
+  direction into a curve). Fuzzing (a random-input
+  player among bots, 400k steps) ends with nobody inside stone.
 - **Levels** (`levels.js`, pure data): each is laid out by a `course()`
   builder that walks a cursor forward along x or z (so every piece is an
   axis-aligned box), turning at landings, and writes the bots' route as it

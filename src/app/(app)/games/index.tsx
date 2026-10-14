@@ -1,7 +1,18 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Animated, Easing, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  PanResponder,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
@@ -12,17 +23,23 @@ import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
 
 // Games hub: a spotlight stage. The chosen game's 3D icon floats large on a
-// sage halo (bobbing, swaying, its shadow breathing under it); tiles below
-// pick the game, or swipe across the stage. Switching springs the new icon
+// sage halo (bobbing, swaying, its shadow breathing under it); a carousel of
+// tiles along the bottom picks the game (swipe it — the tile in the middle is
+// the one chosen, a little bigger — or tap one), or swipe across the stage.
+// (A row stopped fitting once there were five games.) Switching springs the new icon
 // in with a sparkle burst. Play opens the game. (Not a ring — the user asked
 // for something other than the home orbit menu.) Photo games score by
 // upvotes (game_entries/game_votes), arcade games by runs (game_scores).
 
 const SPARKS = 8;
+const TILE = 84;
+const GAP = 14;
+const STEP = TILE + GAP;
 
 export default function Games() {
   const insets = useSafeAreaInsets();
   const colors = useTheme();
+  const { width } = useWindowDimensions();
   const router = useRouter();
   const [index, setIndex] = useState(0);
   const game = GAMES[index];
@@ -30,6 +47,9 @@ export default function Games() {
   const float = useRef(new Animated.Value(0)).current; // 0..1 loop
   const pop = useRef(new Animated.Value(1)).current; // 0 → 1 on each switch
   const spark = useRef(new Animated.Value(1)).current;
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const carousel = useRef<ScrollView>(null);
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -54,6 +74,23 @@ export default function Games() {
       Animated.spring(pop, { toValue: 1, friction: 5, tension: 120, useNativeDriver: true }),
       Animated.timing(spark, { toValue: 1, duration: 650, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start();
+  }
+
+  // The carousel keeps the chosen game in the middle…
+  useEffect(() => {
+    carousel.current?.scrollTo({ x: index * STEP, animated: true });
+  }, [index]);
+  useEffect(() => () => {
+    if (settle.current) clearTimeout(settle.current);
+  }, []);
+  // …and once a swipe of it comes to rest, the tile in the middle is chosen (and snapped to).
+  function onCarouselScroll(x: number) {
+    if (settle.current) clearTimeout(settle.current);
+    settle.current = setTimeout(() => {
+      const i = Math.max(0, Math.min(GAMES.length - 1, Math.round(x / STEP)));
+      if (Math.abs(x - i * STEP) > 1) carousel.current?.scrollTo({ x: i * STEP, animated: true });
+      chooseRef.current(i);
+    }, 140);
   }
 
   // Swipe across the stage to switch games.
@@ -150,33 +187,53 @@ export default function Games() {
         </Pressable>
       </View>
 
-      <View style={[styles.tiles, { paddingBottom: insets.bottom + 22 }]} accessibilityRole="tablist">
+      <Animated.ScrollView
+        ref={carousel}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.carousel, { marginBottom: insets.bottom + 10 }]}
+        contentContainerStyle={[styles.tiles, { paddingHorizontal: Math.max(0, (width - TILE) / 2) }]}
+        accessibilityRole="tablist"
+        testID="games-carousel"
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
+          useNativeDriver: false,
+          listener: (e: { nativeEvent: { contentOffset: { x: number } } }) => onCarouselScroll(e.nativeEvent.contentOffset.x),
+        })}
+      >
         {GAMES.map((g, i) => {
           const on = i === index;
+          const near = [(i - 1) * STEP, i * STEP, (i + 1) * STEP];
           return (
-            <Pressable
+            <Animated.View
               key={g.key}
-              testID={`game-${g.key}`}
-              accessibilityRole="tab"
-              accessibilityLabel={g.title}
-              accessibilityState={{ selected: on }}
-              aria-selected={on}
-              onPress={() => choose(i)}
-              style={[
-                styles.tile,
-                {
-                  backgroundColor: colors.card,
-                  borderColor: on ? colors.accent : colors.card,
-                  transform: [{ translateY: on ? -6 : 0 }],
-                  boxShadow: on ? shadow.float : shadow.card,
-                },
-              ]}
+              style={{
+                transform: [{ scale: scrollX.interpolate({ inputRange: near, outputRange: [0.8, 1, 0.8], extrapolate: 'clamp' }) }],
+                opacity: scrollX.interpolate({ inputRange: near, outputRange: [0.75, 1, 0.75], extrapolate: 'clamp' }),
+              }}
             >
-              <Image source={g.image} style={styles.tileImage} contentFit="contain" accessibilityLabel="" />
-            </Pressable>
+              <Pressable
+                testID={`game-${g.key}`}
+                accessibilityRole="tab"
+                accessibilityLabel={g.title}
+                accessibilityState={{ selected: on }}
+                aria-selected={on}
+                onPress={() => choose(i)}
+                style={[
+                  styles.tile,
+                  {
+                    backgroundColor: colors.card,
+                    borderColor: on ? colors.accent : colors.card,
+                    boxShadow: on ? shadow.float : shadow.card,
+                  },
+                ]}
+              >
+                <Image source={g.image} style={styles.tileImage} contentFit="contain" accessibilityLabel="" />
+              </Pressable>
+            </Animated.View>
           );
         })}
-      </View>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -209,7 +266,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playText: { fontFamily: fontFamily.bodySemiBold, fontSize: 17 },
-  tiles: { flexDirection: 'row', justifyContent: 'center', gap: 16, paddingTop: 26 },
+  carousel: { flexGrow: 0, marginTop: 18 },
+  tiles: { flexDirection: 'row', alignItems: 'center', gap: GAP, paddingVertical: 14 },
   tile: {
     width: 84,
     height: 84,

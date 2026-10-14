@@ -118,7 +118,7 @@ export const LOOKS = {
     skin: 0xe9c19c, skinShade: 0xd5a580, eye: 0x3b2417, brow: 0x2a1a12, mouth: 0xc4646e, blush: 0xf0a28e, freckles: 0xc68d68,
     shirt: 0xf6f1ea, shirtDark: 0xe9e2d8, pants: 0x6f9ac9, shoes: 0xf4f4f4, sleeveless: true,
     build: { legs: 0.8, torso: 0.86, slim: 0.86, arms: 0.88 },
-    longHair: [0x2b1910, 0x3a2418, 0x1f120c], tallHead: true,
+    longHair: [0x3a2418, 0x4a3020, 0x2c1b12], tallHead: true,
     print: (x, y, z) => {
       if (y === 10 || y === 0) return 0xf6f1ea; // ribbed neck and hem
       if (y === 1 && (z === 0 || z === 6 || x === 0 || x === 10)) return 0x6f9ac9; // jeans at the waist
@@ -126,24 +126,28 @@ export const LOOKS = {
       return CHECKS[Math.floor(hash3(x >> 1, (y - 2) >> 1, z > 3 ? 1 : 0) * 4)]; // the pastel checks
     },
     hair: (u, w, d, core) => {
-      const n = hash3(u + 5, w * 2, d + 9);
-      const c = n < 0.3 ? 0x3a2418 : n < 0.8 ? 0x2b1910 : 0x1f120c;
-      // the churro ears: rings of sugared churro, dipped in chocolate on top
-      for (const eu of [1, 12]) {
-        const r = Math.hypot(u - eu, w - 16.6);
-        if (d >= 5 && d <= 6 && r >= 1 && r <= 2.4) return w >= 18 ? 0x5a2f18 : hash3(u, w, d + 3) < 0.25 ? 0xf6e2b0 : 0xe0954a;
+      // straight hair falls in vertical strands: the shade follows u and d, not w
+      const n = hash3(u + 5, 3, d + 9), c = n < 0.35 ? 0x4a3020 : n < 0.8 ? 0x3a2418 : 0x2c1b12;
+      // the churro ears: two round discs of ridged, sugared churro on the headband
+      for (const eu of [0.5, 12.5]) {
+        const r = Math.hypot(u - eu, w - 16.4);
+        if (d >= 5 && d <= 6 && r <= 2.5) return r > 1.9 ? 0xb8742e : Math.floor(r * 2 + u) % 2 ? 0xe0954a : hash3(u, w, d) < 0.3 ? 0xf6e2b0 : 0xd2853c;
       }
       if (w >= 13 && w <= 15 && u >= 5 && u <= 8 && d >= 8 && d <= 10) return u === 6 || u === 7 ? 0xc9ccd4 : 0xeef0f4; // the silver bow
+      if (w === 14 && d >= 5 && d <= 6 && u >= 0 && u <= 13) return 0xe9e2d8; // the headband between the ears
       if (core) {
         if (w >= 12) return c;
-        if (d === 13) return w >= 9 && (u <= 3 || u >= 10) ? c : null; // face-framing bangs, parted in the middle
-        if (u <= 0 || u >= 13) return c; // long, straight, past the ears
+        // curtain bangs, parted in the middle: down to the brows at the sides, the forehead showing in the middle
+        if (d === 13) return (w >= 10 && (u <= 2 || u >= 11)) || (w === 11 && (u === 3 || u === 10)) ? c : null;
         if (d <= 1) return c;
         return null;
       }
-      if (w === 14) return u >= 0 && u <= 13 && d >= 0 && d <= 13 && (u <= 5 || u >= 8 || d < 8) ? c : null;
-      if ((u === -1 || u === 14) && d >= 0 && d <= 13) return c; // down the sides, framing her face
-      if (d === -1 && u >= -1 && u <= 14) return c; // down the back
+      if (w === 14) {
+        if (u < 0 || u > 13 || d < 0 || d > 13) return null;
+        return (u === 6 || u === 7) && d >= 7 ? 0x5c3b28 : c; // the parting
+      }
+      if ((u === -1 || u === 14) && d >= 1 && d <= 13 && w >= 1 && w <= 13) return d === 13 && w < 5 ? null : c; // straight down the sides, past the chin
+      if (d === -1 && u >= -1 && u <= 14 && w >= 0 && w <= 13) return c; // down the back
       return null;
     }
   },
@@ -366,8 +370,13 @@ function heroParts(look) {
     return x === 0 || x === 5 ? look.strap : look.bag;
   }, V, [3, 0, 0]) : null;
   const longHair = look.longHair ? {
-    back: vox(12, 9, 2, (x, y, z) => (y === 0 && hash3(x, 0, z) < 0.4 ? null : look.longHair[Math.floor(hash3(x + 1, y * 3, z) * 3)]), V, [6, 0, 1]),
-    strand: vox(2, 6, 1, (x, y) => (y === 0 && x === 1 ? null : look.longHair[(x + y) % 3]), V, [1, 0, 0.5]),
+    // (straight: each column one shade, the ends a little ragged and the outer columns shorter)
+    back: vox(10, 7, 2, (x, y, z) => {
+      const edge = x === 0 || x === 9;
+      if ((edge && y < 2) || (y === 0 && hash3(x, 0, 1) < 0.5)) return null;
+      return look.longHair[Math.floor(hash3(x + 1, 7, z) * 3)];
+    }, V, [5, 0, 1]),
+    strand: vox(2, 5, 1, (x, y) => (y === 0 && x === 1 ? null : look.longHair[(x * 2 + 1) % 3]), V, [1, 0, 0.5]),
   } : null;
   return { torso, arm, leg, bag, longHair, poncho: look.poncho ? poncho() : null, head: head(look) };
 }
@@ -450,8 +459,8 @@ export function makeHero(key) {
   if (p.bag) { const bag = mesh(p.bag); bag.position.set(-1.6, 0.3, 1.75); body.add(bag); }
   if (p.poncho) { const po = mesh(p.poncho); po.position.y = 0.6; po.scale.set(b.slim, 1, b.slim < 1 ? 0.92 : 1); body.add(po); } // top just over the shoulders
   if (p.longHair) { // long hair falling down the back, and a strand over each shoulder in front
-    const back = mesh(p.longHair.back); back.position.set(0, 5.5 * b.torso - 4.4, -2.7); body.add(back);
-    [-1, 1].forEach((sd) => { const st = mesh(p.longHair.strand); st.position.set(sd * 2.9 * b.slim, 5.5 * b.torso - 3, 1.95); body.add(st); });
+    const back = mesh(p.longHair.back); back.position.set(0, 5.5 * b.torso - 3.5, -2.7); body.add(back);
+    [-1, 1].forEach((sd) => { const st = mesh(p.longHair.strand); st.position.set(sd * 2.6 * b.slim, 5.5 * b.torso - 2.5, 1.95); body.add(st); });
   }
   root.userData = { body, head: headM, armL, armR, legL, legR, hand, hip };
   return root;

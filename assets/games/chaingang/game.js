@@ -440,17 +440,20 @@ window.addEventListener('message', (e) => {
 });
 
 // The camera turns with Q/R (or , .), by dragging, and otherwise drifts round
-// behind you as you run (not while you're running back toward it).
+// behind you as you run forward — only forward: drifting while you steer
+// sideways turned "left" with it, so a held stick ran you round in a curve.
 function steerCamera(dt) {
   if (keys.CL) S.cam.yaw += dt * 2.2;
   if (keys.CR) S.cam.yaw -= dt * 2.2;
   const me = S.view && S.view.players[S.me];
   if (!me || performance.now() - S.cam.dragAt < 1500 || keys.CL || keys.CR) return;
+  const sx = ((keys.R ? 1 : 0) - (keys.L ? 1 : 0)) || pad.x, sy = ((keys.B ? 1 : 0) - (keys.F ? 1 : 0)) || pad.y;
+  if (!me.zip && (sy > -0.5 || Math.abs(sx) > 0.5)) return; // steering, not running on (on the zip line it always follows)
   const speed = Math.hypot(me.vx, me.vz);
   if (speed < 1.5 || !me.ground && !me.zip) return;
   let d = Math.atan2(me.vx, me.vz) - S.cam.yaw;
   d = Math.atan2(Math.sin(d), Math.cos(d));
-  if (Math.abs(d) < 2.2) S.cam.yaw += d * Math.min(1, dt * 1.1 * Math.min(1, speed / 5));
+  if (Math.abs(d) < 1.2) S.cam.yaw += d * Math.min(1, dt * 1.6 * Math.min(1, speed / 5));
 }
 
 // ---- the frame loop ----------------------------------------------------------------------------

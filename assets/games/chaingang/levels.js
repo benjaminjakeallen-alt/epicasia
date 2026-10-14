@@ -20,7 +20,10 @@
 //   zips      a zip line from a to b
 //   spawn, checks, finish   where the gang starts, the watchtowers, the end
 //   route     the way through, node by node, for the bots
-//   decor     things that are only drawn
+//   decor     things that are only drawn (graffiti); everything you can see
+//             that has a shape — battlements, the rock under each piece,
+//             pines, barrel stacks, the finish gate — is in solids too
+//             (see furnish()), so nobody and no chain passes through it
 
 const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // −z, +x, +z, −x; turning right goes round this list
 const box = (xa, xb, y0, y1, za, zb, extra) => ({ x0: Math.min(xa, xb), x1: Math.max(xa, xb), y0, y1, z0: Math.min(za, zb), z1: Math.max(za, zb), ...extra });
@@ -44,11 +47,14 @@ function course(name, key, line, opts = {}) {
     L.winds.push({ ...box(xa, xb, c.y - 1, c.y + 6, za, zb), fx: sx * 40 * c.wind.dir, fz: sz * 40 * c.wind.dir, on: 1.6, off: 2.6, phase: c.wind.phase });
     c.wind = null;
   }
-  function takeBarrels(len) {
+  // barrels roll back down the piece from its far end (`top` high there); a
+  // stack of two stands beside where they start, on the right-hand edge
+  function takeBarrels(len, top = c.y) {
     if (!c.barrels) return;
     const [x, z] = at(len - 0.6), [fx, fz] = f();
-    L.rollers.push({ x, y: c.y + 0.5, z, dx: -fx, dz: -fz, speed: 4.5, every: 5.5, first: 2.5 });
-    L.decor.push({ type: 'barrels', x: x + fx * 0.9, y: c.y, z: z + fz * 0.9, rot: c.h });
+    L.rollers.push({ x, y: top + 0.5, z, dx: -fx, dz: -fz, speed: 4.5, every: 5.5, first: 2.5 });
+    const [bx, bz] = at(len - 0.5, 1.05);
+    L.solids.push({ ...box(bx - 0.45, bx + 0.45, top, top + 1.9, bz - 0.45, bz + 0.45), kind: 'barrels' });
     c.barrels = false;
   }
   const api = {
@@ -74,7 +80,7 @@ function course(name, key, line, opts = {}) {
     },
     /** Steps up (each ≤ 0.45 m, so they're walked). */
     stairs(len, rise, n = Math.ceil(rise / 0.4)) {
-      takeWind(len, 3.2); takeBarrels(len);
+      takeWind(len, 3.2); takeBarrels(len, c.y + rise);
       const y0 = c.y;
       for (let k = 0; k < n; k++) {
         const [xa, za] = at((len * k) / n, -1.6), [xb, zb] = at((len * (k + 1)) / n, 1.6), top = y0 + (rise * (k + 1)) / n;
@@ -96,7 +102,6 @@ function course(name, key, line, opts = {}) {
       L.solids.push(box(cx - size / 2, cx + size / 2, c.y - 6, c.y, cz - size / 2, cz + size / 2, { kind: 'rock' }));
       if (o.spawn) L.spawn = { x: cx, y: c.y, z: cz, dir: f() };
       L.route.push({ p: [cx, c.y, cz], near: 1.6, ...(c.jump ? { jump: true } : {}) });
-      L.decor.push({ type: 'trees', x: cx, y: c.y, z: cz, size, seed: L.solids.length });
       c.jump = false; c.thick = 0;
       c.h = (c.h + turn + 4) % 4;
       if (o.check) L.checks.push({ x: cx, y: c.y, z: cz, dir: f() });
@@ -190,10 +195,58 @@ function course(name, key, line, opts = {}) {
     done() {
       const lowest = Math.min(...L.solids.map((s) => s.y1));
       L.fallY = lowest - 18;
+      furnish(L);
       return L;
     },
   };
   return api;
+}
+
+/**
+ * Everything drawn on and under the pieces, as boxes the simulation knows:
+ * battlements along both sides of the Wall, the jagged rock hanging under
+ * each floating piece (stepped tiers, narrowing downward), pines on the rock
+ * islands and the finish gate's posts.
+ */
+function furnish(L) {
+  const add = (b, kind, extra) => L.solids.push({ ...b, kind, ...extra });
+  for (const s of L.solids.slice()) {
+    if (s.kind === 'wall' && !s.step) {
+      const alongX = s.along === 'x', len = alongX ? s.x1 - s.x0 : s.z1 - s.z0;
+      for (let k = 0.6; k < len - 0.3; k += 1.6) for (const side of [0, 1]) {
+        const a0 = (alongX ? s.x0 : s.z0) + k - 0.275, a1 = a0 + 0.55;
+        const c0 = side ? (alongX ? s.z1 : s.x1) - 0.45 : alongX ? s.z0 : s.x0, c1 = c0 + 0.45;
+        add(alongX ? box(a0, a1, s.y1, s.y1 + 0.55, c0, c1) : box(c0, c1, s.y1, s.y1 + 0.55, a0, a1), 'merlon');
+      }
+    }
+    if ((s.kind === 'wall' || s.kind === 'rock') && !s.step) {
+      const depth = s.kind === 'rock' ? 4 : 2.5, hw = (s.x1 - s.x0) / 2, hd = (s.z1 - s.z0) / 2;
+      let y = s.y0;
+      // (the top tier is flush with the piece and the others step in by at
+      // least 0.75 m, so no crack beside another piece is too narrow to fit
+      // a traveller and wedge them in it)
+      [[0.42, 0, 0], [0.33, 0.32, 0.75], [0.25, 0.56, 1.4]].forEach(([dh, inset, min], k) => {
+        const ix = Math.min(hw - 0.3, Math.max(min, hw * inset)), iz = Math.min(hd - 0.3, Math.max(min, hd * inset));
+        add(box(s.x0 + ix, s.x1 - ix, y - depth * dh, y, s.z0 + iz, s.z1 - iz), 'under', { tier: k });
+        y -= depth * dh;
+      });
+    }
+  }
+  // pines on a rock island's corners (as many and as big as the drawing has)
+  L.solids.filter((s) => s.kind === 'rock').forEach((s, n) => {
+    const cx = (s.x0 + s.x1) / 2, cz = (s.z0 + s.z1) / 2, h = (s.x1 - s.x0) / 2 - 0.7, seed = n * 3 + 1;
+    [[1, 1], [-1, -1], [1, -1]].slice(0, 1 + (seed % 2) + 1).forEach(([a, b], k) => {
+      if ((seed + k) % 3 === 0) return;
+      const sc = 0.5 + (((seed * 7 + k) % 3) / 2) * 0.25, r = 0.5 * sc;
+      add(box(cx + a * h - r, cx + a * h + r, s.y1, s.y1 + 2.7 * sc, cz + b * h - r, cz + b * h + r), 'tree', { scale: sc });
+    });
+  });
+  // the finish gate's two posts
+  const fi = L.finish, [dx, dz] = fi.dir;
+  for (const across of [-1.9, 1.9]) {
+    const x = fi.x + dx * 2 - dz * across, z = fi.z + dz * 2 + dx * across;
+    add(box(x - 0.225, x + 0.225, fi.y, fi.y + 4.8, z - 0.225, z + 0.225), 'post');
+  }
 }
 
 export const LEVELS = [

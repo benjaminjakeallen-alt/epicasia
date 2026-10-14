@@ -68,6 +68,12 @@ test('Games hub: a stage shows the picked game; tiles switch it, Play opens it',
   await expect(page.getByTestId('games-title')).toHaveText('Godzilla Rampage');
   await expect(page.getByRole('tab', { name: 'Godzilla Rampage' })).toHaveAttribute('aria-selected', 'true');
   await page.screenshot({ path: 'test-results/games-hub-rampage.png' });
+  // the tiles are a carousel: scroll it along and the game that comes to rest in the middle is chosen
+  const strip = (await page.getByTestId('games-carousel').boundingBox())!;
+  await page.mouse.move(strip.x + strip.width / 2, strip.y + strip.height / 2);
+  await page.mouse.wheel(196, 0); // two tiles on
+  await expect(page.getByTestId('games-title')).toHaveText('Chain Gang Dynasty');
+  await expect(page.getByRole('tab', { name: 'Chain Gang Dynasty' })).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: 'Lost in Translation' }).click();
   await page.getByTestId('games-play').click();
   await expect(page.getByRole('heading', { name: 'Lost in Translation' }).last()).toBeVisible();
