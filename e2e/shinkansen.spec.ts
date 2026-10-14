@@ -65,7 +65,7 @@ const debug = (f: Frame, fn: string, ...args: unknown[]) =>
 
 /** Turns the character ring (arrow keys, the short way round) until traveler i is at the front. */
 async function toFront(page: Page, f: Frame, i: number) {
-  const n = 7;
+  const n = 8;
   for (let k = 0; k < n; k++) {
     const sel = await f.evaluate(() => (window as any).__dash.sel);
     if (sel === i) break;
@@ -691,11 +691,15 @@ test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett
   // Bennett: hold the jump and the poncho glides — far longer in the air than a plain jump (~0.74 s).
   await start(page, f, 1);
   await debug(f, 'calm');
+  // (paused, stepping exact game time, so a slow runner can't miss it: a plain jump's whole fall takes ~0.37 s)
+  await debug(f, 'pause', true);
   await page.keyboard.down('ArrowUp');
-  await expect.poll(async () => (await skills(f)).gliding, fast).toBe(true);
-  await expect.poll(async () => (await skills(f)).air, { timeout: 15_000, intervals: [50] }).toBe(false);
+  await debug(f, 'step', 40); // past the top of the jump
+  expect((await skills(f)).gliding).toBe(true);
+  await debug(f, 'step', 300);
+  expect((await skills(f)).air).toBe(false);
   await page.keyboard.up('ArrowUp');
-  // (in game time, so a slow runner can't skew it: a plain jump's whole fall takes ~0.37 s)
+  await debug(f, 'pause', false);
   expect((await skills(f)).glides).toBeGreaterThan(0.6);
   await changeHero(page, f);
 

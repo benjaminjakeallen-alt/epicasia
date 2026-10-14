@@ -12,6 +12,7 @@ const LOOK2D = {
   miles: { skin: '#f4cfb6', hair: '#936a43', top: '#1f5a3c', legs: '#2f3a4f', glasses: '#3a2618', tall: true },
   nicole: { skin: '#f4cfb6', hair: '#c8682f', big: true, top: '#b4532a', legs: '#9cb9dc', glasses: '#8fd0cc' },
   jake: { skin: '#f2c1a3', hair: null, top: '#8f959c', legs: '#2a2d33', glasses: '#17181b' },
+  mei: { skin: '#e9c19c', hair: '#2b1910', big: true, top: '#f2b6dc', legs: '#6f9ac9' },
   liam: { skin: '#f4cdb4', hair: '#9a6c40', top: '#1d2027', legs: '#1d2027', headband: '#d62c2c' },
 };
 

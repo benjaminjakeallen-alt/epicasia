@@ -568,7 +568,17 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Secret travellers** (user, Oct 11 2026: "not have Emily immediately
   playable but you have to earn them"): Chris and Bennett from the start;
   **reach Mount Fuji (2 km) in a run → Emily**; Miles and Nicole below
-  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake, liam).
+  (`UNLOCK` in game.js; ROSTER chris, bennett, emily, miles, nicole, jake, liam, mei).
+  **Mei** (Oct 14 2026, from her photos — `LOOKS.mei` in Rampage's
+  models.js): a kid build, long straight dark hair with centre-parted bangs
+  (`longHair` adds a back panel and two front strands), freckles, the
+  churro Mickey ears (golden rings dipped in chocolate, `tallHead` gives the
+  head grid room above) with a silver bow, a sleeveless pastel checkered
+  knit top, jeans. **Playable from the start** (an assumption — say if she
+  should be a secret). Her ring dance: bouncing peace signs with a head
+  tilt, then hands under the chin. **Her special skill isn't chosen yet**
+  (`HEROES.mei.skill` empty) — being brainstormed with the user.
+  Runs save as hero `mei` (`0027_mei.sql`).
   **The picker is a ring** (user, Oct 12 2026: "rotary style where you can
   scroll through all character and only play the ones you unlock… Each
   should have a special dance… Chris should DAP"): everyone stands round a
@@ -843,7 +853,9 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 The user's brief: "a 4 player game … a knock off version of Chained
 Together … on the Great Wall of China … 3 levels of different creative
 obstacles … art style in the vein of Sunset Overdrive … Chris, Jake,
-Bennett, Miles (I will do the girls later)". Name and icon picked by the
+Bennett, Miles (I will do the girls later)"; **Mei** joined Oct 14 2026
+(five to pick from, 4 play — `HEROES` in game.js, `CHAIN_HEROES` in
+`chainGangRoom.ts`). Name and icon picked by the
 user from a shortlist ("Chain Gang Dynasty", icon A: the wall winding over a
 grassy hill to a watchtower with a sage banner, `assets/images/games/
 chain-gang.png`, prompts in `tools/menu-icons/README.md`).
@@ -1431,7 +1443,8 @@ backend code.
   `0024_shinkansen_jake.sql` (… and `jake`),
   `0025_shinkansen_liam.sql` (… and `liam`),
   `0026_chain_gang.sql` (`game_scores.game` may be `chain_gang`; the
-  realtime policies also allow `chaingang:%` topics — see Chain Gang Dynasty).
+  realtime policies also allow `chaingang:%` topics — see Chain Gang Dynasty),
+  `0027_mei.sql` (`game_scores.hero` may be `mei`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

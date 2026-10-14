@@ -18,8 +18,8 @@ import { STEP, createSim, stepSim, botInput, simulateLevel } from './sim.js';
 import { createRenderer } from './render3d.js';
 
 const INIT = window.CHAINGANG_INIT || {};
-export const HEROES = ['chris', 'jake', 'bennett', 'miles'];
-export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 'MILES' };
+export const HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'];
+export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 'MILES', mei: 'MEI' };
 export const COLORS = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff']; // each place on the chain
 const PAR = [110, 110, 120]; // seconds for a time bonus
 const TITLE_T = 2.8, CLEAR_T = 4.5;
@@ -29,7 +29,7 @@ const NET = INIT.mode === 'host' || INIT.mode === 'client' ? INIT.mode : 'solo';
 const ME = NET === 'solo' ? 0 : INIT.me | 0;
 function defaultRoster() {
   const mine = HEROES.includes(INIT.hero) ? INIT.hero : 'chris';
-  return [mine].concat(HEROES.filter((h) => h !== mine)).map((hero, i) => ({ hero, name: i ? NAMES[hero] : 'YOU', bot: i > 0 }));
+  return [mine].concat(HEROES.filter((h) => h !== mine)).slice(0, 4).map((hero, i) => ({ hero, name: i ? NAMES[hero] : 'YOU', bot: i > 0 }));
 }
 const ROSTER = (Array.isArray(INIT.players) && INIT.players.length ? INIT.players : defaultRoster())
   .slice(0, 4).map((p, i) => ({ hero: HEROES.includes(p.hero) ? p.hero : HEROES[i], name: String(p.name || NAMES[p.hero] || 'TRAVELLER').slice(0, 14).toUpperCase(), bot: !!p.bot }));

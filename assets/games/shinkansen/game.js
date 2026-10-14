@@ -40,12 +40,13 @@ const HEROES = {
   miles: { name: 'MILES', skill: 'DOUBLE JUMPS', hint: 'SWIPE UP AGAIN IN THE AIR' },
   nicole: { name: 'NICOLE', skill: 'BOBA MAGNET · AUTO SLIDE', hint: 'PICKUPS COME TO YOU · SHE DUCKS CROWS' },
   jake: { name: 'JAKE', skill: 'MANHOLE SKATEBOARD', hint: 'EVERY 30 ONIGIRI: A SKATEBOARD' },
-  liam: { name: 'LIAM', skill: 'NINJA STARS', hint: 'CROWS DON\'T STAND A CHANCE' }
+  liam: { name: 'LIAM', skill: 'NINJA STARS', hint: 'CROWS DON\'T STAND A CHANCE' },
+  mei: { name: 'MEI', skill: '', hint: '' } // (her skill is still to be picked)
 };
 const skill = (h) => S.hero === h && !S.simulating;
 const SMASH_EVERY = 8, GLIDE_V = 1.7, BOARD_EVERY = 30, BOARD_TIME = 15;
-const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam'];
-// Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start.
+const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam', 'mei'];
+// Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start, and Mei (Oct 14 2026).
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
 // unlock Emily; Miles (who replaced Heather here) needs a golden guitar; Nicole a boba tea. The app remembers unlocks
 // per phone (the game's own storage is off in its sandbox) and passes them
@@ -114,7 +115,7 @@ const S = {
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [], stars: [], throws: 0, kills: 0, throwT: -9,
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
   paused: false, menu: false, sentScore: false, shakeT: 0,
-  unlocked: new Set(['chris', 'bennett'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
+  unlocked: new Set(['chris', 'bennett', 'mei'].concat((INIT.unlocked || []).filter(function (h) { return UNLOCK[h]; }))),
   hint: null, simulating: false, sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0
 };
 function locked(h) { return !S.unlocked.has(h); }

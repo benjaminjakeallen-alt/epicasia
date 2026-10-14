@@ -211,7 +211,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- travellers ---------------------------------------------------------------------
   const heroes = {
     chris: makeHero('chris'), bennett: makeHero('bennett'), emily: makeHeroine('emily'), miles: makeHero('miles'),
-    nicole: makeHero('nicole'), jake: makeHero('jake'), liam: makeHero('liam')
+    nicole: makeHero('nicole'), jake: makeHero('jake'), liam: makeHero('liam'), mei: makeHero('mei')
   };
   Object.values(heroes).forEach((h) => {
     h.scale.setScalar(HERO_SCALE);
@@ -476,6 +476,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         if (q < 0.5) return { armL: -1.6, armLz: -0.6 * Math.sin(q * 50), armR: -0.4, legL: -0.3, legR: 0.3, lean: 0.1 };
         if (q < 0.75) { const k2 = Math.sin((q - 0.5) / 0.25 * Math.PI); return { legR: -1.6 * k2, armL: -1.2, armR: -0.2, lean: -0.15 * k2, turn: 0.4, bob: 0.25 * k2 }; }
         return { nod: 0.5, lean: 0.25, armL: -0.4, armR: -0.4 }; // a bow
+      }
+      case 'mei': { // from her photos: double peace signs, bouncing, head tilting side to side, then hands under her chin
+        const q = p(3);
+        if (q < 0.72) return { armL: -2.4, armLz: -0.75, armR: -2.4, armRz: 0.75, look: sw(0.75, 0.25), nod: sw(0.75, 0.12), bob: Math.abs(sw(0.375, 0.3)), legL: Math.max(0, sw(0.75, 0.3)), legR: Math.max(0, -sw(0.75, 0.3)), sway: sw(0.75, 0.6) };
+        return { armL: -2.55, armLz: 0.55, armR: -2.55, armRz: -0.55, nod: 0.18, look: 0.2, lean: 0.05, bob: 0.05 };
       }
       default:
         return { armR: -2.7 + Math.sin(t * 9) * 0.35, armRz: 0.3, armL: -0.2 };

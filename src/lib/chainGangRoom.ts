@@ -15,9 +15,9 @@ import { supabase } from './supabase';
 // set the room runs over a BroadcastChannel instead: two pages in one browser
 // play together exactly as two phones would.
 
-export const CHAIN_HEROES = ['chris', 'jake', 'bennett', 'miles'] as const;
+export const CHAIN_HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'] as const;
 export type ChainHero = (typeof CHAIN_HEROES)[number];
-export const CHAIN_HERO_NAMES: Record<ChainHero, string> = { chris: 'Chris', jake: 'Jake', bennett: 'Bennett', miles: 'Miles' };
+export const CHAIN_HERO_NAMES: Record<ChainHero, string> = { chris: 'Chris', jake: 'Jake', bennett: 'Bennett', miles: 'Miles', mei: 'Mei' };
 export const MAX_PLAYERS = 4;
 
 export type RoomMember = { id: string; name: string; hero: ChainHero | null; host: boolean; joinedAt: number };
