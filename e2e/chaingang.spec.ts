@@ -155,6 +155,8 @@ test('chain gang: two phones in one room play together', async ({ browser }) => 
   // B walks back (left): the host's simulation moves B's traveller
   const before = (await chain(fa, (c) => c.players))[1].x;
   await b.bringToFront();
+  // (two pages in one browser: make sure B's game has the keyboard)
+  await b.frameLocator('[data-testid="game-frame"]').locator('#hud').click({ position: { x: 195, y: 300 } });
   await b.keyboard.down('ArrowLeft');
   await expect.poll(async () => before - (await chain(fa, (c) => c.players))[1].x, { timeout: 30_000 }).toBeGreaterThan(1);
   await b.keyboard.up('ArrowLeft');
