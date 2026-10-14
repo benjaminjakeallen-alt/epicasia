@@ -273,6 +273,8 @@ const SCREENS: [string, string][] = [
   ['new find', '/games/lost-in-translation/new'],
   ['godzilla rampage', '/games/rampage'],
   ['shinkansen dash', '/games/shinkansen'],
+  ['chain gang dynasty', '/games/chaingang'],
+  ['chain gang dynasty: lobby', '/games/chaingang/play'],
   ['chat rooms', '/chat'],
   ['chat room', `/chat/${EVERYONE}`],
   ['new chat room', '/chat/new'],
@@ -407,6 +409,19 @@ test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen/play');
   await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Pause' })).toBeVisible();
+  expect(await axe(page)).toEqual([]); // axe also audits inside the game's frame
+  const sizes = await page
+    .frameLocator('[data-testid="game-frame"]')
+    .locator('button:visible')
+    .evaluateAll((els) => els.map((e) => [e.getAttribute('aria-label') ?? e.textContent, e.getBoundingClientRect()]));
+  expect(sizes.filter(([, r]) => (r as DOMRect).width < 44 || (r as DOMRect).height < 44)).toEqual([]);
+});
+
+test('a11y: chain gang dynasty game (the iframe and its controls)', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/chaingang/play');
+  await page.getByTestId('chain-practise').click();
+  await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: /^Grab/ })).toBeVisible();
   expect(await axe(page)).toEqual([]); // axe also audits inside the game's frame
   const sizes = await page
     .frameLocator('[data-testid="game-frame"]')

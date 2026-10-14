@@ -66,6 +66,9 @@ options each; the user picked the camera and the arcade cabinet):
 | Shinkansen Dash (Oct 6 2026, picked by Claude) | A | a sleek white Japanese shinkansen bullet train with a long aerodynamic nose and a muted sage green stripe along its side, speeding forward on a short curved section of track |
 | | **B (picked)** | a tiny white shinkansen bullet train with a muted sage green stripe speeding along a short curved track past a small snow-capped Mount Fuji |
 | | C | a white shinkansen bullet train with a muted sage green stripe on a short track, with three rice ball onigiri wrapped in seaweed floating in an arc above its roof |
+| Chain Gang Dynasty (Oct 13 2026, picked by the user) | **A (picked)** | a section of the Great Wall of China winding over a small grassy hill to a square stone watchtower, worn grey bricks and battlements, muted sage green moss and a small sage green banner on the tower |
+| | B | a square Great Wall watchtower wrapped in a heavy sage-and-iron chain |
+| | C | a steep stretch of the Great Wall up a ridge with red lanterns and sage pines |
 
 All `MODEL=qwen`, cut out with `cutout.py <src> <dst> 360`.
 

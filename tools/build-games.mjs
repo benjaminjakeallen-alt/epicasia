@@ -19,6 +19,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const GAMES = [
   { dir: 'rampage', name: 'RAMPAGE_HTML' },
   { dir: 'shinkansen', name: 'SHINKANSEN_HTML' },
+  { dir: 'chaingang', name: 'CHAINGANG_HTML' },
 ];
 const check = process.argv.includes('--check');
 let stale = false;

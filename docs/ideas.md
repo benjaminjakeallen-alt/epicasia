@@ -22,7 +22,8 @@ manhole skateboard every 30 onigiri, Liam ninja stars — see CLAUDE.md).
 Not picked: Emily's "speed reader"/"hardcover", Miles's "power chord",
 Nicole's "cat-eye specs", Jake's "manhole master"/"sludge armour".
 
-**Planned (user, Oct 13 2026): a 4-player co-op on the Great Wall** — a
+**Built Oct 14 2026 as Chain Gang Dynasty (room codes, icon A — see
+CLAUDE.md). The original plan:** a 4-player co-op on the Great Wall — a
 take on *Chained Together*: four travellers chained to each other must get
 along the Great Wall through 3 levels of creative obstacles; Sunset
 Overdrive-style art (punchy sunset colours, cel shading with bold outlines,

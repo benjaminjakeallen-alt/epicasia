@@ -1,5 +1,5 @@
 import { Stack, useRouter, type Href } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type MutableRefObject } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { localBest, parseRun, saveRun, scoresCache, type ArcadeGame, type ScoreRow } from '../../lib/arcade';
 import { useAuth } from '../../lib/AuthProvider';
@@ -10,7 +10,7 @@ import GameFrame from './GameFrame';
 
 type Message = { type?: unknown } & Record<string, unknown>;
 
-// An arcade game full screen (Godzilla Rampage, Shinkansen Dash). The game
+// An arcade game full screen (Godzilla Rampage, Shinkansen Dash, Chain Gang Dynasty). The game
 // gets the HIGH SCORE to beat — the best of this phone's runs and the
 // group's saved board — plus anything the game's screen adds (`init`), and
 // reports each finished run back here to be saved.
@@ -22,6 +22,7 @@ export default function ArcadePlay({
   board,
   init,
   onMessage,
+  postRef,
 }: {
   game: ArcadeGame;
   /** The game's built HTML (src/games/<slug>/html.ts) with its `/*INIT*\/null` placeholder. */
@@ -31,6 +32,7 @@ export default function ArcadePlay({
   board: Href;
   init?: () => Promise<Record<string, unknown>>;
   onMessage?: (msg: Message) => void;
+  postRef?: MutableRefObject<((data: unknown) => void) | null>;
 }) {
   const router = useRouter();
   const colors = useTheme();
@@ -76,7 +78,7 @@ export default function ArcadePlay({
     <View style={[styles.screen, { backgroundColor: colors.arcade }]}>
       {/* Horizontal swipes are the game's: no swipe-back mid-jump. */}
       <Stack.Screen options={{ gestureEnabled: false, animation: 'fade' }} />
-      {page ? <GameFrame html={page} title={title} onMessage={handle} /> : null}
+      {page ? <GameFrame html={page} title={title} onMessage={handle} postRef={postRef} /> : null}
     </View>
   );
 }

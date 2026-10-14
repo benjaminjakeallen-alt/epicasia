@@ -123,8 +123,8 @@ through them. Build it with standard accessibility practice:
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
 points and a leaderboard; **Lost in Translation**, **Konbini Review**,
-**Godzilla Rampage** and **Shinkansen Dash** are built, plus a **trip
-leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
+**Godzilla Rampage**, **Shinkansen Dash** and **Chain Gang Dynasty** (4-player
+co-op) are built, plus a **trip leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -838,6 +838,89 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   jump a fairing, slide a gantry and a crow, hop off an ending train, fall
   off one) + axe on the board and inside the game frame.
 
+### Games → Chain Gang Dynasty (built, Oct 14 2026)
+
+The user's brief: "a 4 player game … a knock off version of Chained
+Together … on the Great Wall of China … 3 levels of different creative
+obstacles … art style in the vein of Sunset Overdrive … Chris, Jake,
+Bennett, Miles (I will do the girls later)". Name and icon picked by the
+user from a shortlist ("Chain Gang Dynasty", icon A: the wall winding over a
+grassy hill to a watchtower with a sage banner, `assets/images/games/
+chain-gang.png`, prompts in `tools/menu-icons/README.md`).
+- **Playing together = room codes** (user's pick; Bluetooth isn't open to a
+  web app). `src/lib/chainGangRoom.ts`: a 4-character code (no 0/O/1/I),
+  one private Realtime channel `chaingang:<CODE>` — presence (name,
+  traveller, host, joinedAt; host first, then join order; 4 max), broadcast
+  `start` (the line-up) and `g` (game traffic). Each join gets a fresh
+  member id, so one account on two devices is two players. **Not verified
+  on real phones / live Realtime yet** (tests can't open the websocket):
+  first check = two phones, one room, play a stretch.
+  With `window.__CHAINGANG_LOCAL__` the same room runs over a
+  BroadcastChannel — that's how the e2e plays two pages together.
+- **Screens:** `games/chaingang/index` (ArcadeBoard, "as Bennett · all
+  three stretches"), `games/chaingang/play` — pick a traveller (saved as
+  `epicasia.chaingang.hero`), then **Start a room** (big code + Share),
+  **Join** with a code, or **Practise with bots**; the lobby lists the gang,
+  greys out travellers others have (a later joiner who clashes is moved to a
+  free one), "Fill empty places with bots" (host), Start. "Nobody is
+  hosting room X" after 4 s with no host. The game is ArcadePlay; this
+  screen relays `{type:'net'}` from the iframe to the room and room traffic
+  back in (`GameFrame`'s new `postRef`), and tells the game `peer-left {i}`
+  (host: a bot takes over) / `host-left` (clients: "THE HOST LEFT").
+- **Netcode:** the host phone runs the only simulation; clients send their
+  stick/JUMP/GRAB on change and every 0.25 s (`taps` counts presses so a
+  quick tap is never lost) and draw the host's snapshots (12/s) 0.15 s
+  behind, blended. The host waits for every phone's `hi` (or 8 s) before
+  the first title card.
+- **Simulation** `assets/games/chaingang/sim.js` (pure, used by the game,
+  the bots and the checks): side-on, metres. Chain = a 5 m distance limit
+  between neighbours solved like a rope — someone in the air weighs more
+  than someone standing, **GRAB on the ground makes you an anchor**
+  (immovable); a taut pull drags a dangler up a wall face; **JUMP while
+  dangling climbs the chain** toward whoever holds you. Fall below the wall
+  for 1.1 s → "WHOOPS", everyone back to the last watchtower (checkpoint,
+  passed when the whole gang is past it). Crumbling stones hold **one**
+  traveller (two at once → gone in 0.3 s, one lingering 2.5 s), back after
+  3 s. Leaving a moving platform keeps its motion.
+- **Levels** (`levels.js`, pure data): **Sunset Ramparts** (steps with
+  firecracker barrels, four crumbling stones, a swinging lantern bridge),
+  **Dragon Festival** (firework launch pads, the parade dragon's moving
+  segments, two prayer-wheel spinners, a launch up to the gate), **Storm
+  Peak** (gusts on the switchbacks — GRAB to hold on —, a collapsing
+  tower, a zip line (GRAB in the air), rope carts, barrels, the gong).
+- **Bots** (`botInput`): fill empty places and replace a phone that left.
+  They follow the one ahead, cross gaps one at a time, only jump to footing
+  within chain reach of their neighbours (flying the jump through the level
+  as it will be), haul danglers, dig in for gusts, ride the zip. **Every
+  stretch must be winnable:** `simulateLevel(lv, n, max, startAt)` (on
+  `__chain.simulate`) — gangs of 1–4 bots at 8 start timings all finish
+  all three (96/96); the e2e checks 1, 2 and 4. Re-run after any level or
+  physics change.
+- **Scores:** per stretch `max(250, 1000 + 10·(par − time) − 60·falls)`
+  (par 110/110/120 s), summed; each phone saves its own row in
+  `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
+  its own hero) at the finish, or on leaving with something cleared.
+- **Look** (`render3d.js`): Sunset Overdrive — neon sunset sky per stretch,
+  a striped retro sun, parallax ridges with the wall on them, a cloud sea
+  below, toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with ink
+  outlines (back faces pushed out), graffiti tags with drips, neon bunting,
+  a chunky gold chain that hangs in a curve (slack lies on the walkway),
+  confetti/sparks/debris, flags that light up at watchtowers. Travellers are
+  Rampage's `makeHero` models with an ink outline. HUD (`hud.js`): stretch,
+  clock, falls, score, a progress strip with the watchtowers and everyone's
+  dot, name tags (🤖 for bots), title/clear/finish cards. Pad: joystick +
+  GRAB + JUMP; keys ←/→ (A/D), Space/↑/W/Z jump, Shift/E/J/X/↓/S grab;
+  Esc/P pauses (solo pauses the game; online it's only a menu).
+- `window.__chain`: mode, net, me, level, total, scores, falls, cp, players,
+  roster, simulate, screenPoint; in development `debug.auto(on)`,
+  `finishLevel()`, `setLevel(n)`, `fall()`, `skipTitle()`, `warp(x, y)`.
+- Tests: `e2e/chaingang.spec.ts` (board; bots win every stretch; practise —
+  roster, stick, GRAB, a fall, clear all three → exact `game_scores`
+  insert, leave; **two pages in one room** — code, join, traveller clash,
+  host/client, the client's stick moves its traveller in the host's sim and
+  the client sees it, the client leaves → a bot takes over; a code with no
+  host) + axe on the board, the lobby and inside the game frame.
+
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
 Same shape as Itinerary: `src/lib/flights.ts` (fetch/create/delete),
@@ -1305,7 +1388,9 @@ backend code.
   `0022_shinkansen_miles.sql` (… and `miles`),
   `0023_shinkansen_bennett.sql` (… and `bennett`),
   `0024_shinkansen_jake.sql` (… and `jake`),
-  `0025_shinkansen_liam.sql` (… and `liam`).
+  `0025_shinkansen_liam.sql` (… and `liam`),
+  `0026_chain_gang.sql` (`game_scores.game` may be `chain_gang`; the
+  realtime policies also allow `chaingang:%` topics — see Chain Gang Dynasty).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

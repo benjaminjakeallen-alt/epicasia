@@ -1,18 +1,28 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type MutableRefObject } from 'react';
 
 export type GameFrameProps = {
   html: string;
   title: string;
   onMessage: (msg: { type?: unknown } & Record<string, unknown>) => void;
+  /** Filled with a function that posts into the game (Chain Gang Dynasty's network relay). */
+  postRef?: MutableRefObject<((data: unknown) => void) | null>;
 };
 
 // The game in a sandboxed iframe (scripts only, its own null origin). It
 // posts { source: 'rampage', type, ... } to this window; only messages from
 // this iframe are accepted.
 
-export default function GameFrame({ html, title, onMessage }: GameFrameProps) {
+export default function GameFrame({ html, title, onMessage, postRef }: GameFrameProps) {
   const ref = useRef<HTMLIFrameElement>(null);
   const handler = useRef(onMessage);
+  useEffect(() => {
+    if (!postRef) return;
+    // (the game's window has a null origin, so '*' is the only target that reaches it)
+    postRef.current = (data) => ref.current?.contentWindow?.postMessage(data, '*');
+    return () => {
+      postRef.current = null;
+    };
+  }, [postRef]);
   useEffect(() => {
     handler.current = onMessage;
   }, [onMessage]);
