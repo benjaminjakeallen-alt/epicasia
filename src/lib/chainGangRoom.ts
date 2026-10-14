@@ -133,14 +133,15 @@ function realtimeRoom(code: string, state: RoomMember, events: Events): Room {
 }
 
 // The test stand-in: the same room over a BroadcastChannel. Presence is each
-// page saying "here" twice a second; a page that goes quiet for 2 s has left.
+// page saying "here" twice a second; a page that goes quiet for 6 s has left
+// (a page in the background only gets its timers about once a second).
 function localRoom(code: string, state: RoomMember, events: Events): Room {
   const bc = new BroadcastChannel(`chaingang:${code}`);
   const seen = new Map<string, { m: RoomMember; at: number }>();
   let sig = '';
   const emit = () => {
     const now = Date.now();
-    for (const [id, v] of seen) if (now - v.at > 2000) seen.delete(id);
+    for (const [id, v] of seen) if (now - v.at > 6000) seen.delete(id);
     const list = [state, ...[...seen.values()].map((v) => v.m)];
     const next = JSON.stringify(sortMembers(list));
     if (next !== sig) {

@@ -244,7 +244,8 @@ function inputsFor(sim) {
       return Object.assign(inp, { tap });
     }
     const r = remote[i];
-    if (!r) return { x: 0, jump: false, grab: false };
+    // nothing from that phone for a while: let go of everything rather than walk on forever
+    if (!r || performance.now() - r.at > 1500) return { x: 0, jump: false, grab: false };
     const tap = (r.taps | 0) > (seenTaps[i] | 0);
     seenTaps[i] = r.taps | 0;
     return { x: r.x, jump: r.jump, grab: r.grab, tap };
@@ -393,7 +394,7 @@ window.addEventListener('message', (e) => {
       if (m.t === 'hi' && typeof m.i === 'number') ready.add(m.i);
       else if (m.t === 'i' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
         ready.add(m.i);
-        remote[m.i] = { x: Math.max(-1, Math.min(1, +m.x || 0)), jump: !!m.jump, grab: !!m.grab, taps: m.taps | 0 };
+        remote[m.i] = { x: Math.max(-1, Math.min(1, +m.x || 0)), jump: !!m.jump, grab: !!m.grab, taps: m.taps | 0, at: performance.now() };
       }
     } else if (S.net === 'client' && m.t === 's') onSnapshot(m);
   } else if (d.type === 'peer-left' && S.net === 'host' && typeof d.i === 'number' && S.roster[d.i]) {
@@ -413,6 +414,13 @@ renderer = createRenderer({
 });
 let last = performance.now();
 function frame(now) {
+  tick(now);
+  requestAnimationFrame(frame);
+}
+// A hidden page gets no animation frames; a timer keeps the game (and,
+// on the host, everyone's game) going until it's back in front.
+setInterval(() => { const now = performance.now(); if (now - last > 150) tick(now); }, 100);
+function tick(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   S.modeT += dt;
@@ -424,8 +432,7 @@ function frame(now) {
     S.stale = snaps.length > 0 && performance.now() - lastSnapAt > 4000 && S.mode !== 'finish';
   } else hostUpdate(dt);
   S.view = S.net === 'client' ? clientView() : hostView();
-  renderer.draw(now / 1000, dt);
-  requestAnimationFrame(frame);
+  if (!document.hidden) renderer.draw(now / 1000, dt);
 }
 syncButtons();
 requestAnimationFrame(frame);

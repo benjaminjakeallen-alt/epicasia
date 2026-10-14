@@ -136,16 +136,27 @@ export default function ChainGangPlay() {
   }, [phase, host, room]);
   const alone = timedOut && !roomHost;
 
-  // mid-game: tell the game who has gone
+  // mid-game: tell the game who has gone (after a grace period: presence
+  // can blip when a phone's connection hiccups)
+  const membersRef = useRef<RoomMember[]>([]);
+  useEffect(() => {
+    membersRef.current = members;
+  }, [members]);
   useEffect(() => {
     const g = gameRef.current;
     if (phase !== 'game' || !g || g.mode === 'solo') return;
-    const here = new Set(members.map((m) => m.id));
-    g.players.forEach((p, i) => {
-      if (!p.id || p.bot || here.has(p.id)) return;
-      if (g.mode === 'host') postRef.current?.({ source: 'chaingang-app', type: 'peer-left', i });
-      else if (i === 0) postRef.current?.({ source: 'chaingang-app', type: 'host-left' });
-    });
+    const gone = () => {
+      const here = new Set(membersRef.current.map((m) => m.id));
+      return g.players.map((p, i) => (p.id && !p.bot && !here.has(p.id) ? i : -1)).filter((i) => i >= 0);
+    };
+    if (!gone().length) return;
+    const t = setTimeout(() => {
+      gone().forEach((i) => {
+        if (g.mode === 'host') postRef.current?.({ source: 'chaingang-app', type: 'peer-left', i });
+        else if (i === 0) postRef.current?.({ source: 'chaingang-app', type: 'host-left' });
+      });
+    }, 5000);
+    return () => clearTimeout(t);
   }, [members, phase]);
 
   const start = () => {
