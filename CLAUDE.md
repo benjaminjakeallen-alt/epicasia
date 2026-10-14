@@ -880,29 +880,43 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   anywhere else turns it** (yaw + a little pitch; it drifts back behind you
   as you run), Q/R or , . turn it from a keyboard. Teammates right in front
   of the lens aren't drawn. The side-scroller is in git history (Oct 14).
+  **A climb up into the sky** (user, Oct 14 2026, with three Chained
+  Together screenshots: "Something more like this"): every stretch is
+  floating pieces — chunks of the Wall with rock hanging under them, grassy
+  rock islands with pines, planks — climbing in a snaking spiral over a sea
+  of cloud, with rocks drifting round about.
 - **Simulation** `assets/games/chaingang/sim.js` (pure, used by the game,
   the bots and the checks): metres, y up, forward starts as −z; players are
-  0.6 m wide, 1.6 m tall boxes; stone is axis-aligned boxes; steps up to
-  0.45 m are walked. Chain = a 5 m distance limit between neighbours solved
+  0.6 m wide, 1.6 m tall boxes; stone is axis-aligned boxes (the floating
+  pieces are deep blocks — 4.5 m, islands 6 m — so a dangler hangs against a
+  face, and one hauled into an underside slides out toward whoever pulls);
+  steps up to 0.45 m are walked; a jump carries you the way the stick
+  points even from a standstill. Chain = a 5 m distance limit between neighbours solved
   like a rope — someone in the air weighs more than someone standing,
   **GRAB on the ground makes you an anchor** (immovable); a taut pull drags
   a dangler up a wall face; **JUMP while dangling climbs the chain** toward
   whoever holds you; travellers push softly apart. Fall below the wall for
   1.1 s → "WHOOPS", everyone back at the last watchtower, lined up across
-  the walkway. A watchtower (or the finish) counts once every traveller has
+  the walkway; you can fall onto pieces lower down and climb on from there —
+  you've only fallen once you're 12 m under the last watchtower (`fallLine`). A watchtower (or the finish) counts once every traveller has
   been within 3.2 m of it. Crumbling stones hold **one** traveller (two at
   once → gone in 0.3 s, one lingering 2.5 s), back after 3 s. Leaving a
   moving platform keeps its motion.
-- **Levels** (`levels.js`, pure data, built from `wallZ`/`wallX`/`stairs*`
-  helpers): **Sunset Ramparts** (barrels down the steps, four crumbling
-  stones zig-zagging over a gap, a corner, a bridge of three swinging
-  lanterns), **Dragon Festival** (firework launch pads up wall faces, the
-  parade dragon's eight bobbing, swaying segments, a four-platform
-  prayer-wheel carousel), **Storm Peak** (switchback stairs with gusts
-  pushing you off the side — GRAB to hold on —, crumbling stones climbing a
-  tower, a zip line down across a chasm (GRAB in the air), two rope carts,
-  barrels, the gong). Each level has a `route` of nodes for the bots
-  (`jump`, `pad`, `near` flags).
+- **Levels** (`levels.js`, pure data): each is laid out by a `course()`
+  builder that walks a cursor forward along x or z (so every piece is an
+  axis-aligned box), turning at landings, and writes the bots' route as it
+  goes — `walk`, `plank`, `stairs`, `gap`, `landing` (a rock island; spawn /
+  watchtower / finish), `stones` (crumbling), `lanterns`, `dragon`,
+  `carousel`, `carts`, `pad` (firework launch up a wall face), `zip`,
+  `wind`, `barrels`, `tag`. **Sunset Ramparts** (stairs, a plank, four
+  crumbling stones, barrels down the steps, a swinging lantern bridge),
+  **Dragon Festival** (launch pads up wall faces, the parade dragon, the
+  prayer-wheel carousel), **Storm Peak** (gusts on switchback stairs
+  pushing you off the side — GRAB to hold on —, crumbling stones climbing
+  to a high island, a zip line down across a chasm (GRAB in the air), rope
+  carts, barrels, more stairs up to the gong). Pieces stacked over the way
+  must leave ≥ 6 m of head room (checked by a scratch script when laying
+  out — keep it in mind when editing a course).
 - **Bots** (`botInput`): fill empty places and replace a phone that left.
   They walk the route node by node but never pull away from a neighbour,
   keep the chain's order (never pass the bot ahead), never get further
@@ -921,8 +935,10 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   its own hero) at the finish, or on leaving with something cleared.
 - **Look** (`render3d.js`): Sunset Overdrive — a neon sunset dome per
   stretch, a striped retro sun low over the far end, rings of mountain
-  ridges with the Wall on their crests, a sea of sunset cloud below (where
-  you fall), toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with
+  ridges with the Wall on their crests, a sea of sunset cloud far below,
+  jagged rock under every floating piece, grassy islands with little pines,
+  drifting rocks, watchtowers floating on their own rocks beside the
+  landings, toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with
   ink outlines (back faces pushed out) and battlements along both edges,
   graffiti tags with drips, watchtowers whose flags light up, a chunky gold
   chain that hangs in a curve (slack lies on the walkway), confetti/sparks/

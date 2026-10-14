@@ -46,6 +46,11 @@ export function moverBox(m, t) {
   return { x0: a.x - m.w / 2, x1: a.x + m.w / 2, z0: a.z - m.d / 2, z1: a.z + m.d / 2, y0: a.y - m.h, y1: a.y,
     vx: (b.x - a.x) / 0.02, vy: (b.y - a.y) / 0.02, vz: (b.z - a.z) / 0.02 };
 }
+/** Below this, you've fallen: well under the last watchtower (or the start). */
+export function fallLine(sim) {
+  const L = sim.level, c = sim.cp === 0 ? L.spawn : L.checks[sim.cp - 1];
+  return Math.max(L.fallY, c.y - 12);
+}
 export const windOn = (w, t) => ((t + (w.phase || 0)) % (w.on + w.off)) < w.on;
 const inBox = (b, x, y, z) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1 && z > b.z0 && z < b.z1;
 
@@ -150,6 +155,8 @@ export function stepSim(sim, inputs) {
 
     // jump; or, dangling on a taut chain, climb up it
     if (p.jb > 0 && (ground || p.coy > 0)) {
+      // a jump carries you the way the stick points, even from a standstill
+      if (on) { const along = p.vx * (wx / sp) + p.vz * (wz / sp), want = sp * 0.85; if (along < want) { p.vx += (wx / sp) * (want - along); p.vz += (wz / sp) * (want - along); } }
       if (ground && ground.mover) { p.vx += ground.vx || 0; p.vz += ground.vz || 0; } // leaving something that moves, you keep its motion
       p.vy = JUMP + (ground && ground.mover ? Math.max(0, ground.vy || 0) : 0); p.ground = null; p.coy = 0; p.jb = 0;
       sim.events.push({ e: 'jump', i });
@@ -200,9 +207,10 @@ export function stepSim(sim, inputs) {
     return b.y > L.fallY - 4;
   });
 
-  // falling off the wall: a moment below it and everyone goes back to the watchtower
+  // falling: a moment well below the last watchtower and everyone goes back to it
   let lost = -1;
-  sim.players.forEach((p, i) => { if (p.y < L.fallY) { p.fallT += dt; if (p.fallT > FALL_TIME && lost < 0) lost = i; } else p.fallT = 0; });
+  const fall = fallLine(sim);
+  sim.players.forEach((p, i) => { if (p.y < fall) { p.fallT += dt; if (p.fallT > FALL_TIME && lost < 0) lost = i; } else p.fallT = 0; });
   if (lost >= 0) { sim.falls++; sim.events.push({ e: 'whoops', i: lost }); respawn(sim); return sim; }
 
   // watchtowers, then the finish: once every traveller has made it there
@@ -251,7 +259,12 @@ function move(sim, p, solids, dt) {
       p.y = s.y1; p.ground = s;
       if (s.bounce) { p.vy = s.bounce; p.ground = null; sim.events.push({ e: 'boing', i: p.i }); }
       else p.vy = 0;
-    } else if (!s.oneWay && p.vy > 0 && oy + PH <= s.y0 + 0.05) { p.y = s.y0 - PH; p.vy = 0; }
+    } else if (!s.oneWay && p.vy > 0 && oy + PH <= s.y0 + 0.05) {
+      p.y = s.y0 - PH; p.vy = 0;
+      // hauled up into the underside of something: slide out toward whoever's pulling
+      const up = [sim.players[p.i - 1], sim.players[p.i + 1]].find((q) => q && q.y > p.y + 1);
+      if (p.taut && up) { const d = Math.hypot(up.x - p.x, up.z - p.z) || 1; p.vx = ((up.x - p.x) / d) * 5; p.vz = ((up.z - p.z) / d) * 5; }
+    }
   }
   if (p.ground && !was) sim.events.push({ e: 'land', i: p.i });
 }
@@ -396,7 +409,7 @@ export function botInput(sim, i) {
   const frontTo = front ? Math.hypot(node.p[0] - front.x, node.p[2] - front.z) : 0;
   if (front && front.bot && (p.ni > front.ni || (p.ni === front.ni && frontTo > toNode - 0.3)) && !p.ground.mover && p.ground.crumble === undefined) return out;
   // don't pull away from the gang
-  const away = nbrs.some((q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) > CHAIN - 1.2 && Math.hypot(p.x + dx * 0.5 - q.x, p.z + dz * 0.5 - q.z) > Math.hypot(p.x - q.x, p.z - q.z));
+  const away = nbrs.some((q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z) > CHAIN - 0.7 && Math.hypot(p.x + dx * 0.5 - q.x, p.z + dz * 0.5 - q.z) > Math.hypot(p.x - q.x, p.z - q.z) + 0.1);
   if (away || (p.ni === L.route.length - 1 && toNode < 0.6)) return out;
   out.mx = dx; out.mz = dz;
   // in a gusty stretch: only jump with a calm second ahead
@@ -442,8 +455,11 @@ function landing(sim, p, node, slack = 0) {
   const before = Math.hypot(node.p[0] - p.x, node.p[2] - p.z);
   let best = null, bestScore = Infinity;
   for (const k of [0.2, 0.3, 0.4, 0.5, 0.65, 0.8, 1]) {
-    let x = p.x, y = p.y, z = p.z, vx = p.vx + (g ? g.vx : 0), vz = p.vz + (g ? g.vz : 0), vy = JUMP + (g ? Math.max(0, g.vy) : 0);
     const sp = RUN * Math.min(1, k * 1.3), wx = dx * sp, wz = dz * sp;
+    let vx = p.vx, vz = p.vz;
+    const along = vx * dx + vz * dz; if (along < sp * 0.85) { vx += dx * (sp * 0.85 - along); vz += dz * (sp * 0.85 - along); }
+    vx += g ? g.vx : 0; vz += g ? g.vz : 0;
+    let x = p.x, y = p.y, z = p.z, vy = JUMP + (g ? Math.max(0, g.vy) : 0);
     for (let f = 1; f <= 100; f++) {
       const t = sim.t + f * STEP;
       const ddx = wx - vx, ddz = wz - vz, dd = Math.hypot(ddx, ddz), by = AIR_ACC * STEP;
@@ -451,19 +467,22 @@ function landing(sim, p, node, slack = 0) {
       vy -= GRAV * STEP; x += vx * STEP; y += vy * STEP; z += vz * STEP;
       if (vy > 0) continue;
       let s = null;
-      for (const q of solidsAt(sim, t)) if (x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1 && y <= q.y1 && y > q.y1 - 0.5) { s = q; break; }
+      const all = solidsAt(sim, t);
+      for (const q of all) if (x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1 && y <= q.y1 && y > q.y1 - 0.5) { s = q; break; }
       if (s) {
-        const margin = Math.min(x - s.x0, s.x1 - x, z - s.z0, s.z1 - z);
+        // well onto it: footing (this or a neighbouring step) all round the landing spot
+        const under = (ox, oz) => all.some((q) => x + ox > q.x0 && x + ox < q.x1 && z + oz > q.z0 && z + oz < q.z1 && Math.abs(q.y1 - s.y1) < 0.5 && (q.mover ? q.id === s.id : true));
+        const margin = [[0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3]].every(([ox, oz]) => under(ox, oz)) ? Math.min(1, Math.min(x - s.x0, s.x1 - x, z - s.z0, s.z1 - z) + 0.3) : 0;
         const busy = s.crumble !== undefined && (sim.players.some((q) => q !== p && q.ground && q.ground.crumble === s.crumble) || sim.crumble[s.crumble].stood > 1.3);
         const near = [sim.players[p.i - 1], sim.players[p.i + 1]].every((q) => !q || Math.hypot(q.x - x, q.y - s.y1, q.z - z) < CHAIN - 0.15 + slack);
         const after = Math.hypot(node.p[0] - x, node.p[2] - z);
         const same = s.id && p.ground && p.ground.id === s.id;
-        const ok = margin > 0.25 && !busy && near && !s.bounce && s.y1 > sim.level.fallY + 3 && after < before - 0.6 && !same;
+        const ok = margin > 0.25 && !busy && near && !s.bounce && s.y1 > fallLine(sim) + 3 && after < before - 0.6 && !same;
         const score = after - Math.min(margin, 1) * 1.5;
         if (ok && score < bestScore) { bestScore = score; best = [dx * k, dz * k]; }
         break;
       }
-      if (y < sim.level.fallY) break;
+      if (y < fallLine(sim)) break;
     }
   }
   return best;

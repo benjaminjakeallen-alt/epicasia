@@ -1,9 +1,16 @@
-// Chain Gang Dynasty — the three stretches of the Great Wall, in 3D. Pure
-// data, read by the simulation (sim.js) and drawn by render3d.js. Metres,
-// y up; "forward" starts out as −z. A jump rises ~1.8 m and carries ~4 m;
-// the chain between two travellers is 5 m; steps up to 0.45 m are walked.
+// Chain Gang Dynasty — the three stretches, in 3D: a climb up into the sky,
+// like Chained Together, through floating pieces of the Great Wall, rock
+// islands and planks, spiralling upward over a sea of cloud. Pure data,
+// read by the simulation (sim.js) and drawn by render3d.js. Metres, y up.
+// A jump rises ~1.8 m and carries ~4 m; the chain between two travellers is
+// 5 m; steps up to 0.45 m are walked.
 //
-//   solids    stone: boxes {x0, x1, y0, y1, z0, z1}
+// Each level is laid out by a "course" builder that walks a cursor forward
+// (only ever along x or z, so every piece is an axis-aligned box), turning
+// right at landings, so the way climbs in a square spiral and you see the
+// pieces above you. The builder also writes the bots' route as it goes.
+//
+//   solids    stone, rock and planks: boxes {x0, x1, y0, y1, z0, z1, kind}
 //   crumbles  stones that hold one traveller (two at once and they go)
 //   movers    platforms on a path: 'swing' (a lantern), 'sine' (the dragon),
 //             'circle' (the prayer-wheel carousel), 'line' (a rope cart)
@@ -15,153 +22,235 @@
 //   route     the way through, node by node, for the bots
 //   decor     things that are only drawn
 
-const W = 3.4; // the walkway's width
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // −z, +x, +z, −x; turning right goes round this list
 const box = (xa, xb, y0, y1, za, zb, extra) => ({ x0: Math.min(xa, xb), x1: Math.max(xa, xb), y0, y1, z0: Math.min(za, zb), z1: Math.max(za, zb), ...extra });
-// a stretch of wall walkway along z (or x), its top at y; the wall goes down out of sight
-const wallZ = (x, za, zb, y, w = W) => box(x - w / 2, x + w / 2, y - 40, y, za, zb, { wall: true });
-const wallX = (z, xa, xb, y, w = W) => box(xa, xb, y - 40, y, z - w / 2, z + w / 2, { wall: true });
-const stairsZ = (x, za, zb, ya, yb, n) => Array.from({ length: n }, (_, k) => wallZ(x, za + ((zb - za) * k) / n, za + ((zb - za) * (k + 1)) / n, ya + ((yb - ya) * (k + 1)) / n));
-const stairsX = (z, xa, xb, ya, yb, n) => Array.from({ length: n }, (_, k) => wallX(z, xa + ((xb - xa) * k) / n, xa + ((xb - xa) * (k + 1)) / n, ya + ((yb - ya) * (k + 1)) / n));
-const stone = (x, z, y, s = 1.8) => box(x - s / 2, x + s / 2, y - 0.7, y, z - s / 2, z + s / 2);
-const pt = (x, y, z, dir = [0, -1]) => ({ x, y, z, dir });
-const n = (x, y, z, f) => ({ p: [x, y, z], ...f });
+
+function course(name, key, line, opts = {}) {
+  const L = { key, name, line, fallY: -30, solids: [], crumbles: [], movers: [], bouncers: [], rollers: [], winds: [], zips: [], checks: [], route: [], decor: [] };
+  const c = { x: 0, y: 0, z: 0, h: 0, jump: false, wind: null, barrels: false, thick: 0 };
+  const f = () => DIRS[c.h], side = () => [-DIRS[c.h][1], DIRS[c.h][0]]; // (side = to the right)
+  const at = (along, across = 0) => { const [fx, fz] = f(), [sx, sz] = side(); return [c.x + fx * along + sx * across, c.z + fz * along + sz * across]; };
+  const node = (along, flags = {}, y = c.y) => { const [x, z] = at(along); L.route.push({ p: [x, y, z], ...flags }); };
+  // a piece from the cursor `len` forward, `w` wide, its top at the cursor's height
+  function slab(len, w, kind, top = c.y, thick = 4.5) {
+    const [xa, za] = at(0, -w / 2), [xb, zb] = at(len, w / 2);
+    const b = box(xa, xb, top - Math.max(thick, c.thick), top, za, zb, { kind, along: f()[0] ? 'x' : 'z' });
+    L.solids.push(b);
+    return b;
+  }
+  function takeWind(len, w) {
+    if (!c.wind) return;
+    const [xa, za] = at(-0.5, -w / 2 - 1), [xb, zb] = at(len + 0.5, w / 2 + 1), [sx, sz] = side();
+    L.winds.push({ ...box(xa, xb, c.y - 1, c.y + 6, za, zb), fx: sx * 40 * c.wind.dir, fz: sz * 40 * c.wind.dir, on: 1.6, off: 2.6, phase: c.wind.phase });
+    c.wind = null;
+  }
+  function takeBarrels(len) {
+    if (!c.barrels) return;
+    const [x, z] = at(len - 0.6), [fx, fz] = f();
+    L.rollers.push({ x, y: c.y + 0.5, z, dx: -fx, dz: -fz, speed: 4.5, every: 5.5, first: 2.5 });
+    L.decor.push({ type: 'barrels', x: x + fx * 0.9, y: c.y, z: z + fz * 0.9, rot: c.h });
+    c.barrels = false;
+  }
+  const api = {
+    /** A stretch of wall walkway (battlements along both sides). */
+    walk(len, w = 3.2) {
+      takeWind(len, w); takeBarrels(len);
+      slab(len, w, 'wall');
+      if (c.jump) node(1.0, { jump: true });
+      node(len - 0.6);
+      c.jump = false; c.thick = 0;
+      const [x, z] = at(len); c.x = x; c.z = z;
+      return api;
+    },
+    /** A narrow plank. */
+    plank(len) {
+      slab(len, 1.4, 'plank', c.y, 0.35);
+      node(-0.6); // line up at its start
+      if (c.jump) node(1.0, { jump: true }); else node(0.8);
+      node(len - 0.5);
+      c.jump = false;
+      const [x, z] = at(len); c.x = x; c.z = z;
+      return api;
+    },
+    /** Steps up (each ≤ 0.45 m, so they're walked). */
+    stairs(len, rise, n = Math.ceil(rise / 0.4)) {
+      takeWind(len, 3.2); takeBarrels(len);
+      const y0 = c.y;
+      for (let k = 0; k < n; k++) {
+        const [xa, za] = at((len * k) / n, -1.6), [xb, zb] = at((len * (k + 1)) / n, 1.6), top = y0 + (rise * (k + 1)) / n;
+        L.solids.push(box(xa, xb, y0 - 4.5 - Math.max(0, c.thick - 4.5), top, za, zb, { kind: 'wall', along: f()[0] ? 'x' : 'z', step: true }));
+      }
+      if (c.jump) node(1.0, { jump: true }, y0 + rise / n);
+      c.y += rise;
+      node(len - 0.6);
+      c.jump = false; c.thick = 0;
+      const [x, z] = at(len); c.x = x; c.z = z;
+      return api;
+    },
+    /** A gap to jump (dy: how much higher the far side is). */
+    gap(len, dy = 0) { const [x, z] = at(len); c.x = x; c.z = z; c.y += dy; c.jump = true; return api; },
+    /** A square floating rock island; turns right (+1), left (−1) or not (0). */
+    landing(size, turn = 0, o = {}) {
+      takeWind(size, size);
+      const [cx, cz] = at(size / 2);
+      L.solids.push(box(cx - size / 2, cx + size / 2, c.y - 6, c.y, cz - size / 2, cz + size / 2, { kind: 'rock' }));
+      if (o.spawn) L.spawn = { x: cx, y: c.y, z: cz, dir: f() };
+      L.route.push({ p: [cx, c.y, cz], near: 1.6, ...(c.jump ? { jump: true } : {}) });
+      L.decor.push({ type: 'trees', x: cx, y: c.y, z: cz, size, seed: L.solids.length });
+      c.jump = false; c.thick = 0;
+      c.h = (c.h + turn + 4) % 4;
+      if (o.check) L.checks.push({ x: cx, y: c.y, z: cz, dir: f() });
+      if (o.finish) { L.finish = { x: cx, y: c.y, z: cz, dir: f() }; return api; }
+      c.x = cx + f()[0] * size / 2; c.z = cz + f()[1] * size / 2;
+      return api;
+    },
+    /** Crumbling stones across a gap, each a little higher. */
+    stones(n, rise = 0.5) {
+      for (let k = 0; k < n; k++) {
+        c.y += rise;
+        const [x, z] = at(1.0 + 2.2 * k + 0.8, k % 2 ? 0.45 : -0.45);
+        L.crumbles.push(box(x - 0.8, x + 0.8, c.y - 0.7, c.y, z - 0.8, z + 0.8));
+        L.route.push({ p: [x, c.y, z], jump: true });
+      }
+      const [x, z] = at(1.0 + 2.2 * n); c.x = x; c.z = z; c.jump = true;
+      return api;
+    },
+    /** A bridge of lanterns swinging side to side over a gap. */
+    lanterns(n) {
+      const [sx, sz] = side();
+      for (let k = 0; k < n; k++) {
+        const [x, z] = at(0.4 + 1.6 + 4 * k);
+        L.movers.push({ kind: 'lantern', w: Math.abs(f()[0]) ? 3.2 : 3, d: Math.abs(f()[0]) ? 3 : 3.2, h: 0.35,
+          path: { type: 'swing', px: x, py: c.y + 7, pz: z, len: 6, amp: 0.35, ux: sx, uz: sz, period: 4.4, phase: k * 0.15 } });
+        L.route.push({ p: [x, c.y + 1, z], jump: true, near: 2 });
+      }
+      const [x, z] = at(4 * n + 0.8); c.x = x; c.z = z; c.jump = true;
+      return api;
+    },
+    /** The parade dragon: segments bobbing and swaying over a long gap. */
+    dragon(n) {
+      const [sx, sz] = side();
+      for (let k = 0; k < n; k++) {
+        const [x, z] = at(0.4 + 1.2 + 3.3 * k);
+        const along = Math.abs(f()[0]) > 0;
+        L.movers.push({ kind: k === n - 1 ? 'dragonHead' : k === 0 ? 'dragonTail' : 'dragon', w: along ? 2.4 : 2.6, d: along ? 2.6 : 2.4, h: 0.5, dir: c.h,
+          path: { type: 'sine', x0: x, y0: c.y, z0: z, ax: sx * 0.8, ay: 0.9, az: sz * 0.8, period: 3.6, phase: -0.7 * k, lag: 1.2 } });
+        L.route.push({ p: [x, c.y, z], jump: true, near: 1.8 });
+      }
+      const [x, z] = at(0.4 + 3.3 * n - 0.9 + 1.1); c.x = x; c.z = z; c.jump = true;
+      return api;
+    },
+    /** The prayer-wheel carousel: four platforms going round a drum. */
+    carousel(r = 2.8) {
+      const [cx, cz] = at(1.2 + 1.2 + r);
+      for (let k = 0; k < 4; k++) L.movers.push({ kind: 'wheel', w: 2.4, d: 2.4, h: 0.35, path: { type: 'circle', cx, cy: c.y, cz, r, period: 11, phase: (k * Math.PI) / 2 } });
+      L.route.push({ p: [cx, c.y, cz], jump: true, near: r + 0.6 });
+      const [x, z] = at(1.2 + 1.2 + 2 * r + 1.2 + 0.8); c.x = x; c.z = z; c.jump = true;
+      return api;
+    },
+    /** Rope carts shuttling across a gap. */
+    carts(n) {
+      const [fx] = f();
+      for (let k = 0; k < n; k++) {
+        const [ax, az] = at(0.2 + 1.6 + 8.2 * k), [bx, bz] = at(0.2 + 1.6 + 3.6 + 8.2 * k), y = c.y + 0.2 + 0.3 * k;
+        L.movers.push({ kind: 'cart', w: fx ? 3.2 : 3, d: fx ? 3 : 3.2, h: 0.5, path: { type: 'line', ax, ay: y, az, bx, by: y, bz, period: 4.6, phase: k % 2 ? Math.PI : 0 } });
+        const [mx, mz] = at(0.2 + 1.6 + 1.8 + 8.2 * k);
+        L.route.push({ p: [mx, y, mz], jump: true, near: 2.2 });
+      }
+      const [x, z] = at(0.2 + 8.2 * n - 1.2 + 0.8); c.x = x; c.z = z; c.y += 0.6; c.jump = true;
+      return api;
+    },
+    /** A firework launch pad in front of a wall face `rise` higher. */
+    pad(rise) {
+      const [xa, za] = at(0, -1.6), [xb, zb] = at(3, 1.6);
+      L.bouncers.push(box(xa, xb, c.y - 0.5, c.y, za, zb, { power: Math.sqrt(52 * (rise + 1.2)) }));
+      node(1.5, { pad: true, near: 1.4 });
+      const [x, z] = at(3); c.x = x; c.z = z; c.y += rise; c.thick = rise + 4.5; c.jump = false;
+      return api;
+    },
+    /** A zip line forward and down to a piece `len` away and `drop` lower. */
+    zip(len, drop) {
+      const [ax, az] = at(-1.2), [bx, bz] = at(len - 2);
+      L.zips.push({ a: [ax, c.y + 2.4, az], b: [bx, c.y - drop + 2.3, bz] });
+      const [x, z] = at(len - 5); c.x = x; c.z = z; c.y -= drop;
+      const [nx, nz] = at(2);
+      L.route.push({ p: [nx, c.y, nz], near: 3 });
+      c.jump = false;
+      return api;
+    },
+    /** Gusts across the next piece (dir +1 pushes to the right, −1 to the left). */
+    wind(dir, phase = 0) { c.wind = { dir, phase }; return api; },
+    /** Firecracker barrels rolling back down the next piece. */
+    barrels() { c.barrels = true; return api; },
+    tag(text, along, across, up = -0.7) {
+      const [x, z] = at(along, across), [sx, sz] = side(), sg = Math.sign(across) || 1;
+      L.decor.push({ type: 'tag', x, y: c.y + up, z, nx: sx * sg, nz: sz * sg, text });
+      return api;
+    },
+    done() {
+      const lowest = Math.min(...L.solids.map((s) => s.y1));
+      L.fallY = lowest - 18;
+      return L;
+    },
+  };
+  return api;
+}
 
 export const LEVELS = [
-  {
-    key: 'ramparts',
-    name: 'Sunset Ramparts',
-    line: 'Barrels down the steps, crumbling stones and a swinging lantern bridge.',
-    fallY: -6,
-    spawn: pt(0, 0, 1.5),
-    solids: [
-      wallZ(0, 7, -20, 0),
-      ...stairsZ(0, -20, -30, 0, 4, 10),
-      wallZ(0, -30, -40, 4),
-      wallZ(0, -49.4, -61.7, 4),
-      wallX(-60, 1.7, 13, 4),
-      wallX(-60, 25.6, 40, 4),
-      ...stairsX(-60, 40, 46, 4, 6.4, 6),
-      wallX(-60, 46, 62, 6.4),
-    ],
-    crumbles: [stone(-0.5, -41.2, 4, 1.6), stone(0.5, -43.4, 4, 1.6), stone(-0.5, -45.6, 4, 1.6), stone(0.5, -47.8, 4, 1.6)],
-    movers: [0, 1, 2].map((k) => ({
-      kind: 'lantern', w: 3.2, d: 3, h: 0.35,
-      path: { type: 'swing', px: 15.2 + 4 * k, py: 11, pz: -60, len: 6, amp: 0.35, ux: 0, uz: 1, period: 4.4, phase: k * 0.15 },
-    })),
-    bouncers: [],
-    rollers: [
-      { x: 0, y: 4.5, z: -30.6, dx: 0, dz: 1, speed: 4.5, every: 5, first: 2.5 },
-      { x: 61.5, y: 6.9, z: -60, dx: -1, dz: 0, speed: 4.5, every: 6, first: 4 },
-    ],
-    winds: [],
-    zips: [],
-    checks: [pt(0, 4, -36), pt(0, 4, -55), pt(30, 4, -60, [1, 0])],
-    finish: pt(56, 6.4, -60, [1, 0]),
-    route: [
-      n(0, 0, -2), n(0, 0, -19), n(0, 4, -31), n(0, 4, -39.4),
-      n(-0.5, 4, -41.2, { jump: true }), n(0.5, 4, -43.4, { jump: true }), n(-0.5, 4, -45.6, { jump: true }), n(0.5, 4, -47.8, { jump: true }),
-      n(0, 4, -50.6, { jump: true }), n(0, 4, -60), n(12.2, 4, -60),
-      n(15.2, 5, -60, { jump: true, near: 2 }), n(19.2, 5, -60, { jump: true, near: 2 }), n(23.2, 5, -60, { jump: true, near: 2 }),
-      n(27, 4, -60, { jump: true }), n(39.5, 4, -60), n(46.5, 6.4, -60), n(56, 6.4, -60),
-    ],
-    decor: [
-      { type: 'barrels', x: 0, y: 4, z: -31.5 }, { type: 'barrels', x: 61.5, y: 6.4, z: -61.3 },
-      { type: 'tag', x: 1.72, y: -1.4, z: -6, nx: 1, nz: 0, text: 'CHAIN GANG' },
-      { type: 'tag', x: -1.72, y: 2.6, z: -56, nx: -1, nz: 0, text: 'HOLD ON!' },
-      { type: 'tag', x: 52, y: 5, z: -58.28, nx: 0, nz: 1, text: 'NEARLY' },
-    ],
-  },
-  {
-    key: 'festival',
-    name: 'Dragon Festival',
-    line: 'Firework launch pads, the parade dragon and a spinning prayer-wheel carousel.',
-    fallY: -6,
-    spawn: pt(0, 0, 1.5),
-    solids: [
-      wallZ(0, 7, -14, 0),
-      wallZ(0, -17, -30, 4.4),
-      wallZ(0, -57, -66, 4.4),
-      wallZ(0, -76, -86, 4.4),
-      wallZ(0, -89, -104, 9.8),
-    ],
-    crumbles: [],
-    movers: [
-      ...Array.from({ length: 8 }, (_, k) => ({
-        kind: k === 7 ? 'dragonHead' : k === 0 ? 'dragonTail' : 'dragon', w: 2.6, d: 2.4, h: 0.5,
-        path: { type: 'sine', x0: 0, y0: 4.4, z0: -31.6 - 3.3 * k, ax: 0.8, ay: 0.9, az: 0, period: 3.6, phase: -0.7 * k, lag: 1.2 },
-      })),
-      ...Array.from({ length: 4 }, (_, k) => ({
-        kind: 'wheel', w: 2.4, d: 2.4, h: 0.35,
-        path: { type: 'circle', cx: 0, cy: 4.4, cz: -71.2, r: 2.8, period: 11, phase: (k * Math.PI) / 2 },
-      })),
-    ],
-    bouncers: [box(-1.7, 1.7, -0.5, 0, -14, -17, { power: 17 }), box(-1.7, 1.7, 3.9, 4.4, -86, -89, { power: 18 })],
-    rollers: [{ x: 0, y: 4.9, z: -29.4, dx: 0, dz: 1, speed: 4, every: 5.5, first: 3 }],
-    winds: [],
-    zips: [],
-    checks: [pt(0, 4.4, -24), pt(0, 4.4, -61), pt(0, 4.4, -81)],
-    finish: pt(0, 9.8, -98),
-    route: [
-      n(0, 0, -2), n(0, 0, -15.5, { pad: true, near: 1.4 }), n(0, 4.4, -20), n(0, 4.4, -29.2),
-      ...Array.from({ length: 8 }, (_, k) => n(0, 4.4, -31.6 - 3.3 * k, { jump: true, near: 1.8 })),
-      n(0, 4.4, -58.5, { jump: true }), n(0, 4.4, -65.4),
-      n(0, 4.4, -71.2, { jump: true, near: 3.4 }), n(0, 4.4, -77.4, { jump: true }),
-      n(0, 4.4, -85), n(0, 4.4, -87.5, { pad: true, near: 1.4 }), n(0, 9.8, -92), n(0, 9.8, -98),
-    ],
-    decor: [
-      { type: 'barrels', x: 0, y: 4.4, z: -30.2 },
-      { type: 'tag', x: 1.72, y: -1.6, z: -5, nx: 1, nz: 0, text: 'BOOM' },
-      { type: 'tag', x: 0, y: 1.4, z: -16.98, nx: 0, nz: 1, text: 'UP!' },
-      { type: 'tag', x: -1.72, y: 7.5, z: -97, nx: -1, nz: 0, text: 'DYNASTY' },
-    ],
-  },
-  {
-    key: 'storm',
-    name: 'Storm Peak',
-    line: 'Gusts on the switchbacks, a collapsing tower, a zip line and rope carts to the gong.',
-    fallY: -6,
-    spawn: pt(0, 0, 1.5),
-    solids: [
-      wallZ(0, 7, -10, 0),
-      ...stairsZ(0, -10, -17, 0, 3, 7),
-      box(-1.7, 5.1, -37, 3, -17, -20.4, { wall: true }),
-      ...stairsX(-18.7, 5.1, 12, 3, 6, 7),
-      box(12, 15.4, -34, 6, -17, -22.1, { wall: true }),
-      ...stairsZ(13.7, -22.1, -29.1, 6, 9, 7),
-      wallZ(13.7, -29.1, -34.4, 9),
-      wallZ(13.7, -43.6, -54, 13),
-      wallZ(13.7, -80, -100, 7.6),
-      wallZ(13.7, -116, -135, 8.6),
-    ],
-    crumbles: [stone(13.2, -35.4, 9.8, 1.6), stone(14.2, -37.6, 10.6, 1.6), stone(13.2, -39.8, 11.4, 1.6), stone(14.2, -42, 12.2, 1.6)],
-    movers: [
-      { kind: 'cart', w: 3, d: 3.2, h: 0.5, path: { type: 'line', ax: 13.7, ay: 7.8, az: -101.8, bx: 13.7, by: 7.8, bz: -105.4, period: 4.6, phase: 0 } },
-      { kind: 'cart', w: 3, d: 3.2, h: 0.5, path: { type: 'line', ax: 13.7, ay: 8.2, az: -110, bx: 13.7, by: 8.2, bz: -113.6, period: 4.6, phase: Math.PI } },
-    ],
-    bouncers: [],
-    rollers: [{ x: 13.7, y: 9.1, z: -134.4, dx: 0, dz: 1, speed: 5, every: 4.5, first: 1 }],
-    winds: [
-      { x0: 5, x1: 12, y0: 2, y1: 9, z0: -20.4, z1: -17, fx: 0, fz: 40, on: 1.6, off: 2.6, phase: 0 },
-      { x0: 12, x1: 15.4, y0: 5, y1: 12, z0: -29.1, z1: -22.1, fx: 40, fz: 0, on: 1.6, off: 2.6, phase: 1.3 },
-      { x0: 12, x1: 15.4, y0: 6, y1: 11, z0: -99, z1: -92, fx: -40, fz: 0, on: 1.4, off: 2.4, phase: 0.6 },
-    ],
-    zips: [{ a: [13.7, 15.8, -52.5], b: [13.7, 9.9, -84] }],
-    checks: [pt(13.7, 9, -31.5), pt(13.7, 13, -49), pt(13.7, 7.6, -88), pt(13.7, 8.6, -120)],
-    finish: pt(13.7, 8.6, -129),
-    route: [
-      n(0, 0, -2), n(0, 0, -9.5), n(0, 3, -17.6), n(1.5, 3, -18.7), n(5.2, 3, -18.7), n(12, 6, -18.7), n(13.7, 6, -19.6), n(13.7, 6, -22),
-      n(13.7, 9, -29.4), n(13.7, 9, -33.9),
-      n(13.2, 9.8, -35.4, { jump: true }), n(14.2, 10.6, -37.6, { jump: true }), n(13.2, 11.4, -39.8, { jump: true }), n(14.2, 12.2, -42, { jump: true }),
-      n(13.7, 13, -45, { jump: true }), n(13.7, 13, -52.4),
-      n(13.7, 7.6, -86, { near: 3 }), n(13.7, 7.6, -99.4),
-      n(13.7, 7.8, -103.6, { jump: true, near: 2.2 }), n(13.7, 8.2, -111.8, { jump: true, near: 2.2 }), n(13.7, 8.6, -117, { jump: true }),
-      n(13.7, 8.6, -129),
-    ],
-    decor: [
-      { type: 'barrels', x: 13.7, y: 8.6, z: -135 },
-      { type: 'tag', x: 1.72, y: -1.4, z: -4, nx: 1, nz: 0, text: 'WINDY!' },
-      { type: 'tag', x: 15.42, y: 6, z: -89, nx: 1, nz: 0, text: 'ZIP IT' },
-      { type: 'tag', x: 12, y: 7, z: -125, nx: -1, nz: 0, text: 'BONG' },
-    ],
-  },
+  course('Sunset Ramparts', 'ramparts', 'Floating ramparts: stairs, a plank, crumbling stones and a swinging lantern bridge.')
+    .landing(6, 0, { spawn: true })
+    .tag('CHAIN GANG', 4, 1.62, -0.6).walk(8)
+    .stairs(6, 2.4)
+    .gap(1.4, 0.6).walk(6)
+    .landing(5, 1, { check: true })
+    .plank(6)
+    .gap(1.2, 0.3).walk(3)
+    .stones(4)
+    .landing(5, 1, { check: true })
+    .barrels().stairs(7, 2.8)
+    .walk(4)
+    .lanterns(3)
+    .landing(5, 1, { check: true })
+    .tag('NEARLY', 3, -1.62, -0.6).stairs(6, 2.4)
+    .gap(1.5, 0.8).walk(5)
+    .landing(6, 0, { finish: true })
+    .done(),
+  course('Dragon Festival', 'festival', 'Firework launch pads, the parade dragon and a spinning prayer-wheel carousel, in the sky.')
+    .landing(6, 0, { spawn: true })
+    .tag('BOOM', 3, 1.62, -0.6).walk(6)
+    .pad(5)
+    .barrels().walk(7)
+    .landing(5, 1, { check: true })
+    .dragon(6)
+    .landing(5, 1, { check: true })
+    .carousel()
+    .landing(5, -1, { check: true })
+    .plank(5)
+    .gap(1.3, 0.8).stairs(5, 2)
+    .walk(3)
+    .pad(5.4)
+    .tag('DYNASTY', 2.5, 1.62, -0.6).walk(5)
+    .landing(6, 0, { finish: true })
+    .done(),
+  course('Storm Peak', 'storm', 'Gusts on the switchbacks, a crumbling tower, a zip line and rope carts up to the gong.')
+    .landing(6, 0, { spawn: true })
+    .tag('WINDY!', 3, 1.62, -0.6).walk(4)
+    .wind(1, 0).stairs(7, 2.8)
+    .landing(5, 1)
+    .wind(-1, 1.3).stairs(7, 2.8)
+    .landing(5, 1, { check: true })
+    .stones(4, 0.8)
+    .landing(6, 0, { check: true })
+    .zip(26, 5)
+    .wind(-1, 0.6).walk(8)
+    .landing(5, 1, { check: true })
+    .carts(2)
+    .landing(5, 1, { check: true })
+    .barrels().stairs(7, 2.8)
+    .gap(1.4, 0.6).stairs(6, 2.4)
+    .walk(3)
+    .gap(1.4, 0.6).stairs(5, 2)
+    .tag('BONG', 2, -1.62, -0.6).walk(4)
+    .landing(6, 0, { finish: true })
+    .done(),
 ];

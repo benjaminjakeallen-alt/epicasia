@@ -244,22 +244,64 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   const merlonGeo = boxGeo(0.55, 0.55, 0.45, 1.1);
   merlonGeo.userData = {};
+  // the jagged rock hanging under every floating piece
+  const ROCK = toon({ map: rockTex() }), GRASS = toon({ color: 0x5fae5a }), PINE = toon({ color: 0x2f7a4a }), TRUNK = toon({ color: 0x6b3f2a });
+  function rockTex() {
+    return canvasTex(128, 128, (c, w, h) => {
+      c.fillStyle = '#6b4a5a'; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 70; i++) { const v = 80 + rnd() * 60; c.fillStyle = `rgb(${v + 30 | 0},${v | 0},${v + 15 | 0})`; c.fillRect(rnd() * w, rnd() * h, 6 + rnd() * 18, 4 + rnd() * 10); }
+    }, 1, 1);
+  }
+  function underside(s, depth) {
+    const w = s.x1 - s.x0, d = s.z1 - s.z0, r = Math.hypot(w, d) / 2;
+    const cone = outlined(new THREE.ConeGeometry(r * 0.95, depth, 5, 1), ROCK);
+    cone.rotation.x = Math.PI; cone.rotation.y = rnd() * Math.PI;
+    cone.scale.set(w / (r * 1.9) + 0.25, 1, d / (r * 1.9) + 0.25);
+    cone.position.set((s.x0 + s.x1) / 2, s.y0 - depth / 2 + 0.05, (s.z0 + s.z1) / 2);
+    levelGroup.add(cone);
+  }
+  function pine(x, y, z, k) {
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.8, 5), TRUNK); trunk.position.y = 0.4; g.add(trunk);
+    for (let i = 0; i < 3; i++) { const c = outlined(new THREE.ConeGeometry(0.9 - i * 0.22, 1.1, 6), PINE); c.position.y = 1.0 + i * 0.55; g.add(c); }
+    g.position.set(x, y, z); g.scale.setScalar(0.5 + k * 0.25);
+    levelGroup.add(g);
+  }
   function wallBox(s) {
     const w = s.x1 - s.x0, h = s.y1 - s.y0, d = s.z1 - s.z0;
     const g = boxGeo(w, h, d);
-    const mats = [STONE, STONE, PAVE, DARK, STONE, STONE];
+    const mats = s.kind === 'plank' ? WOOD : s.kind === 'rock' ? [ROCK, ROCK, GRASS, ROCK, ROCK, ROCK] : [STONE, STONE, PAVE, DARK, STONE, STONE];
     const grp = new THREE.Group();
     const m = new THREE.Mesh(g, mats), o = new THREE.Mesh(g, outlineMat);
     m.castShadow = m.receiveShadow = true;
     grp.add(o, m);
     grp.position.set((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, (s.z0 + s.z1) / 2);
     levelGroup.add(grp);
-    // battlements along both long edges (low, so a traveller's legs don't vanish in them)
-    const alongX = w > d, len = alongX ? w : d;
+    if (s.kind === 'plank') return;
+    if (!s.step) underside(s, s.kind === 'rock' ? 4 : 2.5);
+    if (s.kind !== 'wall') return;
+    // battlements along both sides of the way (low, so a traveller's legs don't vanish in them)
+    const alongX = s.along === 'x', len = alongX ? w : d;
     for (let k = 0.6; k < len - 0.3; k += 1.6) for (const side of [0, 1]) {
       const b = outlined(merlonGeo, STONE);
       b.position.set(alongX ? s.x0 + k : side ? s.x1 - 0.22 : s.x0 + 0.22, s.y1 + 0.27, alongX ? (side ? s.z1 - 0.22 : s.z0 + 0.22) : s.z0 + k);
       levelGroup.add(b);
+    }
+  }
+  // rocks drifting in the sky round the climb (only drawn)
+  const drifters = [];
+  function scatterRocks(L) {
+    const xs = L.solids.map((q) => (q.x0 + q.x1) / 2), zs = L.solids.map((q) => (q.z0 + q.z1) / 2), ys = L.solids.map((q) => q.y1);
+    const minX = Math.min(...xs) - 25, maxX = Math.max(...xs) + 25, minZ = Math.min(...zs) - 25, maxZ = Math.max(...zs) + 25, minY = Math.min(...ys) - 12, maxY = Math.max(...ys) + 18;
+    drifters.length = 0;
+    for (let i = 0; i < 46; i++) {
+      const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ), y = minY + rnd() * (maxY - minY);
+      if (L.solids.some((q) => x > q.x0 - 5 && x < q.x1 + 5 && z > q.z0 - 5 && z < q.z1 + 5)) continue; // keep clear of the way
+      const sz = 0.5 + rnd() * 2.2;
+      const r = outlined(new THREE.DodecahedronGeometry(sz, 0), rnd() < 0.3 ? STONE : ROCK);
+      r.position.set(x, y, z); r.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
+      if (rnd() < 0.35) { const top = outlined(new THREE.CylinderGeometry(sz * 0.8, sz * 0.8, 0.2, 7), GRASS); top.position.y = sz * 0.75; r.add(top); }
+      levelGroup.add(r); drifters.push({ r, y, ph: rnd() * 6, sp: 0.2 + rnd() * 0.4 });
     }
   }
   function tagTexture(text, col) {
@@ -278,14 +320,15 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   function tower(c) {
     // a square watchtower beside the walkway, a flag that lights up when reached
-    const [dx, dz] = c.dir, px = -dz, pz = dx; // to the right of the way
+    const [dx, dz] = c.dir, px = -dz, pz = dx; // (to the right of the way on)
     const g = new THREE.Group();
-    const t = outlined(boxGeo(3.6, 22, 3.6, 2), STONE); t.position.y = -11 + 6; g.add(t);
+    const t = outlined(boxGeo(3.6, 12, 3.6, 2), STONE); t.position.y = 6 - 5; g.add(t);
     const roof = outlined(new THREE.ConeGeometry(3.2, 2, 4), toon({ color: 0x3a2a6a })); roof.rotation.y = Math.PI / 4; roof.position.y = 6.9 + 1; g.add(roof);
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5), toon({ color: 0x2b2b3a })); pole.position.set(0, 9.6, 0); g.add(pole);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1, 6, 1), new THREE.MeshBasicMaterial({ color: 0x8a8296, side: THREE.DoubleSide, toneMapped: false }));
     flag.position.set(0.82, 10.4, 0); g.add(flag);
-    g.position.set(c.x + px * 6.4, c.y - 6, c.z + pz * 6.4);
+    const base = outlined(new THREE.ConeGeometry(3.4, 8, 5), ROCK); base.rotation.x = Math.PI; base.position.y = 5 - 11 - 4; g.add(base);
+    g.position.set(c.x - px * 6.6, c.y - 6, c.z - pz * 6.6); // on the outside of the turn, clear of the way on
     levelGroup.add(g);
     return { g, flag };
   }
@@ -295,8 +338,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const L = LEVELS[lv];
     seed = 11 + lv * 97;
     buildBackdrop(lv);
-    cloudSea.position.y = L.fallY - 5;
+    cloudSea.position.y = L.fallY - 4;
     L.solids.forEach(wallBox);
+    scatterRocks(L);
     L.crumbles.forEach((c) => {
       const g = outlined(boxGeo(c.x1 - c.x0, c.y1 - c.y0, c.z1 - c.z0, 1.2), CRACK);
       g.position.set((c.x0 + c.x1) / 2, (c.y0 + c.y1) / 2, (c.z0 + c.z1) / 2);
@@ -398,6 +442,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     L.decor.forEach((d) => {
       if (d.type === 'barrels') {
         for (let k = 0; k < 3; k++) { const b = barrelModel(); b.position.set(d.x + (k - 1) * 0.95, d.y + 0.45 + (k === 1 ? 0.75 : 0), d.z); b.rotation.x = Math.PI / 2; levelGroup.add(b); }
+      } else if (d.type === 'trees') { // a couple of pines on a rock island's corners
+        const h = d.size / 2 - 0.7;
+        [[1, 1], [-1, -1], [1, -1]].slice(0, 1 + (d.seed % 2) + 1).forEach(([a, b], k) => { if ((d.seed + k) % 3 !== 0) pine(d.x + a * h, d.y, d.z + b * h, (d.seed * 7 + k) % 3 / 2); });
       } else if (d.type === 'tag') {
         const col = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'][Math.floor(rnd() * 4)];
         const m = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.3), new THREE.MeshBasicMaterial({ map: tagTexture(d.text, col), transparent: true, toneMapped: false }));
@@ -573,7 +620,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.lookAt(cam.look);
     // the sky, sun, ridges and cloud sea stay "at infinity" round the camera
     dome.position.copy(camera.position);
-    ridges.forEach((r) => { r.position.set(camera.position.x, LEVELS[V.lv].fallY + 26, camera.position.z); });
+    ridges.forEach((r) => { r.position.set(camera.position.x, LEVELS[V.lv].fallY + 30, camera.position.z); });
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 500); sun.lookAt(camera.position);
     cloudSea.position.x = camera.position.x; cloudSea.position.z = camera.position.z;
     cloudTex.offset.set(camera.position.x / 120, -camera.position.z / 120);
@@ -625,6 +672,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         } else if (m.kind !== 'cart') g.rotation.x = -b.vy * 0.06;
       });
       if (levelGroup.userData.drum) levelGroup.userData.drum.rotation.y = V.t * 0.8;
+      drifters.forEach((d) => { d.r.position.y = d.y + Math.sin(t * d.sp + d.ph) * 0.6; d.r.rotation.y += dt * d.sp * 0.3; });
       crumbles.forEach((c, k) => {
         const st = V.crumble[k] || { gone: false, stood: 0 };
         c.fall = st.gone ? Math.min(1, c.fall + dt * 1.5) : Math.max(0, c.fall - dt * 3);
