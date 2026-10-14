@@ -46,11 +46,18 @@ export const S = {
   mode: NET === 'client' ? 'wait' : 'lobby', // lobby (host: waiting for phones) → title → play → clear → … → finish
   modeT: 0, level: 0, sim: null, scores: [], total: 0, falls: 0, menu: false, sent: false,
   hi: Math.max(0, INIT.highScore | 0), msgs: [], view: null, gone: false, auto: false,
+  cam: { yaw: Math.PI, pitch: 0.5, dragAt: -1e9 }, // where the camera looks (yaw 0 = +z)
 };
+/** Turns the camera to look along a direction on the ground. */
+function lookAlong(dir) { S.cam.yaw = Math.atan2(dir[0], dir[1]); }
 export function levelScore(lv, time, falls) {
   return Math.max(250, Math.round(1000 + Math.max(0, PAR[lv] - time) * 10 - falls * 60));
 }
 
+function lookBack() { // after a fall: face on from the watchtower everyone is back at
+  const L = LEVELS[S.level], cp = S.view ? S.view.cp : 0;
+  lookAlong(cp === 0 ? L.spawn.dir : L.checks[cp - 1].dir);
+}
 function setMode(m) { S.mode = m; S.modeT = 0; syncButtons(); }
 function message(text, color, life) { S.msgs.push({ text, color: color || '#ffffff', t: 0, life: life || 1.6 }); }
 
@@ -103,7 +110,7 @@ function onEvent(ev) {
     case 'land': if (ev.i === S.me) SFX.land(); break;
     case 'boing': SFX.boing(); if (ev.i === S.me) haptic('heavy'); break;
     case 'crumble': SFX.crumble(); break;
-    case 'whoops': SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
+    case 'whoops': lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
     case 'checkpoint': SFX.checkpoint(); message('WATCHTOWER!', '#18e0ff'); haptic('success'); break;
     case 'zip': SFX.zip(); break;
     case 'knock': SFX.knock(); if (ev.i === S.me) haptic('heavy'); break;
@@ -113,28 +120,36 @@ function onEvent(ev) {
   if (renderer) renderer.event(ev);
 }
 
-// ---- input: a joystick (walk), JUMP and GRAB; keys too -------------------------------------
-const KEYS = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ' ': 'J', ArrowUp: 'J', w: 'J', W: 'J', z: 'J', Z: 'J',
-  Shift: 'G', e: 'G', E: 'G', j: 'G', J: 'G', x: 'G', X: 'G', ArrowDown: 'G', s: 'G', S: 'G' };
-const keys = { L: false, R: false, J: false, G: false };
+// ---- input: a joystick (walk, relative to the camera), JUMP and GRAB; drag
+// anywhere else to look around. Keys: arrows/WASD walk, Space jumps,
+// Shift/E/J grabs, Q/R (or , and .) turn the camera.
+const KEYS = { ArrowLeft: 'L', a: 'L', A: 'L', ArrowRight: 'R', d: 'R', D: 'R', ArrowUp: 'F', w: 'F', W: 'F', ArrowDown: 'B', s: 'B', S: 'B',
+  ' ': 'J', z: 'J', Z: 'J', Shift: 'G', e: 'G', E: 'G', j: 'G', J: 'G', x: 'G', X: 'G', q: 'CL', Q: 'CL', ',': 'CL', r: 'CR', R: 'CR', '.': 'CR' };
+const keys = { L: false, R: false, F: false, B: false, J: false, G: false, CL: false, CR: false };
 const stickEl = document.querySelector('.stick'), knobEl = document.querySelector('.knob');
 const jumpEl = document.getElementById('jumpbtn'), grabEl = document.getElementById('grabbtn');
-const pad = { id: null, x: 0, jumpId: null, grabId: null, taps: 0 };
+const pad = { id: null, x: 0, y: 0, jumpId: null, grabId: null, taps: 0, lookId: null, lookX: 0, lookY: 0 };
+/** The stick (or keys) turned into a direction on the ground, from where the camera looks. */
 function readInput() {
-  const kx = (keys.R ? 1 : 0) - (keys.L ? 1 : 0);
-  return { x: kx || pad.x, jump: keys.J || pad.jumpId !== null, grab: keys.G || pad.grabId !== null };
+  const kx = (keys.R ? 1 : 0) - (keys.L ? 1 : 0), ky = (keys.B ? 1 : 0) - (keys.F ? 1 : 0);
+  let sx = kx || pad.x, sy = ky || pad.y;
+  const m = Math.hypot(sx, sy);
+  if (m > 1) { sx /= m; sy /= m; }
+  const fx = Math.sin(S.cam.yaw), fz = Math.cos(S.cam.yaw); // forward; right is (−fz, fx)
+  const mx = fx * -sy + -fz * sx, mz = fz * -sy + fx * sx;
+  return { mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, jump: keys.J || pad.jumpId !== null, grab: keys.G || pad.grabId !== null };
 }
 function stickShow(kx, ky) {
   knobEl.style.transform = 'translate(' + (kx || 0) + 'px,' + (ky || 0) + 'px)';
   stickEl.classList.toggle('on', pad.id !== null);
-  stickEl.setAttribute('data-dir', pad.x > 0.25 ? 'R' : pad.x < -0.25 ? 'L' : '');
+  stickEl.setAttribute('data-dir', [pad.y < -0.3 ? 'U' : '', pad.y > 0.3 ? 'D' : '', pad.x < -0.3 ? 'L' : '', pad.x > 0.3 ? 'R' : ''].join(' ').trim());
 }
 function stickRead(e) {
   const r = stickEl.getBoundingClientRect(), R = Math.max(1, r.width / 2 - knobEl.offsetWidth / 2);
   let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
   const d = Math.hypot(dx, dy);
   if (d > R) { dx *= R / d; dy *= R / d; }
-  pad.x = dx / R;
+  pad.x = dx / R; pad.y = dy / R;
   stickShow(dx, dy);
 }
 stickEl.addEventListener('pointerdown', (e) => {
@@ -144,7 +159,20 @@ stickEl.addEventListener('pointerdown', (e) => {
   stickRead(e);
 });
 stickEl.addEventListener('pointermove', (e) => { if (e.pointerId === pad.id) stickRead(e); });
-function stickUp(e) { if (e.pointerId === pad.id) { pad.id = null; pad.x = 0; stickShow(0, 0); } }
+function stickUp(e) { if (e.pointerId === pad.id) { pad.id = null; pad.x = pad.y = 0; stickShow(0, 0); } }
+// look around: drag anywhere that isn't a control
+const stageEl = document.getElementById('stage');
+stageEl.addEventListener('pointerdown', (e) => {
+  if (e.target.closest('button, .stick, .card')) return;
+  pad.lookId = e.pointerId; pad.lookX = e.clientX; pad.lookY = e.clientY; audio();
+});
+window.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== pad.lookId) return;
+  S.cam.yaw -= (e.clientX - pad.lookX) * 0.009;
+  S.cam.pitch = Math.max(0.05, Math.min(1.1, S.cam.pitch + (e.clientY - pad.lookY) * 0.006));
+  pad.lookX = e.clientX; pad.lookY = e.clientY; S.cam.dragAt = performance.now();
+});
+function lookUp(e) { if (e.pointerId === pad.lookId) pad.lookId = null; }
 function btnDown(el, k) {
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault(); audio();
@@ -159,12 +187,12 @@ function btnUp(e) {
   if (e.pointerId === pad.grabId) { pad.grabId = null; grabEl.classList.remove('on'); }
 }
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => { stickEl.addEventListener(t, stickUp); jumpEl.addEventListener(t, btnUp); grabEl.addEventListener(t, btnUp); });
-window.addEventListener('pointerup', (e) => { stickUp(e); btnUp(e); }, true);
-window.addEventListener('pointercancel', (e) => { stickUp(e); btnUp(e); }, true);
+window.addEventListener('pointerup', (e) => { stickUp(e); btnUp(e); lookUp(e); }, true);
+window.addEventListener('pointercancel', (e) => { stickUp(e); btnUp(e); lookUp(e); }, true);
 ['touchend', 'touchcancel'].forEach((t) => document.addEventListener(t, (e) => { if (!e.touches.length) padRelease(); }, true));
 function padRelease() {
-  pad.id = null; pad.x = 0; pad.jumpId = null; pad.grabId = null;
-  keys.L = keys.R = keys.J = keys.G = false;
+  pad.id = null; pad.x = pad.y = 0; pad.jumpId = null; pad.grabId = null; pad.lookId = null;
+  Object.keys(keys).forEach((k) => { keys[k] = false; });
   jumpEl.classList.remove('on'); grabEl.classList.remove('on'); stickShow(0, 0);
 }
 window.addEventListener('blur', padRelease);
@@ -227,7 +255,8 @@ function startRun() {
 function startLevel(lv) {
   S.level = lv;
   S.sim = createSim(lv, S.roster.map((r) => ({ hero: r.hero, bot: r.bot })));
-  prev = S.sim.players.map((p) => ({ x: p.x, y: p.y }));
+  lookAlong(LEVELS[lv].spawn.dir);
+  prev = S.sim.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
   if (S.auto) S.sim.players[S.me].bot = true;
   setMode('title');
 }
@@ -245,10 +274,10 @@ function inputsFor(sim) {
     }
     const r = remote[i];
     // nothing from that phone for a while: let go of everything rather than walk on forever
-    if (!r || performance.now() - r.at > 1500) return { x: 0, jump: false, grab: false };
+    if (!r || performance.now() - r.at > 1500) return { mx: 0, mz: 0, jump: false, grab: false };
     const tap = (r.taps | 0) > (seenTaps[i] | 0);
     seenTaps[i] = r.taps | 0;
-    return { x: r.x, jump: r.jump, grab: r.grab, tap };
+    return { mx: r.mx, mz: r.mz, jump: r.jump, grab: r.grab, tap };
   });
 }
 
@@ -271,7 +300,7 @@ function hostUpdate(dt) {
     acc += Math.min(dt, 0.1);
     while (acc >= STEP) {
       acc -= STEP;
-      prev = S.sim.players.map((p) => ({ x: p.x, y: p.y }));
+      prev = S.sim.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
       stepSim(S.sim, inputsFor(S.sim));
       for (const ev of S.sim.events) { events.push(ev); onEvent(ev); }
       if (S.sim.done !== null) {
@@ -297,19 +326,19 @@ function snapshot() {
   return {
     t: 's', mode: S.mode, mt: r2(S.modeT), lv: S.level, tm: sim ? r2(sim.t) : 0, cp: sim ? sim.cp : 0, f: sim ? sim.falls : 0,
     sc: S.scores, bots: S.roster.map((r) => (r.bot ? 1 : 0)),
-    ps: sim ? sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.vx), r2(p.vy),
-      (p.ground ? 1 : 0) | (p.grab ? 2 : 0) | (p.zip ? 4 : 0) | (p.taut ? 8 : 0) | (p.knockT > 0 ? 16 : 0), p.face]) : [],
+    ps: sim ? sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vy), r2(p.vz), flagsOf(p), r2(p.face)]) : [],
     cr: sim ? sim.crumble.map((c) => (c.gone ? -1 : r2(c.stood + c.heavy * 4))) : [],
-    br: sim ? sim.barrels.map((b) => [r2(b.x), r2(b.y), r2(b.spin)]) : [],
+    br: sim ? sim.barrels.map((b) => [r2(b.x), r2(b.y), r2(b.z), r2(b.spin), b.dx, b.dz]) : [],
     ev: events,
   };
 }
+const flagsOf = (p) => (p.ground ? 1 : 0) | (p.grab ? 2 : 0) | (p.zip ? 4 : 0) | (p.taut ? 8 : 0) | (p.knockT > 0 ? 16 : 0);
 const snaps = []; // client: the last few snapshots, oldest first
 let clientClock = null, lastSnapAt = 0;
 function onSnapshot(s) {
   if (S.gone) return;
   const prevMode = S.mode, prevLevel = S.level;
-  if (s.lv !== S.level || !snaps.length) snaps.length = 0;
+  if (s.lv !== S.level || !snaps.length) { snaps.length = 0; lookAlong(LEVELS[s.lv].spawn.dir); }
   S.level = s.lv; S.scores = s.sc || []; S.total = S.scores.reduce((a, b) => a + b.score, 0);
   S.roster.forEach((r, i) => { r.bot = !!(s.bots && s.bots[i]); });
   if (s.mode !== prevMode || s.lv !== prevLevel) {
@@ -339,8 +368,8 @@ function clientUpdate(dt) {
     clientClock += (target - clientClock) * Math.min(1, dt * 2); // drift toward the host's time
   }
   if (S.mode === 'play' || S.mode === 'title') {
-    const inp = S.menu ? { x: 0, jump: false, grab: false } : readInput();
-    const msg = { t: 'i', i: S.me, x: Math.round(inp.x * 10) / 10, jump: inp.jump, grab: inp.grab, taps: pad.taps };
+    const inp = S.menu ? { mx: 0, mz: 0, jump: false, grab: false } : readInput();
+    const msg = { t: 'i', i: S.me, mx: Math.round(inp.mx * 10) / 10, mz: Math.round(inp.mz * 10) / 10, jump: inp.jump, grab: inp.grab, taps: pad.taps };
     const key = JSON.stringify(msg);
     sinceInput += dt;
     if (key !== lastSent || sinceInput > INPUT_EVERY) { send(msg); lastSent = key; sinceInput = 0; }
@@ -357,16 +386,20 @@ function clientView() {
     lv: b.lv, t, cp: b.cp, falls: b.f,
     players: b.ps.map((q, i) => {
       const p = a.ps[i] || q;
-      return makePlayer(i, lerp(p[0], q[0]), lerp(p[1], q[1]), q[2], q[3], q[4], q[5]);
+      let df = q[7] - p[7]; df = Math.atan2(Math.sin(df), Math.cos(df));
+      return makePlayer(i, lerp(p[0], q[0]), lerp(p[1], q[1]), lerp(p[2], q[2]), q[3], q[4], q[5], q[6], p[7] + df * k);
     }),
     crumble: b.cr.map((c) => ({ gone: c < 0, stood: Math.max(0, c) })),
-    barrels: b.br.map((q) => { const p = a.br.find((o) => Math.abs(o[0] - q[0]) < 1.5) || q; return { x: lerp(p[0], q[0]), y: lerp(p[1], q[1]), spin: q[2] }; }),
+    barrels: b.br.map((q) => {
+      const p = a.br.find((o) => Math.hypot(o[0] - q[0], o[2] - q[2]) < 1.5) || q;
+      return { x: lerp(p[0], q[0]), y: lerp(p[1], q[1]), z: lerp(p[2], q[2]), spin: q[3], dx: q[4], dz: q[5] };
+    }),
   };
 }
-function makePlayer(i, x, y, vx, vy, flags, face) {
+function makePlayer(i, x, y, z, vx, vy, vz, flags, face) {
   const r = S.roster[i];
   return { i, hero: r.hero, name: i === S.me ? 'YOU' : r.name, color: COLORS[i], bot: r.bot, me: i === S.me,
-    x, y, vx, vy, ground: !!(flags & 1), grab: !!(flags & 2), zip: !!(flags & 4), taut: !!(flags & 8), knock: !!(flags & 16), face: face || 1 };
+    x, y, z, vx, vy, vz, ground: !!(flags & 1), grab: !!(flags & 2), zip: !!(flags & 4), taut: !!(flags & 8), knock: !!(flags & 16), face: face || 0 };
 }
 function hostView() {
   const sim = S.sim;
@@ -376,11 +409,10 @@ function hostView() {
     lv: S.level, t: sim.t, cp: sim.cp, falls: sim.falls,
     players: sim.players.map((p, i) => {
       const q = prev && prev[i] ? prev[i] : p;
-      return makePlayer(i, q.x + (p.x - q.x) * k, q.y + (p.y - q.y) * k, p.vx, p.vy,
-        (p.ground ? 1 : 0) | (p.grab ? 2 : 0) | (p.zip ? 4 : 0) | (p.taut ? 8 : 0) | (p.knockT > 0 ? 16 : 0), p.face);
+      return makePlayer(i, q.x + (p.x - q.x) * k, q.y + (p.y - q.y) * k, q.z + (p.z - q.z) * k, p.vx, p.vy, p.vz, flagsOf(p), p.face);
     }),
     crumble: sim.crumble.map((c) => ({ gone: c.gone, stood: c.stood + c.heavy * 4 })),
-    barrels: sim.barrels.map((b) => ({ x: b.x, y: b.y, spin: b.spin })),
+    barrels: sim.barrels.map((b) => ({ x: b.x, y: b.y, z: b.z, spin: b.spin, dx: b.dx, dz: b.dz })),
   };
 }
 
@@ -394,7 +426,7 @@ window.addEventListener('message', (e) => {
       if (m.t === 'hi' && typeof m.i === 'number') ready.add(m.i);
       else if (m.t === 'i' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
         ready.add(m.i);
-        remote[m.i] = { x: Math.max(-1, Math.min(1, +m.x || 0)), jump: !!m.jump, grab: !!m.grab, taps: m.taps | 0, at: performance.now() };
+        remote[m.i] = { mx: Math.max(-1, Math.min(1, +m.mx || 0)), mz: Math.max(-1, Math.min(1, +m.mz || 0)), jump: !!m.jump, grab: !!m.grab, taps: m.taps | 0, at: performance.now() };
       }
     } else if (S.net === 'client' && m.t === 's') onSnapshot(m);
   } else if (d.type === 'peer-left' && S.net === 'host' && typeof d.i === 'number' && S.roster[d.i]) {
@@ -406,6 +438,20 @@ window.addEventListener('message', (e) => {
     S.gone = true; setMode('gone');
   }
 });
+
+// The camera turns with Q/R (or , .), by dragging, and otherwise drifts round
+// behind you as you run (not while you're running back toward it).
+function steerCamera(dt) {
+  if (keys.CL) S.cam.yaw += dt * 2.2;
+  if (keys.CR) S.cam.yaw -= dt * 2.2;
+  const me = S.view && S.view.players[S.me];
+  if (!me || performance.now() - S.cam.dragAt < 1500 || keys.CL || keys.CR) return;
+  const speed = Math.hypot(me.vx, me.vz);
+  if (speed < 1.5 || !me.ground && !me.zip) return;
+  let d = Math.atan2(me.vx, me.vz) - S.cam.yaw;
+  d = Math.atan2(Math.sin(d), Math.cos(d));
+  if (Math.abs(d) < 2.2) S.cam.yaw += d * Math.min(1, dt * 1.1 * Math.min(1, speed / 5));
+}
 
 // ---- the frame loop ----------------------------------------------------------------------------
 renderer = createRenderer({
@@ -432,6 +478,7 @@ function tick(now) {
     S.stale = snaps.length > 0 && performance.now() - lastSnapAt > 4000 && S.mode !== 'finish';
   } else hostUpdate(dt);
   S.view = S.net === 'client' ? clientView() : hostView();
+  steerCamera(dt);
   if (!document.hidden) renderer.draw(now / 1000, dt);
 }
 syncButtons();
@@ -441,8 +488,8 @@ requestAnimationFrame(frame);
 window.__chain = {
   get mode() { return S.mode; }, get net() { return S.net; }, get me() { return S.me; }, get level() { return S.level; },
   get total() { return S.total; }, get scores() { return S.scores; }, get falls() { return S.view ? S.view.falls : 0; },
-  get cp() { return S.view ? S.view.cp : 0; }, get menu() { return S.menu; }, get gl() { return renderer.gl; },
-  get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab })) : []; },
+  get cp() { return S.view ? S.view.cp : 0; }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; },
+  get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, z: p.z, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab })) : []; },
   get roster() { return S.roster.map((r) => Object.assign({}, r)); },
   screenPoint: (x, y) => renderer.screenPoint(x, y),
   // a whole gang of bots plays a stretch headless (the levels must be winnable)
@@ -453,10 +500,15 @@ if (INIT.debug) {
   window.__chain.debug = {
     // let a bot drive this phone's traveller (host/solo only)
     auto(on) { S.auto = on !== false; if (S.sim) S.sim.players[S.me].bot = S.auto || S.roster[S.me].bot; },
-    finishLevel() { if (S.sim && S.mode === 'play') { S.sim.players.forEach((p) => { p.x = S.sim.level.finish + 1; p.y = 30; }); } },
+    finishLevel() { // straight past every watchtower to the finish
+      if (!S.sim || S.mode !== 'play') return;
+      const f = S.sim.level.finish;
+      S.sim.cp = S.sim.level.checks.length;
+      S.sim.players.forEach((p, i) => { Object.assign(p, { x: f.x - f.dir[0] * i * 0.8, y: f.y + 0.3, z: f.z - f.dir[1] * i * 0.8, vx: 0, vy: 0, vz: 0 }); });
+    },
     setLevel(n) { if (S.net !== 'client') startLevel(n); },
     fall() { if (S.sim) S.sim.players.forEach((p) => { p.y = S.sim.level.fallY - 5; p.vy = 0; }); }, // the whole gang off the wall
-    warp(x, y) { if (S.sim) S.sim.players.forEach((p, i) => { p.x = x - i * 1.3; p.y = y; p.vx = p.vy = 0; }); },
+    warp(x, y, z, yaw) { if (S.sim) S.sim.players.forEach((p, i) => { Object.assign(p, { x, y: y + i * 0.01, z: z + i * 1.2, vx: 0, vy: 0, vz: 0 }); p.ni = 0; }); if (yaw !== undefined) S.cam.yaw = yaw; },
     skipTitle() { if (S.mode === 'title') S.modeT = TITLE_T + 1; if (S.mode === 'clear') S.modeT = CLEAR_T + 1; },
   };
 }

@@ -6,6 +6,19 @@ const FONT = '"Arial Black", "Avenir Next", "Arial Rounded MT Bold", system-ui, 
 const INK = '#1a0b2e';
 const PINK = '#ff2d95', CYAN = '#18e0ff', YELLOW = '#ffe11a';
 
+/** How far along a stretch a point is, 0…1, by the nearest stretch of its route. */
+function progress(L, q) {
+  const R = L.route;
+  let best = 0, bd = Infinity;
+  for (let k = 0; k + 1 < R.length; k++) {
+    const a = R[k].p, b = R[k + 1].p, ex = b[0] - a[0], ez = b[2] - a[2], l2 = ex * ex + ez * ez || 1;
+    const s = Math.max(0, Math.min(1, ((q.x - a[0]) * ex + (q.z - a[2]) * ez) / l2));
+    const d = Math.hypot(a[0] + ex * s - q.x, (a[1] + (b[1] - a[1]) * s - q.y) * 0.5, a[2] + ez * s - q.z);
+    if (d < bd) { bd = d; best = k + s; }
+  }
+  return best / (R.length - 1);
+}
+
 export function createHud(canvas, game, view, toScreen) {
   const { S, LEVELS, PAR } = game;
   const ctx = canvas.getContext('2d');
@@ -35,9 +48,9 @@ export function createHud(canvas, game, view, toScreen) {
     text('FALLS ' + V.falls, 92 * u, top + 32 * u, 11, V.falls ? PINK : '#ffffff', { align: 'left', lw: 2.4 });
     text(String(S.total).padStart(5, '0'), right - 12 * u, top + 32 * u, 15, YELLOW, { align: 'right', lw: 3 });
     text('SCORE', right - 12 * u, top + 14 * u, 9, '#ffd7f0', { align: 'right', stroke: false });
-    // progress along this stretch: the watchtowers and where everyone is
-    const y = top + 58 * u, x0 = 20 * u, x1 = W - 20 * u, span = L.finish - L.start;
-    const X = (x) => x0 + ((Math.max(L.start, Math.min(L.finish, x)) - L.start) / span) * (x1 - x0);
+    // progress along this stretch (along its route): the watchtowers and where everyone is
+    const y = top + 58 * u, x0 = 20 * u, x1 = W - 20 * u;
+    const X = (q) => x0 + progress(L, q) * (x1 - x0);
     round(x0, y - 3 * u, x1 - x0, 6 * u, 3 * u, 'rgba(26,11,46,0.55)');
     L.checks.forEach((c, k) => {
       ctx.fillStyle = k < V.cp ? YELLOW : 'rgba(255,255,255,0.55)';
@@ -46,13 +59,13 @@ export function createHud(canvas, game, view, toScreen) {
     });
     text('🏁', x1, y - 1 * u, 11, '#fff', { stroke: false });
     V.players.forEach((p) => {
-      ctx.beginPath(); ctx.arc(X(p.x), y, (p.me ? 5.5 : 4) * u, 0, Math.PI * 2);
+      ctx.beginPath(); ctx.arc(X(p), y, (p.me ? 5.5 : 4) * u, 0, Math.PI * 2);
       ctx.fillStyle = p.color; ctx.fill(); ctx.lineWidth = 1.5 * u; ctx.strokeStyle = INK; ctx.stroke();
     });
   }
   function tags(V) {
     V.players.forEach((p) => {
-      const s = toScreen(p.x, p.y + 2.05);
+      const s = toScreen(p.x, p.y + 2.05, p.z);
       if (s.behind) return;
       const label = p.bot ? '🤖 ' + p.name : p.name;
       ctx.font = `900 ${9 * u}px ${FONT}`;
@@ -116,6 +129,7 @@ export function createHud(canvas, game, view, toScreen) {
       card([['STRETCH ' + (V.lv + 1), 16, CYAN], [L.name.toUpperCase(), 28, PINK]]);
       wrap(L.line, W - 40 * u).forEach((s, i) => text(s, W / 2, H * 0.36 + 70 * u + i * 17 * u, 12, '#ffffff', { lw: 3 }));
       text('STAY TOGETHER · HOLD GRAB TO ANCHOR', W / 2, H * 0.36 + 116 * u, 10, YELLOW, { lw: 2.6 });
+      if (V.lv === 0) text('DRAG THE SCREEN TO LOOK AROUND', W / 2, H * 0.36 + 134 * u, 10, CYAN, { lw: 2.6 });
       ctx.globalAlpha = 1;
     } else if (S.mode === 'clear') {
       const s = S.scores[S.scores.length - 1] || { score: 0, time: 0, falls: 0 };

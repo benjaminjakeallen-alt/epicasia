@@ -82,11 +82,25 @@ test('chain gang: practise with bots, clear all three stretches, the run is save
   await chain(f, (c) => c.debug.skipTitle());
   await expect.poll(() => chain(f, (c) => c.mode)).toBe('play');
 
-  // the stick walks you; you lead, the bots follow on the chain
-  const x0 = (await chain(f, (c) => c.players))[0].x;
-  await page.keyboard.down('ArrowRight');
-  await expect.poll(async () => (await chain(f, (c) => c.players))[0].x - x0, { timeout: 20_000 }).toBeGreaterThan(2);
-  await page.keyboard.up('ArrowRight');
+  // ↑ walks you forward, the way the camera looks (along the Wall, −z); you lead, the bots follow on the chain
+  const z0 = (await chain(f, (c) => c.players))[0].z;
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(async () => z0 - (await chain(f, (c) => c.players))[0].z, { timeout: 20_000 }).toBeGreaterThan(2);
+  await page.keyboard.up('ArrowUp');
+  // dragging the screen turns the camera; ↑ then walks the new way
+  const yaw0 = await chain(f, (c) => c.camYaw);
+  const box = (await page.getByTestId('game-frame').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.35);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 170, box.y + box.height * 0.35, { steps: 8 }); // drag left
+  await page.mouse.up();
+  const yaw1 = await chain(f, (c) => c.camYaw);
+  expect(yaw1 - yaw0).toBeGreaterThan(1.2); // turned more than a quarter: no longer looking along the Wall
+  const x1 = (await chain(f, (c) => c.players))[0].x;
+  await page.keyboard.down('ArrowUp');
+  await expect.poll(async () => Math.abs((await chain(f, (c) => c.players))[0].x - x1), { timeout: 20_000 }).toBeGreaterThan(0.5);
+  await page.keyboard.up('ArrowUp');
+
   // GRAB digs in
   await page.keyboard.down('Shift');
   await expect.poll(async () => (await chain(f, (c) => c.players))[0].grab).toBe(true);
@@ -152,21 +166,21 @@ test('chain gang: two phones in one room play together', async ({ browser }) => 
   await chain(fa, (c) => c.debug.skipTitle());
   await expect.poll(() => chain(fb, (c) => c.mode), { timeout: 20_000 }).toBe('play');
 
-  // B walks back (left): the host's simulation moves B's traveller
-  const before = (await chain(fa, (c) => c.players))[1].x;
+  // B walks forward: the host's simulation moves B's traveller
+  const before = (await chain(fa, (c) => c.players))[1].z;
   await b.bringToFront();
   // (two pages in one browser: make sure B's game has the keyboard)
   await b.frameLocator('[data-testid="game-frame"]').locator('#hud').click({ position: { x: 195, y: 300 } });
-  await b.keyboard.down('ArrowLeft');
-  await expect.poll(async () => before - (await chain(fa, (c) => c.players))[1].x, { timeout: 30_000 }).toBeGreaterThan(1);
-  await b.keyboard.up('ArrowLeft');
+  await b.keyboard.down('ArrowUp');
+  await expect.poll(async () => before - (await chain(fa, (c) => c.players))[1].z, { timeout: 30_000 }).toBeGreaterThan(1);
+  await b.keyboard.up('ArrowUp');
   // …and B sees itself where the host has it
-  const hostX = (await chain(fa, (c) => c.players))[1].x;
-  await expect.poll(async () => Math.abs((await chain(fb, (c) => c.players))[1].x - hostX), { timeout: 10_000 }).toBeLessThan(1.5);
+  const host = (await chain(fa, (c) => c.players))[1];
+  await expect.poll(async () => { const q = (await chain(fb, (c) => c.players))[1]; return Math.hypot(q.x - host.x, q.z - host.z); }, { timeout: 10_000 }).toBeLessThan(1.5);
 
   // B leaves: a bot carries on in B's place on the host
   await b.close();
-  await expect.poll(async () => (await chain(fa, (c) => c.roster))[1].bot, { timeout: 15_000 }).toBe(true);
+  await expect.poll(async () => (await chain(fa, (c) => c.roster))[1].bot, { timeout: 40_000 }).toBe(true); // (presence drop + a 5 s grace)
   await ctx.close();
 });
 

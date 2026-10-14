@@ -868,56 +868,79 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   back in (`GameFrame`'s new `postRef`), and tells the game `peer-left {i}`
   (host: a bot takes over) / `host-left` (clients: "THE HOST LEFT").
 - **Netcode:** the host phone runs the only simulation; clients send their
-  stick/JUMP/GRAB on change and every 0.25 s (`taps` counts presses so a
+  direction on the ground (the stick turned by their own camera), JUMP
+  and GRAB on change and every 0.25 s (`taps` counts presses so a
   quick tap is never lost) and draw the host's snapshots (12/s) 0.15 s
   behind, blended. The host waits for every phone's `hi` (or 8 s) before
   the first title card.
+- **Third person, in 3D, like Chained Together** (user, Oct 14 2026, after a
+  first side-scrolling version: "I didn't want a side scroller for this
+  game", with a Chained Together screenshot). The camera sits behind your
+  traveller; the joystick walks you **relative to the camera**, **dragging
+  anywhere else turns it** (yaw + a little pitch; it drifts back behind you
+  as you run), Q/R or , . turn it from a keyboard. Teammates right in front
+  of the lens aren't drawn. The side-scroller is in git history (Oct 14).
 - **Simulation** `assets/games/chaingang/sim.js` (pure, used by the game,
-  the bots and the checks): side-on, metres. Chain = a 5 m distance limit
-  between neighbours solved like a rope — someone in the air weighs more
-  than someone standing, **GRAB on the ground makes you an anchor**
-  (immovable); a taut pull drags a dangler up a wall face; **JUMP while
-  dangling climbs the chain** toward whoever holds you. Fall below the wall
-  for 1.1 s → "WHOOPS", everyone back to the last watchtower (checkpoint,
-  passed when the whole gang is past it). Crumbling stones hold **one**
-  traveller (two at once → gone in 0.3 s, one lingering 2.5 s), back after
-  3 s. Leaving a moving platform keeps its motion.
-- **Levels** (`levels.js`, pure data): **Sunset Ramparts** (steps with
-  firecracker barrels, four crumbling stones, a swinging lantern bridge),
-  **Dragon Festival** (firework launch pads, the parade dragon's moving
-  segments, two prayer-wheel spinners, a launch up to the gate), **Storm
-  Peak** (gusts on the switchbacks — GRAB to hold on —, a collapsing
-  tower, a zip line (GRAB in the air), rope carts, barrels, the gong).
+  the bots and the checks): metres, y up, forward starts as −z; players are
+  0.6 m wide, 1.6 m tall boxes; stone is axis-aligned boxes; steps up to
+  0.45 m are walked. Chain = a 5 m distance limit between neighbours solved
+  like a rope — someone in the air weighs more than someone standing,
+  **GRAB on the ground makes you an anchor** (immovable); a taut pull drags
+  a dangler up a wall face; **JUMP while dangling climbs the chain** toward
+  whoever holds you; travellers push softly apart. Fall below the wall for
+  1.1 s → "WHOOPS", everyone back at the last watchtower, lined up across
+  the walkway. A watchtower (or the finish) counts once every traveller has
+  been within 3.2 m of it. Crumbling stones hold **one** traveller (two at
+  once → gone in 0.3 s, one lingering 2.5 s), back after 3 s. Leaving a
+  moving platform keeps its motion.
+- **Levels** (`levels.js`, pure data, built from `wallZ`/`wallX`/`stairs*`
+  helpers): **Sunset Ramparts** (barrels down the steps, four crumbling
+  stones zig-zagging over a gap, a corner, a bridge of three swinging
+  lanterns), **Dragon Festival** (firework launch pads up wall faces, the
+  parade dragon's eight bobbing, swaying segments, a four-platform
+  prayer-wheel carousel), **Storm Peak** (switchback stairs with gusts
+  pushing you off the side — GRAB to hold on —, crumbling stones climbing a
+  tower, a zip line down across a chasm (GRAB in the air), two rope carts,
+  barrels, the gong). Each level has a `route` of nodes for the bots
+  (`jump`, `pad`, `near` flags).
 - **Bots** (`botInput`): fill empty places and replace a phone that left.
-  They follow the one ahead, cross gaps one at a time, only jump to footing
-  within chain reach of their neighbours (flying the jump through the level
-  as it will be), haul danglers, dig in for gusts, ride the zip. **Every
+  They walk the route node by node but never pull away from a neighbour,
+  keep the chain's order (never pass the bot ahead), never get further
+  along than the furthest person playing, cross gaps one at a time and only
+  jump to footing within chain reach of their neighbours (flying the jump
+  through the level as it will be), wait at a moving platform's leading
+  edge for a jump that lands, haul danglers, dig in for gusts, ride the
+  zip, and find their place on the route again after a fall. **Every
   stretch must be winnable:** `simulateLevel(lv, n, max, startAt)` (on
-  `__chain.simulate`) — gangs of 1–4 bots at 8 start timings all finish
-  all three (96/96); the e2e checks 1, 2 and 4. Re-run after any level or
-  physics change.
+  `__chain.simulate`) — gangs of 1–4 bots at 8 start timings all finish all
+  three (96/96), and a person leading three bots finishes too; the e2e
+  checks 1, 2 and 4. Re-run after any level or physics change.
 - **Scores:** per stretch `max(250, 1000 + 10·(par − time) − 60·falls)`
   (par 110/110/120 s), summed; each phone saves its own row in
   `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
   its own hero) at the finish, or on leaving with something cleared.
-- **Look** (`render3d.js`): Sunset Overdrive — neon sunset sky per stretch,
-  a striped retro sun, parallax ridges with the wall on them, a cloud sea
-  below, toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with ink
-  outlines (back faces pushed out), graffiti tags with drips, neon bunting,
-  a chunky gold chain that hangs in a curve (slack lies on the walkway),
-  confetti/sparks/debris, flags that light up at watchtowers. Travellers are
-  Rampage's `makeHero` models with an ink outline. HUD (`hud.js`): stretch,
-  clock, falls, score, a progress strip with the watchtowers and everyone's
-  dot, name tags (🤖 for bots), title/clear/finish cards. Pad: joystick +
-  GRAB + JUMP; keys ←/→ (A/D), Space/↑/W/Z jump, Shift/E/J/X/↓/S grab;
+- **Look** (`render3d.js`): Sunset Overdrive — a neon sunset dome per
+  stretch, a striped retro sun low over the far end, rings of mountain
+  ridges with the Wall on their crests, a sea of sunset cloud below (where
+  you fall), toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with
+  ink outlines (back faces pushed out) and battlements along both edges,
+  graffiti tags with drips, watchtowers whose flags light up, a chunky gold
+  chain that hangs in a curve (slack lies on the walkway), confetti/sparks/
+  debris, gust streaks. Travellers are Rampage's `makeHero` models with an
+  ink outline. HUD (`hud.js`): stretch, clock, falls, score, a progress
+  strip along the route with the watchtowers and everyone's dot, name tags
+  (🤖 for bots), title/clear/finish cards ("DRAG THE SCREEN TO LOOK AROUND"
+  on the first). Pad: joystick (all four ways) + GRAB + JUMP; keys
+  arrows/WASD walk, Space/Z jump, Shift/E/J/X grab, Q/R turn the camera,
   Esc/P pauses (solo pauses the game; online it's only a menu).
 - `window.__chain`: mode, net, me, level, total, scores, falls, cp, players,
-  roster, simulate, screenPoint; in development `debug.auto(on)`,
-  `finishLevel()`, `setLevel(n)`, `fall()` (the whole gang), `skipTitle()`, `warp(x, y)`.
+  roster, camYaw, simulate, screenPoint; in development `debug.auto(on)`,
+  `finishLevel()`, `setLevel(n)`, `fall()` (the whole gang), `skipTitle()`, `warp(x, y, z, yaw)`.
   The game keeps ticking on a timer while its page is hidden (no animation
   frames there), so a host in the background doesn't freeze the room.
 - Tests: `e2e/chaingang.spec.ts` (board; bots win every stretch; practise —
-  roster, stick, GRAB, a fall, clear all three → exact `game_scores`
+  roster, ↑ walks along the Wall, a drag turns the camera and ↑ then walks
+  the new way, GRAB, a fall, clear all three → exact `game_scores`
   insert, leave; **two pages in one room** — code, join, traveller clash,
   host/client, the client's stick moves its traveller in the host's sim and
   the client sees it, the client leaves → a bot takes over; a code with no

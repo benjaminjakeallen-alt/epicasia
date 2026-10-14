@@ -41,7 +41,9 @@
     box-shadow: inset 0 0 0 2px rgba(255,45,149,0.45), inset 0 8px 18px rgba(0,0,0,0.5); }
   .stick .mark { position: absolute; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.35); font-size: 15px; line-height: 1; pointer-events: none; }
   .stick .ml { left: 11px; } .stick .mr { right: 11px; }
-  .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr { color: #ffe11a; }
+  .stick .mu, .stick .md { left: 50%; top: auto; transform: translateX(-50%); }
+  .stick .mu { top: 9px; } .stick .md { bottom: 9px; }
+  .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr, .stick[data-dir~="U"] .mu, .stick[data-dir~="D"] .md { color: #ffe11a; }
   .knob { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 1.2); height: calc(var(--u) * 1.2); margin: calc(var(--u) * -0.6) 0 0 calc(var(--u) * -0.6);
     border-radius: 50%; pointer-events: none; transition: transform 0.14s cubic-bezier(.3,1.6,.5,1);
     background: radial-gradient(circle at 36% 30%, #ff9ad0, #ff2d95 55%, #a3115e);
@@ -60,7 +62,7 @@
 </style>
 </head>
 <body>
-<div id="stage" role="application" aria-label="Chain Gang Dynasty. Push the joystick to walk, JUMP to jump, hold GRAB to anchor the chain or catch a zip line. Arrow keys, Space and Shift work too.">
+<div id="stage" role="application" aria-label="Chain Gang Dynasty. Push the joystick to walk, drag the screen to look around, JUMP to jump, hold GRAB to anchor the chain or catch a zip line. Arrow keys or WASD, Space and Shift work too; Q and R turn the camera.">
   <canvas id="gl" aria-hidden="true"></canvas>
   <canvas id="hud" role="img" aria-label="Chain Gang Dynasty"></canvas>
   <button id="pausebtn" aria-label="Pause" type="button">❚❚</button>
@@ -73,8 +75,8 @@
     </div>
   </div>
   <div id="pad">
-    <div class="stick" role="img" aria-label="Joystick: push left or right to walk (arrow keys work too)">
-      <span class="mark ml" aria-hidden="true">◀</span><span class="mark mr" aria-hidden="true">▶</span>
+    <div class="stick" role="img" aria-label="Joystick: push to walk, the way the camera looks (arrow keys or WASD work too)">
+      <span class="mark ml" aria-hidden="true">◀</span><span class="mark mr" aria-hidden="true">▶</span><span class="mark mu" aria-hidden="true">▲</span><span class="mark md" aria-hidden="true">▼</span>
       <div class="knob"></div>
     </div>
     <div class="btns">
