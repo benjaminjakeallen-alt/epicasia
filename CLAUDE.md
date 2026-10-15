@@ -310,7 +310,11 @@ a **carousel of icon tiles along the bottom** (user, Oct 14 2026: with five
 games they no longer fit — a horizontal `ScrollView`, `role="tab"` tiles,
 the one in the middle full size with a sage ring, the others 80%; when a
 scroll comes to rest the middle one is chosen and snapped to; tapping one
-or swiping the stage scrolls it to the middle; `games-carousel`) picks the
+or swiping the stage scrolls it to the middle; `games-carousel`; **it loops**
+(user, Oct 15 2026): the games are laid out three times over and the strip
+jumps, unseen, back to the middle copy when it comes to rest, so a game that
+slides off one side comes round on the other — only the middle copy has
+`role="tab"`/testIDs, the outer copies are `aria-hidden`, not focusable) picks the
 game, or swipe across the stage; switching springs the new icon
 in with a sparkle burst and a haptic tick. Tapping the big icon also plays.
 Each game in `GAMES` (`src/lib/games.ts`) has an `image` —
@@ -888,12 +892,25 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   screen relays `{type:'net'}` from the iframe to the room and room traffic
   back in (`GameFrame`'s new `postRef`), and tells the game `peer-left {i}`
   (host: a bot takes over) / `host-left` (clients: "THE HOST LEFT").
-- **Netcode:** the host phone runs the only simulation; clients send their
-  direction on the ground (the stick turned by their own camera), JUMP
-  and GRAB on change and every 0.25 s (`taps` counts presses so a
-  quick tap is never lost) and draw the host's snapshots (12/s) 0.15 s
-  behind, blended. The host waits for every phone's `hi` (or 8 s) before
-  the first title card.
+- **Netcode — each phone moves its own traveller** (user, Oct 15 2026: "the
+  controls are very laggy when playing with others" — clients used to send
+  their stick and wait for the host's snapshot, a round trip plus a 0.15 s
+  buffer on every move). Now a client steps a **local copy** of the sim
+  (`sim.local = me`: only its own traveller moves; the others are placed each
+  step from the host's snapshots, ~0.12 s behind; no barrels, falls,
+  watchtowers or crumbling there) and sends its state `{t:'p', lv, rs, x, y,
+  z, v…, f flags, c crumble}` 15×/s. On the host the other phones' travellers
+  are **puppets** (`p.puppet`): set from their phone's last report (carried
+  on by its speed ≤ 0.1 s), never moved by the host's physics, weight 0 on
+  the rope (an anchor) — so a teammate standing on solid ground holds you,
+  as the rules say. The host still decides falls, watchtowers, crumbling
+  stones, barrels (a `knock` event carries the barrel's direction and the
+  client knocks itself back) and the finish; after a fall `sim.rs` counts up,
+  the snapshot carries it, and the client jumps to where the host has it —
+  reports from before (old `rs`/`lv`) are ignored. Moving things are drawn
+  at the client's "now". Snapshots 15/s. The host waits for every phone's
+  `hi` (or 8 s) before the first title card. A phone that left: `peer-left`
+  turns its puppet into a bot.
 - **Third person, in 3D, like Chained Together** (user, Oct 14 2026, after a
   first side-scrolling version: "I didn't want a side scroller for this
   game", with a Chained Together screenshot). The camera sits behind your
@@ -946,6 +963,45 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   the stick points forward (drifting while steering sideways bent a held
   direction into a curve). Fuzzing (a random-input
   player among bots, 400k steps) ends with nobody inside stone.
+- **A rope, not a chain** (user, Oct 15 2026 — "change the chain to a rope…
+  we will need a new name"; the name is still to be picked). **Every object
+  is solid** (same day: "3d objects are sometimes not solid"): moving
+  things and crumbling stones block from every side (no one-way platforms),
+  and every drawn part has a box — `kind: 'part'` movers riding a parent's
+  path at an offset (`ox/oy/oz` in `moverBox`): the lanterns' paper bodies,
+  the dragon's carrying poles, head and tail (flush with its back), the
+  carts' two hanging ropes (at its sides, not its ends where you jump);
+  static `hub` (the carousel's drum, raised out of riders' reach, and pole),
+  `rockets` along each launch pad's sides, zip-line and gate `post`s, the
+  `gong`, and each `tower` (+ roof; placed on whichever side of the way is
+  clear — one stood in the carousel). Nothing tilts or spins any more (the
+  lanterns' ropes, wheel spokes and flags are gone; sky lanterns float), so
+  what you see is the box you bump into. A crumbled stone only comes back
+  once nobody is where it was. Someone hauled up under something slides to
+  its nearest edge; bots hanging under something move out to its edge before
+  climbing, and only count a gust where they are or where they're jumping.
+  **The rope** (`rope.js`, pure, so the checks run it): 28 verlet beads per
+  stretch, each pushed out of every box (stone, furniture, crumbles still
+  there, pads, movers where they are now) — out the side it came in by, so
+  a rope pulled against something thin goes round it; wedged in a crease
+  (rockets on a pad) it takes the shortest way clear of all of them. It's
+  drawn along `ropePath` (each stretch split in four, every point pushed
+  out, and a point added round any corner a straight piece would cut —
+  round a thin box's nearest *clear* edge if the ends are either side) as
+  twisted hemp (instanced strands + knots, ink outline). Checked headless
+  (bots, and a random-input player, on all three stretches, every frame):
+  no part of the rope inside anything, except one random-input run on
+  Dragon Festival — 10 frames in 27,000, at most 5.5 cm (under the rope's
+  own thickness).
+- **Harder later stretches** (user, Oct 15 2026: "15% hard on level 2 and 3",
+  "level 3 25% longer"): `course(…, { hard: 1.15 })` — gaps 15% longer, and
+  in `done()` everything that moves 15% faster, gusts 15% stronger and
+  longer (and calms shorter), barrels 15% more often and quicker. The
+  crumbling stones are unchanged: quicker to give way (2.2 s) or slower to
+  come back and a gang of three couldn't cross them one at a time. **Storm
+  Peak is 26% longer** (route 133 → 168 m): a fifth watchtower, a gusty
+  climb, three more crumbling stones, a walk and stairs before the gong
+  (a plank there left fallers hanging under it). Par 110 / 126 / 172 s.
 - **Levels** (`levels.js`, pure data): each is laid out by a `course()`
   builder that walks a cursor forward along x or z (so every piece is an
   axis-aligned box), turning at landings, and writes the bots' route as it
@@ -974,7 +1030,7 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   three (96/96), and a person leading three bots finishes too; the e2e
   checks 1, 2 and 4. Re-run after any level or physics change.
 - **Scores:** per stretch `max(250, 1000 + 10·(par − time) − 60·falls)`
-  (par 110/110/120 s), summed; each phone saves its own row in
+  (par 110/126/172 s), summed; each phone saves its own row in
   `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
   its own hero) at the finish, or on leaving with something cleared.
 - **Look** (`render3d.js`): Sunset Overdrive — a neon sunset dome per

@@ -59,7 +59,7 @@ export const GAMES: {
   {
     key: 'chain_gang',
     title: 'Chain Gang Dynasty',
-    line: 'Up to four of you, chained together, across the Great Wall. Room codes for playing together.',
+    line: 'Up to four of you, roped together, across the Great Wall. Room codes for playing together.',
     icon: 'link-outline',
     image: require('../../assets/images/games/chain-gang.png'),
     href: '/(app)/games/chaingang',

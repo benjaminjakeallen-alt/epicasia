@@ -11,6 +11,14 @@
 // zip line, watchtowers (checkpoints) and the finish. Each level also has a
 // `route` for the bots to follow.
 //
+// Online, each phone moves its own traveller itself (no waiting on the
+// network): on the host the other phones' travellers are *puppets* — put
+// where their phone last said, never moved by the host's physics, and as
+// heavy as an anchor on the chain — and each other phone runs a *local* sim
+// in which only its own traveller moves (the others are placed where the
+// host's snapshots show them). The host still decides falls, watchtowers,
+// crumbling stones, barrels and the finish.
+//
 // The chain is a distance limit between neighbours, solved like a rope:
 // pulled taut it drags the lighter end — someone in the air weighs more than
 // someone on their feet, and someone holding GRAB on the ground is an anchor
@@ -41,9 +49,11 @@ export function moverPos(m, t) {
   // 'sine': the parade dragon's segments ride a travelling wave
   return { x: p.x0 + (p.ax || 0) * Math.sin(ph), y: p.y0 + (p.ay || 0) * Math.sin(ph + (p.lag || 0)), z: p.z0 + (p.az || 0) * Math.sin(ph) };
 }
+/** Where a moving thing's box is at time t (a part — a lantern's body, the
+ *  dragon's head — rides its path at an offset: ox, oy, oz). */
 export function moverBox(m, t) {
-  const a = moverPos(m, t), b = moverPos(m, t + 0.02);
-  return { x0: a.x - m.w / 2, x1: a.x + m.w / 2, z0: a.z - m.d / 2, z1: a.z + m.d / 2, y0: a.y - m.h, y1: a.y,
+  const a = moverPos(m, t), b = moverPos(m, t + 0.02), x = a.x + (m.ox || 0), y = a.y + (m.oy || 0), z = a.z + (m.oz || 0);
+  return { x0: x - m.w / 2, x1: x + m.w / 2, z0: z - m.d / 2, z1: z + m.d / 2, y0: y - m.h, y1: y,
     vx: (b.x - a.x) / 0.02, vy: (b.y - a.y) / 0.02, vz: (b.z - a.z) / 0.02 };
 }
 /** Below this, you've fallen: well under the last watchtower (or the start). */
@@ -58,8 +68,9 @@ const inBox = (b, x, y, z) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1 && z 
 function solidsAt(sim, t) {
   const L = sim.level, out = [];
   for (const s of L.solids) out.push(s);
-  L.crumbles.forEach((c, i) => { if (!sim.crumble[i].gone) out.push({ ...c, oneWay: true, crumble: i, id: 'c' + i }); });
-  L.movers.forEach((m, k) => out.push({ ...moverBox(m, t), oneWay: m.oneWay !== false, mover: true, id: 'm' + k }));
+  // (everything is solid all round — you can't walk into the side of a lantern or a stone, or jump up through it)
+  L.crumbles.forEach((c, i) => { if (!sim.crumble[i].gone) out.push({ ...c, crumble: i, id: 'c' + i }); });
+  L.movers.forEach((m, k) => out.push({ ...moverBox(m, t), kind: m.kind, mover: true, id: 'm' + k }));
   for (const b of L.bouncers) out.push({ ...b, bounce: b.power || 17 });
   return out;
 }
@@ -113,12 +124,14 @@ export function stepSim(sim, inputs) {
 
   // crumbling stones hold one traveller: two at once (or one lingering) and
   // they give way; they come back a few seconds later
-  sim.crumble.forEach((c, i) => {
-    if (c.gone) { if (t - c.goneAt > CRUMBLE_BACK) { c.gone = false; c.stood = c.heavy = 0; } return; }
+  const local = sim.local !== undefined; // a phone's own copy: only its own traveller moves (see the top)
+  if (!local) sim.crumble.forEach((c, i) => {
+    // (back only once nobody's standing where it was — it never comes back around someone)
+    if (c.gone) { if (t - c.goneAt > (L.crumbleBack || CRUMBLE_BACK) && !sim.players.some((p) => hit(p.x, p.y, p.z, L.crumbles[i]))) { c.gone = false; c.stood = c.heavy = 0; } return; }
     c.n = sim.players.filter((p) => p.ground && p.ground.crumble === i).length;
     c.heavy = c.n >= 2 ? c.heavy + dt : 0;
     c.stood = c.n ? c.stood + dt : Math.max(0, c.stood - dt);
-    if (c.heavy > CRUMBLE_HEAVY || c.stood > CRUMBLE_STAND) { c.gone = true; c.goneAt = t; sim.events.push({ e: 'crumble', k: i }); }
+    if (c.heavy > CRUMBLE_HEAVY || c.stood > (L.crumbleStand || CRUMBLE_STAND)) { c.gone = true; c.goneAt = t; sim.events.push({ e: 'crumble', k: i }); }
   });
 
   // a gang all in the air can't keep climbing its own chain for ever: two
@@ -128,6 +141,7 @@ export function stepSim(sim, inputs) {
   const anchored = sim.airT < 2;
 
   sim.players.forEach((p, i) => {
+    if (p.puppet || (local && i !== sim.local)) return; // moved by its own phone / placed from the host's snapshots
     const inp = inputs[i] || {};
     const pressed = (inp.jump && !p.held) || !!inp.tap;
     p.held = !!inp.jump;
@@ -187,12 +201,13 @@ export function stepSim(sim, inputs) {
     const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz), min = R * 2 - 0.05;
     if (d >= min) continue;
     const nx = d > 1e-4 ? dx / d : Math.cos(a + b), nz = d > 1e-4 ? dz / d : Math.sin(a + b), push = (min - d) * 0.5;
-    const wp = p.grab ? 0 : 1, wq = q.grab ? 0 : 1, w = wp + wq || 1;
+    const wp = p.grab || p.puppet ? 0 : 1, wq = q.grab || q.puppet ? 0 : 1, w = wp + wq || 1;
     p.x -= nx * push * 2 * (wp / w); p.z -= nz * push * 2 * (wp / w);
     q.x += nx * push * 2 * (wq / w); q.z += nz * push * 2 * (wq / w);
   }
 
   chain(sim, solids);
+  if (local) return sim; // the rest is the host's to decide
 
   // barrels: rolled from a stack, along the wall; they knock you back
   L.rollers.forEach((r, k) => {
@@ -207,8 +222,8 @@ export function stepSim(sim, inputs) {
     }
     for (const p of sim.players) {
       if (p.knockT > 0 || p.zip || Math.hypot(p.x - b.x, p.z - b.z) > R + BARREL_R || b.y < p.y - 0.2 || b.y > p.y + PH * 0.7) continue;
-      p.vx = b.dx * 7.5; p.vz = b.dz * 7.5; p.vy = 5.5; p.ground = null; p.knockT = KNOCK; p.grab = false;
-      sim.events.push({ e: 'knock', i: p.i });
+      knock(p, b.dx, b.dz);
+      sim.events.push({ e: 'knock', i: p.i, dx: b.dx, dz: b.dz }); // (a puppet's phone knocks itself back when it hears)
     }
     return b.y > L.fallY - 4;
   });
@@ -217,7 +232,7 @@ export function stepSim(sim, inputs) {
   let lost = -1;
   const fall = fallLine(sim);
   sim.players.forEach((p, i) => { if (p.y < fall) { p.fallT += dt; if (p.fallT > FALL_TIME && lost < 0) lost = i; } else p.fallT = 0; });
-  if (lost >= 0) { sim.falls++; sim.events.push({ e: 'whoops', i: lost }); respawn(sim); return sim; }
+  if (lost >= 0) { sim.falls++; sim.rs = (sim.rs || 0) + 1; sim.events.push({ e: 'whoops', i: lost }); respawn(sim); return sim; }
 
   // watchtowers, then the finish: one counts once every traveller has been
   // there (or somewhere further on — so a tower someone went round never
@@ -232,6 +247,10 @@ export function stepSim(sim, inputs) {
   return sim;
 }
 
+/** Knocked back by a barrel rolling along (dx, dz). */
+export function knock(p, dx, dz) {
+  p.vx = dx * 7.5; p.vz = dz * 7.5; p.vy = 5.5; p.ground = null; p.knockT = KNOCK; p.grab = false;
+}
 function approach2(p, tx, tz, by) {
   const dx = tx - p.vx, dz = tz - p.vz, d = Math.hypot(dx, dz);
   if (d <= by) { p.vx = tx; p.vz = tz; } else { p.vx += (dx / d) * by; p.vz += (dz / d) * by; }
@@ -276,8 +295,16 @@ function move(sim, p, solids, dt) {
     } else if (!s.oneWay && p.vy > 0 && oy + PH <= s.y0 + 0.05) {
       p.y = s.y0 - PH; p.vy = 0;
       // hauled up into the underside of something: slide out toward whoever's pulling
+      // (straight under them — a cart, a lantern — slide out to its nearest edge, then round it)
       const up = [sim.players[p.i - 1], sim.players[p.i + 1]].find((q) => q && q.y > p.y + 1);
-      if (p.taut && up) { const d = Math.hypot(up.x - p.x, up.z - p.z) || 1; p.vx = ((up.x - p.x) / d) * 5; p.vz = ((up.z - p.z) / d) * 5; }
+      if (p.taut && up) {
+        let dx = up.x - p.x, dz = up.z - p.z;
+        if (Math.hypot(dx, dz) < 1.2 || (up.x > s.x0 && up.x < s.x1 && up.z > s.z0 && up.z < s.z1)) {
+          const out = [[s.x0 - p.x, 0], [s.x1 - p.x, 0], [0, s.z0 - p.z], [0, s.z1 - p.z]].sort((u, v) => Math.hypot(...u) - Math.hypot(...v))[0];
+          [dx, dz] = out;
+        }
+        const d = Math.hypot(dx, dz) || 1; p.vx = (dx / d) * 5; p.vz = (dz / d) * 5;
+      }
     }
   }
   if (p.ground && !was) sim.events.push({ e: 'land', i: p.i });
@@ -287,7 +314,7 @@ function move(sim, p, solids, dt) {
 function chain(sim, solids) {
   const ps = sim.players;
   ps.forEach((p) => { p.taut = false; });
-  const inv = (p) => (p.grab ? 0 : p.zip ? 0.15 : p.ground ? 0.35 : 1);
+  const inv = (p) => (p.grab || p.puppet ? 0 : p.zip ? 0.15 : p.ground ? 0.35 : 1);
   for (let it = 0; it < 4; it++) {
     for (let i = 0; i + 1 < ps.length; i++) {
       const a = ps[i], b = ps[i + 1];
@@ -309,7 +336,7 @@ function chain(sim, solids) {
   // the pull mustn't drag anyone into stone: push back out the shortest way
   // (again, if that put them into the next piece — the rock under a piece, a battlement)
   for (let pass = 0; pass < 4; pass++) for (const p of ps) for (const s of solids) {
-    if (s.oneWay || !hit(p.x, p.y, p.z, s)) continue;
+    if (p.puppet || (sim.local !== undefined && p.i !== sim.local) || s.oneWay || !hit(p.x, p.y, p.z, s)) continue;
     const pens = [[s.x1 - (p.x - R), 'x', 1], [p.x + R - s.x0, 'x', -1], [s.z1 - (p.z - R), 'z', 1], [p.z + R - s.z0, 'z', -1], [s.y1 - p.y, 'y', 1], [p.y + PH - s.y0, 'y', -1]]
       .sort((u, v) => u[0] - v[0]);
     const [amt, ax, sg] = pens[0];
@@ -376,7 +403,7 @@ function offLeg(L, p) {
 }
 // battlements, the rock under the pieces, pines, barrel stacks, gate posts:
 // solid, but nothing a bot means to land on
-const FURNITURE = new Set(['under', 'merlon', 'tree', 'post', 'barrels']);
+const FURNITURE = new Set(['under', 'merlon', 'tree', 'post', 'barrels', 'tower', 'hub', 'gong', 'rockets', 'part']);
 const flat = (dx, dz) => { const d = Math.hypot(dx, dz) || 1; return [dx / d, dz / d]; };
 // (is there solid, unmoving stone under a route node? if not, it's a jump onto something)
 const footingAt = (solids, n) => solids.some((s) => n[0] > s.x0 && n[0] < s.x1 && n[2] > s.z0 && n[2] < s.z1 && Math.abs(s.y1 - n[1]) < 0.6 && !s.mover && s.crumble === undefined);
@@ -400,6 +427,12 @@ export function botInput(sim, i) {
   }
   // dangling: climb the chain
   const above = nbrs.find((q) => q.y > p.y + 0.8);
+  // (hanging under something — a cart, a lantern, a piece of the wall: out to its nearest edge first, then climb)
+  const roof = !p.ground && p.taut && above && solids.find((s) => !s.oneWay && p.x > s.x0 - R && p.x < s.x1 + R && p.z > s.z0 - R && p.z < s.z1 + R && s.y0 > p.y + PH - 0.3 && s.y0 < p.y + PH + 3);
+  if (roof) {
+    const out2 = [[roof.x0 - R - 0.4 - p.x, 0], [roof.x1 + R + 0.4 - p.x, 0], [0, roof.z0 - R - 0.4 - p.z], [0, roof.z1 + R + 0.4 - p.z]].sort((u, v) => Math.hypot(...u) - Math.hypot(...v))[0];
+    const [ax, az] = flat(out2[0], out2[1]); out.mx = ax; out.mz = az; p.botAir = [ax, az]; return out;
+  }
   if (!p.ground && p.taut && above) { out.jump = !p.held; const [ax, az] = flat(above.x - p.x, above.z - p.z); out.mx = ax * 0.6; out.mz = az * 0.6; p.botAir = [out.mx, out.mz]; return out; }
 
   // where next on the route (skipping ahead if something carried us past a node — the zip line)
@@ -436,7 +469,11 @@ export function botInput(sim, i) {
   if (away || (p.ni === L.route.length - 1 && toNode < 0.6)) return out;
   out.mx = dx; out.mz = dz;
   // in a gusty stretch: only jump with a calm second ahead
-  const gusty = L.winds.some((w) => inBox({ ...w, x0: w.x0 - 3, x1: w.x1 + 3, z0: w.z0 - 3, z1: w.z1 + 3, y0: w.y0 - 2, y1: w.y1 + 2 }, p.x, p.y + 0.5, p.z) && [0.3, 0.6, 0.9].some((d) => windOn(w, t + d)));
+  // (a gust that reaches where we are or where we're jumping to — not one on the stairs behind us)
+  const gusty = L.winds.some((w) => {
+    const g = { ...w, x0: w.x0 - 1, x1: w.x1 + 1, z0: w.z0 - 1, z1: w.z1 + 1, y0: w.y0 - 2, y1: w.y1 + 2 };
+    return (inBox(g, p.x, p.y + 0.5, p.z) || inBox(g, node.p[0], node.p[1] + 0.5, node.p[2])) && [0.3, 0.6, 0.9].some((d) => windOn(w, t + d));
+  });
   // a zip line's start overhead: jump for it
   for (const z of L.zips) if (Math.hypot(p.x - z.a[0], p.z - z.a[2]) < 1.3 && z.a[1] > p.y + PH && z.a[1] < p.y + PH + 2.5) { out.jump = !p.held; p.botAir = [dx, dz]; return out; }
   // a barrel rolling at us
@@ -462,7 +499,7 @@ export function botInput(sim, i) {
     if (!onCrumble && ahead(0.3) && !node.jump) return out; // get right to the edge first
     if (!onCrumble && node.jump && ahead(0.6) && footingAt(solids, node.p) === false && toNode > 3.2) return out;
     if (gusty || !calm) { out.mx = out.mz = 0; return out; } // one at a time
-    const hurry = onCrumble && sim.crumble[p.ground.crumble].stood > 1.6;
+    const hurry = onCrumble && sim.crumble[p.ground.crumble].stood > 1.6 * (L.crumbleStand || 2.5) / 2.5; // (sooner on a harder stretch)
     const air = landing(sim, p, node, hurry ? 1.2 : 0);
     if (!air && !node.jump && !onCrumble) {
       // no jump to make, just no stone on the straight line from here (we're
@@ -497,13 +534,12 @@ function landing(sim, p, node, slack = 0) {
       if (vy > 0) continue;
       let s = null;
       const all = solidsAt(sim, t);
-      for (const q of all) if (x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1 && y <= q.y1 && y > q.y1 - 0.5) { s = q; break; }
-      if (s && FURNITURE.has(s.kind)) break;
+      for (const q of all) if (!FURNITURE.has(q.kind) && x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1 && y <= q.y1 && y > q.y1 - 0.5) { s = q; break; }
       if (s) {
         // well onto it: footing (this or a neighbouring step) all round the landing spot
         const under = (ox, oz) => all.some((q) => x + ox > q.x0 && x + ox < q.x1 && z + oz > q.z0 && z + oz < q.z1 && Math.abs(q.y1 - s.y1) < 0.5 && (q.mover ? q.id === s.id : true));
         const margin = [[0.3, 0], [-0.3, 0], [0, 0.3], [0, -0.3]].every(([ox, oz]) => under(ox, oz)) ? Math.min(1, Math.min(x - s.x0, s.x1 - x, z - s.z0, s.z1 - z) + 0.3) : 0;
-        const busy = s.crumble !== undefined && (sim.players.some((q) => q !== p && q.ground && q.ground.crumble === s.crumble) || sim.crumble[s.crumble].stood > 1.3);
+        const busy = s.crumble !== undefined && (sim.players.some((q) => q !== p && q.ground && q.ground.crumble === s.crumble) || sim.crumble[s.crumble].stood > 1.3 * (sim.level.crumbleStand || 2.5) / 2.5);
         const near = [sim.players[p.i - 1], sim.players[p.i + 1]].every((q) => !q || Math.hypot(q.x - x, q.y - s.y1, q.z - z) < CHAIN - 0.15 + slack);
         const after = Math.hypot(node.p[0] - x, node.p[2] - z);
         const same = s.id && p.ground && p.ground.id === s.id;

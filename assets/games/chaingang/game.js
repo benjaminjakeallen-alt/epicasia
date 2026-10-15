@@ -5,25 +5,28 @@
 // network messages, because only the app can reach the room.
 //
 //   solo    you and bots (the other travellers) on this phone
-//   host    this phone runs the one true simulation (sim.js) for the room,
-//           takes everyone's inputs and sends snapshots ~12 times a second
-//   client  sends its stick/buttons and draws the host's snapshots, a beat
-//           behind so it can blend between them
+//   host    this phone runs the room's simulation (sim.js) and sends
+//           snapshots 15 times a second; the other phones' travellers are
+//           puppets in it, placed where their phones say they are
+//   client  moves its own traveller itself, at once, in a local copy of the
+//           sim (no waiting on the network — that was the lag), tells the host
+//           where it is 15 times a second, and draws everyone else from the
+//           host's snapshots, a beat behind so it can blend between them
 //
 // Messages to the app: ready, net {msg} (relay to the room), score, haptic,
 // exit. From the app: net {msg}, peer-left {i}, host-left.
 
 import { LEVELS } from './levels.js';
-import { STEP, createSim, stepSim, botInput, simulateLevel } from './sim.js';
+import { STEP, createSim, stepSim, botInput, simulateLevel, knock } from './sim.js';
 import { createRenderer } from './render3d.js';
 
 const INIT = window.CHAINGANG_INIT || {};
 export const HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'];
 export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 'MILES', mei: 'MEI' };
 export const COLORS = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff']; // each place on the chain
-const PAR = [110, 110, 120]; // seconds for a time bonus
+const PAR = [110, 126, 172]; // seconds for a time bonus (the 2nd and 3rd are 15% harder, the 3rd a quarter longer)
 const TITLE_T = 2.8, CLEAR_T = 4.5;
-const SNAP_EVERY = 1 / 12, INPUT_EVERY = 0.25, INTERP = 0.15;
+const SNAP_EVERY = 1 / 15, STATE_EVERY = 1 / 15, INTERP = 0.12;
 
 const NET = INIT.mode === 'host' || INIT.mode === 'client' ? INIT.mode : 'solo';
 const ME = NET === 'solo' ? 0 : INIT.me | 0;
@@ -255,29 +258,51 @@ function startRun() {
 function startLevel(lv) {
   S.level = lv;
   S.sim = createSim(lv, S.roster.map((r) => ({ hero: r.hero, bot: r.bot })));
+  // the other phones' travellers: puppets, moved by their own phones
+  if (S.net === 'host') S.sim.players.forEach((p, i) => { p.puppet = !p.bot && i !== S.me; });
   lookAlong(LEVELS[lv].spawn.dir);
   prev = S.sim.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
   if (S.auto) S.sim.players[S.me].bot = true;
   setMode('title');
 }
-const remote = {}; // host: latest input from each phone {x, jump, grab, taps}
+const remote = {}; // host: where each phone last said its traveller is
 const seenTaps = {};
 let prev = null, acc = 0, sinceSnap = 0, events = [];
 
 function inputsFor(sim) {
   return sim.players.map((p, i) => {
     if (p.bot) return botInput(sim, i);
-    if (i === S.me) {
-      const inp = readInput(), tap = pad.taps > (seenTaps.me || 0);
-      seenTaps.me = pad.taps;
-      return Object.assign(inp, { tap });
-    }
+    if (i === S.me) return myInput();
+    return {}; // a puppet: its phone moves it (placePuppets)
+  });
+}
+function myInput() {
+  if (S.menu) return { mx: 0, mz: 0, jump: false, grab: false };
+  const inp = readInput(), tap = pad.taps > (seenTaps.me || 0);
+  seenTaps.me = pad.taps;
+  return Object.assign(inp, { tap });
+}
+/** Host: each puppet goes where its phone last said, carried on a moment by
+ *  its speed (so it glides rather than hopping 15 times a second). */
+// (debug.fall: steps of game time left to hold the gang below the wall — counted in steps, not
+// seconds, because a page in the background only ticks about once a second)
+const dropSteps = { host: 0, mine: 0 };
+function dropNow(which) {
+  if (dropSteps[which] <= 0) return;
+  if (which === 'host' && S.sim) S.sim.players.forEach((p) => { if (!p.puppet) { p.y = S.sim.level.fallY - 5; p.vy = 0; } });
+  if (which === 'mine' && mine.sim) { const m = mine.sim.players[S.me]; m.y = mine.sim.level.fallY - 5; m.vy = 0; }
+}
+function placePuppets(sim) {
+  const now = performance.now();
+  sim.players.forEach((p, i) => {
+    if (!p.puppet) return;
+    if (p.knockT > 0) p.knockT -= STEP;
     const r = remote[i];
-    // nothing from that phone for a while: let go of everything rather than walk on forever
-    if (!r || performance.now() - r.at > 1500) return { mx: 0, mz: 0, jump: false, grab: false };
-    const tap = (r.taps | 0) > (seenTaps[i] | 0);
-    seenTaps[i] = r.taps | 0;
-    return { mx: r.mx, mz: r.mz, jump: r.jump, grab: r.grab, tap };
+    if (!r || r.lv !== S.level || r.rs !== (sim.rs || 0)) return; // nothing yet, or from before a fall: stay put
+    const age = Math.min(0.1, (now - r.at) / 1000);
+    Object.assign(p, { x: r.x + r.vx * age, y: r.y + (r.f & 1 ? 0 : r.vy * age), z: r.z + r.vz * age, vx: r.vx, vy: r.vy, vz: r.vz, face: r.face });
+    p.ground = r.f & 1 ? (r.c >= 0 ? { crumble: r.c, id: 'c' + r.c } : { puppet: true }) : null;
+    p.grab = !!(r.f & 2); p.zip = r.f & 4 ? { puppet: true } : null;
   });
 }
 
@@ -301,6 +326,8 @@ function hostUpdate(dt) {
     while (acc >= STEP) {
       acc -= STEP;
       prev = S.sim.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+      placePuppets(S.sim);
+      dropNow('host'); if (dropSteps.host > 0) dropSteps.host--;
       stepSim(S.sim, inputsFor(S.sim));
       for (const ev of S.sim.events) { events.push(ev); onEvent(ev); }
       if (S.sim.done !== null) {
@@ -324,7 +351,7 @@ const r2 = (v) => Math.round(v * 100) / 100;
 function snapshot() {
   const sim = S.sim;
   return {
-    t: 's', mode: S.mode, mt: r2(S.modeT), lv: S.level, tm: sim ? r2(sim.t) : 0, cp: sim ? sim.cp : 0, f: sim ? sim.falls : 0,
+    t: 's', mode: S.mode, mt: r2(S.modeT), lv: S.level, tm: sim ? r2(sim.t) : 0, cp: sim ? sim.cp : 0, f: sim ? sim.falls : 0, rs: sim ? sim.rs || 0 : 0,
     sc: S.scores, bots: S.roster.map((r) => (r.bot ? 1 : 0)),
     ps: sim ? sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vy), r2(p.vz), flagsOf(p), r2(p.face)]) : [],
     cr: sim ? sim.crumble.map((c) => (c.gone ? -1 : r2(c.stood + c.heavy * 4))) : [],
@@ -352,14 +379,37 @@ function onSnapshot(s) {
   while (snaps.length > 8) snaps.shift();
   if (clientClock === null || Math.abs(clientClock - (s.tm - INTERP)) > 0.6) clientClock = s.tm - INTERP;
   lastSnapAt = performance.now();
-  for (const ev of s.ev || []) onEvent(ev);
+  for (const ev of s.ev || []) {
+    // a barrel hit us on the host: knock our own traveller back here
+    if (ev.e === 'knock' && ev.i === S.me && mine.sim && mine.lv === s.lv) knock(mine.sim.players[S.me], ev.dx || 0, ev.dz || 0);
+    onEvent(ev);
+  }
 }
-let lastSent = '', sinceInput = 0;
+// Client: your own traveller lives in a local copy of the sim, where only it
+// moves (the others are put where the host's snapshots show them, a beat
+// behind). After a fall or on a new stretch the host's word wins: it jumps
+// to where the host has it.
+const mine = { sim: null, lv: -1, rs: -1, acc: 0, prev: null };
+let sinceState = 0, sinceHello = 0;
+function syncMine(s) {
+  const q = s.ps[S.me];
+  if (!q) return;
+  if (!mine.sim || mine.lv !== s.lv) {
+    mine.sim = createSim(s.lv, S.roster.map((r) => ({ hero: r.hero, bot: false })));
+    mine.sim.local = S.me; mine.lv = s.lv; mine.rs = -1;
+  }
+  // the host moved us (back to a watchtower, or still on a title card): go where it says
+  if (mine.rs !== (s.rs || 0) || S.mode !== 'play') {
+    mine.rs = s.rs || 0;
+    Object.assign(mine.sim.players[S.me], { x: q[0], y: q[1], z: q[2], vx: 0, vy: 0, vz: 0, ground: null, zip: null, grab: false, knockT: 0, fallT: 0, face: q[7] });
+    mine.prev = null;
+  }
+}
 function clientUpdate(dt) {
   // say hello until the host's snapshots arrive
   if (!snaps.length) {
-    sinceInput += dt;
-    if (sinceInput > 1) { sinceInput = 0; send({ t: 'hi', i: S.me }); }
+    sinceHello += dt;
+    if (sinceHello > 1) { sinceHello = 0; send({ t: 'hi', i: S.me }); }
     return;
   }
   if (clientClock !== null) {
@@ -367,12 +417,32 @@ function clientUpdate(dt) {
     clientClock += dt;
     clientClock += (target - clientClock) * Math.min(1, dt * 2); // drift toward the host's time
   }
-  if (S.mode === 'play' || S.mode === 'title') {
-    const inp = S.menu ? { mx: 0, mz: 0, jump: false, grab: false } : readInput();
-    const msg = { t: 'i', i: S.me, mx: Math.round(inp.mx * 10) / 10, mz: Math.round(inp.mz * 10) / 10, jump: inp.jump, grab: inp.grab, taps: pad.taps };
-    const key = JSON.stringify(msg);
-    sinceInput += dt;
-    if (key !== lastSent || sinceInput > INPUT_EVERY) { send(msg); lastSent = key; sinceInput = 0; }
+  const last = snaps[snaps.length - 1];
+  syncMine(last);
+  if (S.mode !== 'play' || !mine.sim) return;
+  // step our own traveller at once, the others placed from the snapshots
+  const sim = mine.sim, me = sim.players[S.me], view = clientView();
+  mine.acc += Math.min(dt, 0.1);
+  while (mine.acc >= STEP) {
+    mine.acc -= STEP;
+    mine.prev = { x: me.x, y: me.y, z: me.z };
+    sim.t = clientClock + INTERP; // (the host's "now", near enough: the moving things are where they'll be)
+    view.players.forEach((q, i) => {
+      if (i === S.me) return;
+      Object.assign(sim.players[i], { x: q.x, y: q.y, z: q.z, vx: q.vx, vy: q.vy, vz: q.vz, grab: q.grab, ground: q.ground ? { ghost: true } : null, zip: q.zip ? { ghost: true } : null });
+    });
+    view.crumble.forEach((c, k) => { sim.crumble[k].gone = c.gone; });
+    dropNow('mine');
+    stepSim(sim, sim.players.map((_, i) => (i === S.me ? myInput() : {})));
+    dropNow('mine'); if (dropSteps.mine > 0) dropSteps.mine--; // (and after: our rope to the others, as this phone last saw them, mustn't haul us back up)
+    for (const ev of sim.events) if (ev.i === S.me) onEvent(ev);
+  }
+  // tell the host where we are
+  sinceState += dt;
+  if (sinceState >= STATE_EVERY) {
+    sinceState = 0;
+    const g = me.ground, flags = (g ? 1 : 0) | (me.grab ? 2 : 0) | (me.zip ? 4 : 0);
+    send({ t: 'p', i: S.me, lv: mine.lv, rs: mine.rs, x: r2(me.x), y: r2(me.y), z: r2(me.z), vx: r2(me.vx), vy: r2(me.vy), vz: r2(me.vz), f: flags, c: g && g.crumble !== undefined ? g.crumble : -1, face: r2(me.face) });
   }
 }
 function clientView() {
@@ -382,9 +452,15 @@ function clientView() {
   const span = b.tm - a.tm, k = span > 0 ? Math.max(0, Math.min(1, (clientClock - a.tm) / span)) : 1;
   const lerp = (u, v) => u + (v - u) * k;
   const t = span > 0 ? lerp(a.tm, b.tm) : b.tm;
+  // (moving things are drawn where our own traveller has them — "now" — so we never seem to stand beside a cart)
+  const own = mine.sim && S.mode === 'play' && mine.lv === b.lv;
   return {
-    lv: b.lv, t, cp: b.cp, falls: b.f,
+    lv: b.lv, t: own ? mine.sim.t : t, cp: b.cp, falls: b.f,
     players: b.ps.map((q, i) => {
+      if (i === S.me && mine.sim && S.mode === 'play' && mine.lv === b.lv) { // ourselves: from our own sim, right now
+        const m = mine.sim.players[S.me], o = mine.prev || m, k2 = Math.min(1, mine.acc / STEP);
+        return makePlayer(i, o.x + (m.x - o.x) * k2, o.y + (m.y - o.y) * k2, o.z + (m.z - o.z) * k2, m.vx, m.vy, m.vz, flagsOf(m), m.face);
+      }
       const p = a.ps[i] || q;
       let df = q[7] - p[7]; df = Math.atan2(Math.sin(df), Math.cos(df));
       return makePlayer(i, lerp(p[0], q[0]), lerp(p[1], q[1]), lerp(p[2], q[2]), q[3], q[4], q[5], q[6], p[7] + df * k);
@@ -424,15 +500,16 @@ window.addEventListener('message', (e) => {
     const m = d.msg;
     if (S.net === 'host') {
       if (m.t === 'hi' && typeof m.i === 'number') ready.add(m.i);
-      else if (m.t === 'i' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
+      else if (m.t === 'p' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
         ready.add(m.i);
-        remote[m.i] = { mx: Math.max(-1, Math.min(1, +m.mx || 0)), mz: Math.max(-1, Math.min(1, +m.mz || 0)), jump: !!m.jump, grab: !!m.grab, taps: m.taps | 0, at: performance.now() };
+        const n = (v) => (Number.isFinite(+v) ? +v : 0);
+        remote[m.i] = { lv: m.lv | 0, rs: m.rs | 0, x: n(m.x), y: n(m.y), z: n(m.z), vx: n(m.vx), vy: n(m.vy), vz: n(m.vz), f: m.f | 0, c: Number.isInteger(m.c) ? m.c : -1, face: n(m.face), at: performance.now() };
       }
     } else if (S.net === 'client' && m.t === 's') onSnapshot(m);
   } else if (d.type === 'peer-left' && S.net === 'host' && typeof d.i === 'number' && S.roster[d.i]) {
     // someone's phone left: a bot carries on in their place
     S.roster[d.i].bot = true;
-    if (S.sim) S.sim.players[d.i].bot = true;
+    if (S.sim) Object.assign(S.sim.players[d.i], { bot: true, puppet: false });
     message(S.roster[d.i].name + ' LEFT · A BOT TOOK OVER', '#ffe11a', 2.4);
   } else if (d.type === 'host-left' && S.net === 'client') {
     S.gone = true; setMode('gone');
@@ -510,7 +587,9 @@ if (INIT.debug) {
       S.sim.players.forEach((p, i) => { Object.assign(p, { x: f.x - f.dir[0] * i * 0.8, y: f.y + 0.3, z: f.z - f.dir[1] * i * 0.8, vx: 0, vy: 0, vz: 0 }); });
     },
     setLevel(n) { if (S.net !== 'client') startLevel(n); },
-    fall() { if (S.sim) S.sim.players.forEach((p) => { p.y = S.sim.level.fallY - 5; p.vy = 0; }); }, // the whole gang off the wall
+    // the whole gang off the wall, held below it for 1.5 s of game time (long enough to count as a fall) — on a
+    // client only our own traveller: the others are the host's to drop
+    fall() { dropSteps.host = dropSteps.mine = 90; dropNow('host'); dropNow('mine'); },
     warp(x, y, z, yaw) { if (S.sim) S.sim.players.forEach((p, i) => { Object.assign(p, { x, y: y + i * 0.01, z: z + i * 1.2, vx: 0, vy: 0, vz: 0 }); p.ni = 0; }); if (yaw !== undefined) S.cam.yaw = yaw; },
     skipTitle() { if (S.mode === 'title') S.modeT = TITLE_T + 1; if (S.mode === 'clear') S.modeT = CLEAR_T + 1; },
   };

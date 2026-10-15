@@ -26,7 +26,11 @@ import { useTheme } from '../../../theme/useTheme';
 // sage halo (bobbing, swaying, its shadow breathing under it); a carousel of
 // tiles along the bottom picks the game (swipe it — the tile in the middle is
 // the one chosen, a little bigger — or tap one), or swipe across the stage.
-// (A row stopped fitting once there were five games.) Switching springs the new icon
+// (A row stopped fitting once there were five games.) It loops: the games
+// are laid out three times over and the strip is quietly moved back to the
+// middle copy whenever it comes to rest, so a game that slides off one side
+// comes round again on the other. Only the middle copy is exposed to screen
+// readers; the copies either side are pictures you can tap. Switching springs the new icon
 // in with a sparkle burst. Play opens the game. (Not a ring — the user asked
 // for something other than the home orbit menu.) Photo games score by
 // upvotes (game_entries/game_votes), arcade games by runs (game_scores).
@@ -35,6 +39,8 @@ const SPARKS = 8;
 const TILE = 84;
 const GAP = 14;
 const STEP = TILE + GAP;
+const N = GAMES.length;
+const SLOTS = Array.from({ length: N * 3 }, (_, k) => k); // three copies of the games, side by side
 
 export default function Games() {
   const insets = useSafeAreaInsets();
@@ -50,6 +56,14 @@ export default function Games() {
   const scrollX = useRef(new Animated.Value(0)).current;
   const carousel = useRef<ScrollView>(null);
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const slot = useRef(N); // which tile of the strip is in the middle (the middle copy's first, to start)
+  // while the strip slides somewhere itself, its scrolling isn't someone choosing (a slow phone can
+  // pause mid-slide long enough to look like a swipe that came to rest)
+  const sliding = useRef<{ to: number; until: number } | null>(null);
+  function slideTo(k: number) {
+    sliding.current = { to: k * STEP, until: Date.now() + 1500 };
+    carousel.current?.scrollTo({ x: k * STEP, animated: true });
+  }
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -76,20 +90,34 @@ export default function Games() {
     ]).start();
   }
 
-  // The carousel keeps the chosen game in the middle…
+  // The carousel brings the chosen game to the middle — the nearest copy of it, so it goes the short way round…
   useEffect(() => {
-    carousel.current?.scrollTo({ x: index * STEP, animated: true });
+    const here = slot.current;
+    let to = here - (((here - index) % N) + N) % N; // the copy of it at or before here…
+    if (here - to > N / 2) to += N; // …or the one after, if that's nearer
+    if (to === here) return;
+    slot.current = to;
+    slideTo(to);
   }, [index]);
   useEffect(() => () => {
     if (settle.current) clearTimeout(settle.current);
   }, []);
-  // …and once a swipe of it comes to rest, the tile in the middle is chosen (and snapped to).
+  // …and once a swipe of it comes to rest, the tile in the middle is chosen (and snapped to); if that
+  // was in one of the outer copies the strip jumps, unseen, to the same tile in the middle copy.
   function onCarouselScroll(x: number) {
     if (settle.current) clearTimeout(settle.current);
+    const s = sliding.current;
+    if (s) {
+      if (Math.abs(x - s.to) > 1 && Date.now() < s.until) return; // still on its way
+      sliding.current = null; // arrived: settle as below (back to the middle copy, choose what's there)
+    }
     settle.current = setTimeout(() => {
-      const i = Math.max(0, Math.min(GAMES.length - 1, Math.round(x / STEP)));
-      if (Math.abs(x - i * STEP) > 1) carousel.current?.scrollTo({ x: i * STEP, animated: true });
-      chooseRef.current(i);
+      const at = Math.max(0, Math.min(N * 3 - 1, Math.round(x / STEP)));
+      const home = (at % N) + N;
+      if (home !== at) carousel.current?.scrollTo({ x: home * STEP, animated: false });
+      else if (Math.abs(x - at * STEP) > 1) carousel.current?.scrollTo({ x: at * STEP, animated: true });
+      slot.current = home;
+      chooseRef.current(at % N);
     }, 140);
   }
 
@@ -196,29 +224,36 @@ export default function Games() {
         accessibilityRole="tablist"
         testID="games-carousel"
         scrollEventThrottle={16}
+        onLayout={() => carousel.current?.scrollTo({ x: slot.current * STEP, animated: false })}
         onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
           useNativeDriver: false,
           listener: (e: { nativeEvent: { contentOffset: { x: number } } }) => onCarouselScroll(e.nativeEvent.contentOffset.x),
         })}
       >
-        {GAMES.map((g, i) => {
-          const on = i === index;
-          const near = [(i - 1) * STEP, i * STEP, (i + 1) * STEP];
+        {SLOTS.map((k) => {
+          const i = k % N, g = GAMES[i], on = i === index, real = k >= N && k < N * 2;
+          const near = [(k - 1) * STEP, k * STEP, (k + 1) * STEP];
           return (
             <Animated.View
-              key={g.key}
+              key={k}
+              aria-hidden={!real}
               style={{
                 transform: [{ scale: scrollX.interpolate({ inputRange: near, outputRange: [0.8, 1, 0.8], extrapolate: 'clamp' }) }],
                 opacity: scrollX.interpolate({ inputRange: near, outputRange: [0.75, 1, 0.75], extrapolate: 'clamp' }),
               }}
             >
               <Pressable
-                testID={`game-${g.key}`}
-                accessibilityRole="tab"
-                accessibilityLabel={g.title}
-                accessibilityState={{ selected: on }}
-                aria-selected={on}
-                onPress={() => choose(i)}
+                testID={real ? `game-${g.key}` : undefined}
+                accessibilityRole={real ? 'tab' : undefined}
+                accessibilityLabel={real ? g.title : undefined}
+                accessibilityState={real ? { selected: on } : undefined}
+                aria-selected={real ? on : undefined}
+                focusable={real}
+                onPress={() => {
+                  // a copy further out: slide over to it, then (at rest) choose it
+                  if (!real) slideTo(k);
+                  else choose(i);
+                }}
                 style={[
                   styles.tile,
                   {

@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { MAT, makeHero } from '../rampage/models.js';
 import { moverBox, windOn, CHAIN } from './sim.js';
+import { ROPE_POINTS, ROPE_R, ropeBoxes, ropePath, stepRope } from './rope.js';
 import { createHud } from './hud.js';
 
 const HERO_SCALE = 0.084;
@@ -269,7 +270,18 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       for (let k = 0; k < 2; k++) { const b = barrelModel(); b.position.set(cx, s.y0 + 0.475 + k * 0.95, cz); levelGroup.add(b); }
       return;
     }
-    if (s.kind === 'post') return; // drawn with the finish gate
+    if (s.kind === 'post' || s.kind === 'tower' || s.kind === 'hub' || s.kind === 'gong') return; // drawn with the gate, the zip line, the watchtower, the carousel
+    if (s.kind === 'rockets') { // a row of three firework rockets along the side of a launch pad
+      const alongX = w > d, len = alongX ? w : d;
+      for (let k = 0; k < 3; k++) {
+        const r = outlined(new THREE.CylinderGeometry(0.13, 0.13, 1.0, 6), k % 2 ? RED : GOLD);
+        const u = -len / 2 + 0.3 + (k * (len - 0.6)) / 2;
+        r.position.set(cx + (alongX ? u : 0), s.y0 + 0.5, cz + (alongX ? 0 : u));
+        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.25, 6), NEONM[k % 4]); tip.position.y = 0.62; r.add(tip);
+        levelGroup.add(r);
+      }
+      return;
+    }
     const g = boxGeo(w, h, d);
     const mats = s.kind === 'plank' ? WOOD : s.kind === 'rock' ? [ROCK, ROCK, GRASS, ROCK, ROCK, ROCK] : [STONE, STONE, PAVE, DARK, STONE, STONE];
     const grp = new THREE.Group();
@@ -318,8 +330,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5), toon({ color: 0x2b2b3a })); pole.position.set(0, 9.6, 0); g.add(pole);
     const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1, 6, 1), new THREE.MeshBasicMaterial({ color: 0x8a8296, side: THREE.DoubleSide, toneMapped: false }));
     flag.position.set(0.82, 10.4, 0); g.add(flag);
-    const base = outlined(new THREE.ConeGeometry(3.4, 8, 5), ROCK); base.rotation.x = Math.PI; base.position.y = 5 - 11 - 4; g.add(base);
-    g.position.set(c.x - px * 6.6, c.y - 6, c.z - pz * 6.6); // on the outside of the turn, clear of the way on
+    g.position.set(c.tower ? c.tower.x : c.x - px * 6.6, c.y - 6, c.tower ? c.tower.z : c.z - pz * 6.6); // beside the way, on the side that's clear (levels.js)
     levelGroup.add(g);
     return { g, flag };
   }
@@ -344,38 +355,34 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         const lan = outlined(new THREE.CylinderGeometry(0.85, 0.85, 1.4, 10), RED); lan.position.y = -1.05; g.add(lan);
         [-0.75, 0.75].forEach((y) => { const cap = outlined(new THREE.CylinderGeometry(0.55, 0.55, 0.18, 10), GOLD); cap.position.y = -1.05 + y * 0.95; g.add(cap); });
         if (!lowPower) { const glow = new THREE.PointLight(0xff6a3a, 6, 8, 2); glow.position.y = -1.05; g.add(glow); }
-        const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1, 5), ROPE); levelGroup.add(rope);
-        g.userData.rope = rope;
-        // the frame it hangs from: two posts and a beam over the gap
-        const p = m.path, a = new THREE.Vector3(p.px - 0.4, p.py, p.pz - 4), b = new THREE.Vector3(p.px - 0.4, p.py, p.pz + 4);
-        levelGroup.add(rod(a, b, 0.12, WOOD));
+        // (a sky lantern: it floats and sways on its own — no rope through where people stand)
       } else if (m.kind === 'cart') {
-        const box = outlined(boxGeo(m.w, 0.9, m.d, 1), WOOD); box.position.y = -0.25; g.add(box);
-        const trim = outlined(boxGeo(m.w + 0.1, 0.12, m.d + 0.1, 1), GOLD); trim.position.y = 0.2; g.add(trim);
-        const hook = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.6, 5), ROPE); hook.position.y = 1.5; g.add(hook);
-        const wheel = outlined(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 10), DARK); wheel.rotation.z = Math.PI / 2; wheel.position.y = 2.8; g.add(wheel);
-        const p = m.path, z0 = Math.max(p.az, p.bz) + 3, z1 = Math.min(p.az, p.bz) - 3;
-        levelGroup.add(rod(new THREE.Vector3(p.ax, p.ay + 2.8, z0), new THREE.Vector3(p.ax, p.ay + 2.8, z1), 0.04, ROPE));
+        g.add(outlined(boxGeo(m.w, m.h, m.d, 1), WOOD)); // its box is exactly its solid one: the top is the floor you stand on
+        const trim = outlined(boxGeo(m.w, 0.12, m.d, 1), GOLD); trim.position.y = m.h / 2 - 0.06; g.add(trim);
+        // the two overhead cables its hangers run on, either side, from end to end of its run (well out of reach)
+        const p = m.path, ex = p.bx - p.ax, ez = p.bz - p.az, el = Math.hypot(ex, ez) || 1, ux = ex / el, uz = ez / el;
+        for (const e of [-1.4, 1.4]) levelGroup.add(rod(new THREE.Vector3(p.ax - ux * 3 - uz * e, p.ay + 2.8, p.az - uz * 3 + ux * e), new THREE.Vector3(p.bx + ux * 3 - uz * e, p.ay + 2.8, p.bz + uz * 3 + ux * e), 0.04, ROPE));
       } else if (m.kind === 'wheel') {
         g.add(outlined(boxGeo(m.w, m.h, m.d, 1), WOOD));
-        const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.6, 0.4), new THREE.MeshBasicMaterial({ color: NEON[movers.length % NEON.length], side: THREE.DoubleSide, toneMapped: false }));
-        flag.position.set(0, 0.7, 0); g.add(flag);
-        const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 5), WOOD); levelGroup.add(spoke);
-        g.userData.spoke = spoke;
-      } else { // the parade dragon: red and gold, carried on poles
-        const body = outlined(boxGeo(m.w, m.h + 0.3, m.d, 1), RED); body.position.y = -0.15; g.add(body);
-        for (let k = 0; k < 3; k++) { const sp = outlined(new THREE.ConeGeometry(0.22, 0.6, 4), GOLD); sp.position.set(0, 0.25, -m.d / 3 + (k * m.d) / 3); g.add(sp); }
-        [-1, 1].forEach((sd) => { const fr = outlined(boxGeo(0.12, 0.45, m.d * 0.9, 1), GOLD); fr.position.set(sd * (m.w / 2 + 0.05), -0.1, 0); g.add(fr); });
-        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 14, 5), WOOD); pole.position.y = -7.5; g.add(pole);
-        if (m.kind === 'dragonHead') { // at the far end, looking on along the Wall
-          const head = outlined(boxGeo(1.8, 1.4, 1.7, 1), RED); head.position.set(0, 0.4, -m.d / 2 - 0.7); g.add(head);
-          const jaw = outlined(boxGeo(1.4, 0.35, 1.4, 1), GOLD); jaw.position.set(0, -0.35, -m.d / 2 - 0.9); g.add(jaw);
-          [-0.45, 0.45].forEach((x) => {
-            const horn = outlined(new THREE.ConeGeometry(0.16, 1, 5), GOLD); horn.position.set(x, 1.4, -m.d / 2 - 0.3); horn.rotation.x = 0.5; g.add(horn);
-            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6), NEONM[2]); eye.position.set(x * 1.5, 0.7, -m.d / 2 - 1.2); g.add(eye);
+        const trim = outlined(boxGeo(m.w, 0.08, m.d, 1), NEONM[movers.length % NEONM.length]); trim.position.y = m.h / 2 - 0.04; g.add(trim);
+      } else if (m.kind === 'part') { // a solid part riding with something: drawn to its box
+        if (m.look === 'dragonHead') {
+          g.add(outlined(boxGeo(m.w, m.h, m.d, 1), RED));
+          const [fx, fz] = [Math.sign(m.ox || 0), Math.sign(m.oz || 0)];
+          [-0.45, 0.45].forEach((u) => { // eyes on its front face, looking on along the Wall
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), NEONM[2]);
+            eye.position.set(fx * (m.w / 2) + (fx ? 0 : u), 0.25, fz * (m.d / 2) + (fz ? 0 : u)); g.add(eye);
           });
-        }
-        if (m.kind === 'dragonTail') { const tuft = outlined(new THREE.ConeGeometry(0.6, 1.6, 6), toon({ color: 0xff8a3d })); tuft.position.set(0, 0.2, m.d / 2 + 0.7); tuft.rotation.x = Math.PI / 2; g.add(tuft); }
+          const jaw = outlined(boxGeo(m.w * 0.8, 0.3, m.d * 0.8, 1), GOLD); jaw.position.y = -m.h / 2 + 0.15; g.add(jaw);
+        } else if (m.look === 'dragonTail') g.add(outlined(boxGeo(m.w, m.h, m.d, 1), toon({ color: 0xff8a3d })));
+        else if (m.look === 'dragonPole') g.add(new THREE.Mesh(new THREE.BoxGeometry(m.w, m.h, m.d), WOOD));
+        else if (m.look === 'hanger') {
+          g.add(new THREE.Mesh(new THREE.BoxGeometry(m.w, m.h, m.d), ROPE));
+          const wheel = outlined(new THREE.CylinderGeometry(0.25, 0.25, 0.16, 10), DARK); wheel.rotation.z = Math.PI / 2; wheel.position.y = m.h / 2; g.add(wheel);
+        } // (lanternBody: the lantern under the platform, already drawn with it)
+      } else { // the parade dragon: red and gold, carried on poles (its box is exactly its solid one)
+        g.add(outlined(boxGeo(m.w, m.h, m.d, 1), RED));
+        [-1, 1].forEach((sd) => { const fr = outlined(boxGeo(0.12, m.h * 0.7, m.d * 0.9, 1), GOLD); fr.position.set(sd * (m.w / 2 - 0.06), 0, 0); g.add(fr); });
       }
       levelGroup.add(g);
       movers.push({ m, g });
@@ -387,21 +394,16 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       if (hubs.has(k)) return;
       hubs.add(k);
       const p = m.path;
-      const pole = outlined(new THREE.CylinderGeometry(0.5, 0.6, 20, 10), toon({ color: 0x5a2a44 })); pole.position.set(p.cx, p.cy - 9, p.cz); levelGroup.add(pole);
-      const drum = outlined(new THREE.CylinderGeometry(1.1, 1.1, 1.6, 14), GOLD); drum.position.set(p.cx, p.cy + 1.4, p.cz); levelGroup.add(drum);
-      const band = outlined(new THREE.CylinderGeometry(1.15, 1.15, 0.45, 14), RED); band.position.set(p.cx, p.cy + 1.4, p.cz); levelGroup.add(band);
+      // (to the boxes in levels.js: the drum high, out of the riders' way, on a slim pole)
+      const pole = outlined(new THREE.CylinderGeometry(0.4, 0.4, 21.6, 10), toon({ color: 0x5a2a44 })); pole.position.set(p.cx, p.cy - 8.2, p.cz); levelGroup.add(pole);
+      const drum = outlined(new THREE.CylinderGeometry(0.8, 0.8, 1.2, 14), GOLD); drum.position.set(p.cx, p.cy + 3.2, p.cz); levelGroup.add(drum);
+      const band = outlined(new THREE.CylinderGeometry(0.8, 0.8, 0.36, 14), RED); band.position.set(p.cx, p.cy + 3.2, p.cz); band.scale.set(1.03, 1, 1.03); levelGroup.add(band);
       levelGroup.userData.drum = drum;
     });
     L.bouncers.forEach((b) => {
       const g = new THREE.Group(), w = b.x1 - b.x0, d = b.z1 - b.z0;
       const base = outlined(boxGeo(w, 0.5, d, 1), toon({ color: 0x2b1a4a })); base.position.y = -0.25; g.add(base);
       const top = outlined(boxGeo(w - 0.2, 0.12, d - 0.2, 1), NEONM[0]); top.position.y = 0.04; g.add(top);
-      for (let k = 0; k < 6; k++) { // firework rockets ready to go, along both sides
-        const r = outlined(new THREE.CylinderGeometry(0.13, 0.13, 1.1, 6), k % 2 ? RED : GOLD);
-        r.position.set((k < 3 ? -1 : 1) * (w / 2 - 0.15), 0.55, -d / 2 + 0.4 + (k % 3) * ((d - 0.8) / 2));
-        const tip = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.3, 6), NEONM[k % 4]); tip.position.y = 0.7; r.add(tip);
-        g.add(r);
-      }
       g.position.set((b.x0 + b.x1) / 2, b.y1, (b.z0 + b.z1) / 2);
       levelGroup.add(g); bouncers.push({ b, g, kick: 0 });
     });
@@ -509,94 +511,51 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     for (let i = V.players.length; i < heroModels.length; i++) if (heroModels[i]) heroModels[i].visible = false;
   }
 
-  // ---- the chain: chunky gold links, sagging when slack -----------------------------------------
-  const LINK = 0.2;
-  const linkGeo = new THREE.TorusGeometry(0.12, 0.05, 6, 12);
-  const linkMat = toon({ color: 0xffc23a, emissive: 0x5a3a00 });
-  const links = new THREE.InstancedMesh(linkGeo, linkMat, Math.ceil((CHAIN * 1.8) / LINK) * 3); // (room for a chain draped round an edge)
-  links.castShadow = true; links.frustumCulled = false;
-  scene.add(links);
+  // ---- the rope (how it hangs is rope.js: it never goes into anything) ----------------------------
+  // Drawn as twisted hemp: a strand per pair of beads (instanced), a knot ball
+  // at each bead, an ink outline round the strands.
+  const ropes = [];
+  const SEGS = (ROPE_POINTS - 1) * 3, KNOTS = ROPE_POINTS * 3; // (drawn along ropePath)
+  const ropeTex = canvasTex(32, 64, (c, w, h) => {
+    c.fillStyle = '#d9b47a'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#a97c45'; c.lineWidth = 7;
+    for (let k = -2; k < 6; k++) { c.beginPath(); c.moveTo(0, k * 16); c.lineTo(w, k * 16 + 22); c.stroke(); } // the twist of the strands
+  }, 1, 3);
+  const ropeMat = toon({ map: ropeTex });
+  const strand = new THREE.InstancedMesh(new THREE.CylinderGeometry(ROPE_R, ROPE_R, 1, 8, 1, true), ropeMat, SEGS);
+  const strandInk = new THREE.InstancedMesh(new THREE.CylinderGeometry(ROPE_R * 1.35, ROPE_R * 1.35, 1, 8, 1, true), outlineMat, SEGS);
+  const knots = new THREE.InstancedMesh(new THREE.SphereGeometry(ROPE_R, 8, 6), ropeMat, KNOTS);
+  [strand, strandInk, knots].forEach((m) => { m.frustumCulled = false; m.castShadow = m !== strandInk; scene.add(m); });
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), SC = new THREE.Vector3(1, 1, 1), C = new THREE.Color();
   const A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(), Y = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
-  const P_DIR = new THREE.Vector3(), TMPV = new THREE.Vector3(), QA = new THREE.Quaternion(), QB = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
-  // The drawn chain is a rope of beads (verlet): pinned to each traveller's
-  // waist, it sags, lies on the walkway when slack and drapes over edges —
-  // it's pushed out of every solid box, so it never cuts through stone.
-  // (The simulation only limits the distance; this is how it looks.)
-  const BEADS = 18, BEAD_R = 0.09, ropes = [];
-  let ropeLevel = -1;
-  function nearSolids(L, a, b) {
-    const pad = CHAIN / 2 + 0.5, x0 = Math.min(a.x, b.x) - pad, x1 = Math.max(a.x, b.x) + pad, y0 = Math.min(a.y, b.y) - CHAIN, y1 = Math.max(a.y, b.y) + 1;
-    const z0 = Math.min(a.z, b.z) - pad, z1 = Math.max(a.z, b.z) + pad, out = [];
-    for (const s of L.solids) if (s.x1 > x0 && s.x0 < x1 && s.y1 > y0 && s.y0 < y1 && s.z1 > z0 && s.z0 < z1) out.push(s);
-    return out;
-  }
-  function pushOut(q, boxes) {
-    for (const s of boxes) {
-      const x0 = s.x0 - BEAD_R, x1 = s.x1 + BEAD_R, y0 = s.y0 - BEAD_R, y1 = s.y1 + BEAD_R, z0 = s.z0 - BEAD_R, z1 = s.z1 + BEAD_R;
-      if (q.x <= x0 || q.x >= x1 || q.y <= y0 || q.y >= y1 || q.z <= z0 || q.z >= z1) continue;
-      const d = [x1 - q.x, q.x - x0, y1 - q.y, q.y - y0, z1 - q.z, q.z - z0];
-      let k = 0; for (let j = 1; j < 6; j++) if (d[j] < d[k]) k = j;
-      if (k === 0) q.x = x1; else if (k === 1) q.x = x0; else if (k === 2) q.y = y1; else if (k === 3) q.y = y0; else if (k === 4) q.z = z1; else q.z = z0;
-      q.px += (q.x - q.px) * 0.6; q.pz += (q.z - q.pz) * 0.6; // friction against the stone
-      if (k === 2) q.py = q.y; // resting on top: no bounce
-    }
-  }
-  function stepRope(r, A, B, L, dt) {
-    // its length: a little more than the gap (so it hangs in a curve rather
-    // than piling up in coils), never more than the real chain
-    const n = BEADS, gap = Math.hypot(B.x - A.x, B.y - A.y, B.z - A.z), seg = Math.min(CHAIN, gap * 1.15 + 0.5) / (n - 1);
-    if (!r.p || r.p[0].x === undefined || Math.hypot(r.p[0].x - A.x, r.p[0].y - A.y, r.p[0].z - A.z) > 3 || Math.hypot(r.p[n - 1].x - B.x, r.p[n - 1].y - B.y, r.p[n - 1].z - B.z) > 3) {
-      r.p = Array.from({ length: n }, (_, k) => { const u = k / (n - 1), x = A.x + (B.x - A.x) * u, y = A.y + (B.y - A.y) * u, z = A.z + (B.z - A.z) * u; return { x, y, z, px: x, py: y, pz: z }; });
-    }
-    const P = r.p, boxes = nearSolids(L, A, B), g = 9.8 * Math.min(dt, 1 / 30) ** 2;
-    for (let k = 1; k < n - 1; k++) { // move, with a little damping
-      const q = P[k], vx = (q.x - q.px) * 0.94, vy = (q.y - q.py) * 0.94, vz = (q.z - q.pz) * 0.94;
-      q.px = q.x; q.py = q.y; q.pz = q.z;
-      q.x += vx; q.y += vy - g; q.z += vz;
-    }
-    for (let it = 0; it < 14; it++) {
-      Object.assign(P[0], { x: A.x, y: A.y, z: A.z }); Object.assign(P[n - 1], { x: B.x, y: B.y, z: B.z });
-      for (let k = 0; k < n - 1; k++) {
-        const a = P[k], b = P[k + 1], dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, d = Math.hypot(dx, dy, dz) || 1e-6;
-        const f = (d - seg) / d * (d < seg ? 0.5 : 1), wa = k === 0 ? 0 : k + 1 === n - 1 ? 1 : 0.5, wb = k + 1 === n - 1 ? 0 : k === 0 ? 1 : 0.5;
-        a.x += dx * f * wa; a.y += dy * f * wa; a.z += dz * f * wa;
-        b.x -= dx * f * wb; b.y -= dy * f * wb; b.z -= dz * f * wb;
-      }
-      if (it % 3 === 2 || it === 13) for (let k = 1; k < n - 1; k++) pushOut(P[k], boxes);
-    }
-    return P;
-  }
+  const DIR = new THREE.Vector3(), MID = new THREE.Vector3();
   function drawChain(V, dt) {
-    let n = 0;
+    let ns = 0, nk = 0;
     const L = LEVELS[V.lv] || LEVELS[built];
-    if (ropeLevel !== built) { ropes.length = 0; ropeLevel = built; }
+    if (ropes.lv !== built) { ropes.length = 0; ropes.lv = built; }
     for (let i = 0; i + 1 < V.players.length; i++) {
       const a = V.players[i], b = V.players[i + 1];
       A.set(a.x, a.y + 0.9, a.z); B.set(b.x, b.y + 0.9, b.z);
-      const P = stepRope(ropes[i] || (ropes[i] = {}), A, B, L, dt || 1 / 60);
-      // gold links along the beads, every LINK metres
-      let carry = 0;
-      for (let k = 0; k + 1 < P.length && n < links.count; k++) {
-        X.set(P[k].x, P[k].y, P[k].z); Y.set(P[k + 1].x, P[k + 1].y, P[k + 1].z);
+      const boxes = ropeBoxes(L, V.t, (k) => !!(V.crumble[k] && V.crumble[k].gone), A, B, CHAIN);
+      const P = ropePath(stepRope(ropes[i] || (ropes[i] = {}), A, B, boxes, dt || 1 / 60, CHAIN), boxes);
+      for (let k = 0; k < P.length; k++) {
+        X.set(P[k].x, P[k].y, P[k].z);
+        M4.compose(X, Q.identity(), SC); knots.setMatrixAt(nk++, M4);
+        if (k + 1 === P.length) break;
+        Y.set(P[k + 1].x, P[k + 1].y, P[k + 1].z);
         const len = X.distanceTo(Y);
-        if (len < 1e-5) continue;
-        P_DIR.copy(Y).sub(X).divideScalar(len);
-        for (let u = carry; u < len && n < links.count; u += LINK) {
-          const pos = TMPV.copy(X).addScaledVector(P_DIR, u);
-          Q.setFromUnitVectors(UP, P_DIR);
-          E.set(0, n % 2 ? Math.PI / 2 : 0, 0);
-          Q.multiply(QA.setFromEuler(E));
-          Q.multiply(QB);
-          M4.compose(pos, Q, SC); links.setMatrixAt(n++, M4);
-          carry = u + LINK - len;
-        }
-        if (carry < 0) carry = 0;
+        DIR.copy(Y).sub(X).divideScalar(len || 1);
+        MID.copy(X).add(Y).multiplyScalar(0.5);
+        Q.setFromUnitVectors(UP, DIR);
+        P_SCALE.set(1, Math.max(len, 1e-4), 1);
+        M4.compose(MID, Q, P_SCALE); strand.setMatrixAt(ns, M4); strandInk.setMatrixAt(ns, M4); ns++;
       }
     }
-    for (let k = n; k < links.count; k++) { M4.makeScale(0, 0, 0); links.setMatrixAt(k, M4); }
-    links.instanceMatrix.needsUpdate = true;
+    for (let k = ns; k < SEGS; k++) { M4.makeScale(0, 0, 0); strand.setMatrixAt(k, M4); strandInk.setMatrixAt(k, M4); }
+    for (let k = nk; k < KNOTS; k++) { M4.makeScale(0, 0, 0); knots.setMatrixAt(k, M4); }
+    strand.instanceMatrix.needsUpdate = strandInk.instanceMatrix.needsUpdate = knots.instanceMatrix.needsUpdate = true;
   }
+  const P_SCALE = new THREE.Vector3();
 
   // ---- particles (instanced cubes: confetti, sparks, debris, wind) ------------------------------
   const PN = 300;
@@ -701,17 +660,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       movers.forEach(({ m, g }) => {
         const b = moverBox(m, V.t);
         g.position.set((b.x0 + b.x1) / 2, b.y1 - m.h / 2, (b.z0 + b.z1) / 2);
-        if (m.kind === 'lantern') {
-          const r = g.userData.rope, p = m.path, top = new THREE.Vector3(p.px, p.py, p.pz), hang = new THREE.Vector3(g.position.x, g.position.y + m.h / 2, g.position.z);
-          const v = new THREE.Vector3().subVectors(hang, top), len = v.length();
-          r.scale.y = len; r.position.copy(top).addScaledVector(v, 0.5);
-          r.quaternion.setFromUnitVectors(UP, v.normalize());
-          g.rotation.x = (g.position.z - p.pz) * 0.03;
-        } else if (m.kind === 'wheel') {
-          const s = g.userData.spoke, p = m.path, hub = new THREE.Vector3(p.cx, p.cy - 0.1, p.cz), v = new THREE.Vector3().subVectors(g.position, hub), len = v.length();
-          s.scale.y = len; s.position.copy(hub).addScaledVector(v, 0.5); s.quaternion.setFromUnitVectors(UP, v.normalize());
-          g.rotation.y = -Math.atan2(g.position.z - p.cz, g.position.x - p.cx);
-        } else if (m.kind !== 'cart') g.rotation.x = -b.vy * 0.06;
+        // (nothing tilts or turns: what you see is exactly the box you bump into)
       });
       if (levelGroup.userData.drum) levelGroup.userData.drum.rotation.y = V.t * 0.8;
       drifters.forEach((d) => { d.r.position.y = d.y + Math.sin(t * d.sp + d.ph) * 0.6; d.r.rotation.y += dt * d.sp * 0.3; });

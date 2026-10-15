@@ -28,8 +28,14 @@
 const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]]; // −z, +x, +z, −x; turning right goes round this list
 const box = (xa, xb, y0, y1, za, zb, extra) => ({ x0: Math.min(xa, xb), x1: Math.max(xa, xb), y0, y1, z0: Math.min(za, zb), z1: Math.max(za, zb), ...extra });
 
+// opts.hard: how much harder than the first stretch (user, Oct 15 2026: "15% harder on
+// level 2 and 3") — gaps that much longer; in done(), everything that moves that much
+// faster, gusts that much stronger and longer, barrels that much more often and quicker.
+// (Not the crumbling stones: quicker to give way (2.2 s) or slower to come back (3.45 s)
+// and a gang of three couldn't get across them one at a time any more.)
 function course(name, key, line, opts = {}) {
-  const L = { key, name, line, fallY: -30, solids: [], crumbles: [], movers: [], bouncers: [], rollers: [], winds: [], zips: [], checks: [], route: [], decor: [] };
+  const H = opts.hard || 1;
+  const L = { key, name, line, hard: H, crumbleStand: 2.5, crumbleBack: 3, fallY: -30, solids: [], crumbles: [], movers: [], bouncers: [], rollers: [], winds: [], zips: [], checks: [], route: [], decor: [] };
   const c = { x: 0, y: 0, z: 0, h: 0, jump: false, wind: null, barrels: false, thick: 0 };
   const f = () => DIRS[c.h], side = () => [-DIRS[c.h][1], DIRS[c.h][0]]; // (side = to the right)
   const at = (along, across = 0) => { const [fx, fz] = f(), [sx, sz] = side(); return [c.x + fx * along + sx * across, c.z + fz * along + sz * across]; };
@@ -94,7 +100,7 @@ function course(name, key, line, opts = {}) {
       return api;
     },
     /** A gap to jump (dy: how much higher the far side is). */
-    gap(len, dy = 0) { const [x, z] = at(len); c.x = x; c.z = z; c.y += dy; c.jump = true; return api; },
+    gap(len, dy = 0) { const [x, z] = at(len * H); c.x = x; c.z = z; c.y += dy; c.jump = true; return api; },
     /** A square floating rock island; turns right (+1), left (−1) or not (0). */
     landing(size, turn = 0, o = {}) {
       takeWind(size, size);
@@ -125,8 +131,9 @@ function course(name, key, line, opts = {}) {
       const [sx, sz] = side();
       for (let k = 0; k < n; k++) {
         const [x, z] = at(0.4 + 1.6 + 4 * k);
-        L.movers.push({ kind: 'lantern', w: Math.abs(f()[0]) ? 3.2 : 3, d: Math.abs(f()[0]) ? 3 : 3.2, h: 0.35,
-          path: { type: 'swing', px: x, py: c.y + 7, pz: z, len: 6, amp: 0.35, ux: sx, uz: sz, period: 4.4, phase: k * 0.15 } });
+        const path = { type: 'swing', px: x, py: c.y + 7, pz: z, len: 6, amp: 0.35, ux: sx, uz: sz, period: 4.4, phase: k * 0.15 };
+        L.movers.push({ kind: 'lantern', w: Math.abs(f()[0]) ? 3.2 : 3, d: Math.abs(f()[0]) ? 3 : 3.2, h: 0.35, path });
+        L.movers.push({ kind: 'part', look: 'lanternBody', w: 1.7, d: 1.7, h: 1.4, oy: -0.35, path }); // the paper lantern under it
         L.route.push({ p: [x, c.y + 1, z], jump: true, near: 2 });
       }
       const [x, z] = at(4 * n + 0.8); c.x = x; c.z = z; c.jump = true;
@@ -138,8 +145,13 @@ function course(name, key, line, opts = {}) {
       for (let k = 0; k < n; k++) {
         const [x, z] = at(0.4 + 1.2 + 3.3 * k);
         const along = Math.abs(f()[0]) > 0;
-        L.movers.push({ kind: k === n - 1 ? 'dragonHead' : k === 0 ? 'dragonTail' : 'dragon', w: along ? 2.4 : 2.6, d: along ? 2.6 : 2.4, h: 0.5, dir: c.h,
-          path: { type: 'sine', x0: x, y0: c.y, z0: z, ax: sx * 0.8, ay: 0.9, az: sz * 0.8, period: 3.6, phase: -0.7 * k, lag: 1.2 } });
+        const path = { type: 'sine', x0: x, y0: c.y, z0: z, ax: sx * 0.8, ay: 0.9, az: sz * 0.8, period: 3.6, phase: -0.7 * k, lag: 1.2 };
+        const [fx, fz] = f();
+        L.movers.push({ kind: k === n - 1 ? 'dragonHead' : k === 0 ? 'dragonTail' : 'dragon', w: along ? 2.4 : 2.6, d: along ? 2.6 : 2.4, h: 0.5, dir: c.h, path });
+        // its parts, solid too: the pole it's carried on, and the head (on in front) or the tail (behind) — flush with its back
+        L.movers.push({ kind: 'part', look: 'dragonPole', w: 0.16, d: 0.16, h: 14, oy: -0.5, path });
+        if (k === n - 1) L.movers.push({ kind: 'part', look: 'dragonHead', w: along ? 1.7 : 1.8, d: along ? 1.8 : 1.7, h: 1.4, ox: fx * 2.05, oz: fz * 2.05, path });
+        if (k === 0) L.movers.push({ kind: 'part', look: 'dragonTail', w: 1.1, d: 1.1, h: 0.8, ox: -fx * 1.75, oz: -fz * 1.75, path });
         L.route.push({ p: [x, c.y, z], jump: true, near: 1.8 });
       }
       const [x, z] = at(0.4 + 3.3 * n - 0.9 + 1.1); c.x = x; c.z = z; c.jump = true;
@@ -149,6 +161,10 @@ function course(name, key, line, opts = {}) {
     carousel(r = 2.8) {
       const [cx, cz] = at(1.2 + 1.2 + r);
       for (let k = 0; k < 4; k++) L.movers.push({ kind: 'wheel', w: 2.4, d: 2.4, h: 0.35, path: { type: 'circle', cx, cy: c.y, cz, r, period: 11, phase: (k * Math.PI) / 2 } });
+      // the prayer-wheel drum in the middle, on its pole
+      // (up out of reach of anyone riding round it — the platforms' corners pass close)
+      L.solids.push({ ...box(cx - 0.8, cx + 0.8, c.y + 2.6, c.y + 3.8, cz - 0.8, cz + 0.8), kind: 'hub' });
+      L.solids.push({ ...box(cx - 0.4, cx + 0.4, c.y - 19, c.y + 2.6, cz - 0.4, cz + 0.4), kind: 'hub', pole: true });
       L.route.push({ p: [cx, c.y, cz], jump: true, near: r + 0.6 });
       const [x, z] = at(1.2 + 1.2 + 2 * r + 1.2 + 0.8); c.x = x; c.z = z; c.jump = true;
       return api;
@@ -158,7 +174,10 @@ function course(name, key, line, opts = {}) {
       const [fx] = f();
       for (let k = 0; k < n; k++) {
         const [ax, az] = at(0.2 + 1.6 + 8.2 * k), [bx, bz] = at(0.2 + 1.6 + 3.6 + 8.2 * k), y = c.y + 0.2 + 0.3 * k;
-        L.movers.push({ kind: 'cart', w: fx ? 3.2 : 3, d: fx ? 3 : 3.2, h: 0.5, path: { type: 'line', ax, ay: y, az, bx, by: y, bz, period: 4.6, phase: k % 2 ? Math.PI : 0 } });
+        const path = { type: 'line', ax, ay: y, az, bx, by: y, bz, period: 4.6, phase: k % 2 ? Math.PI : 0 }, [gx, gz] = side();
+        L.movers.push({ kind: 'cart', w: fx ? 3.2 : 3, d: fx ? 3 : 3.2, h: 0.9, path });
+        // the two ropes it hangs from, at its sides (not front and back, where you jump on and off)
+        for (const e of [-1, 1]) L.movers.push({ kind: 'part', look: 'hanger', w: 0.12, d: 0.12, h: 2.6, oy: 2.8, ox: gx * e * 1.4, oz: gz * e * 1.4, path });
         const [mx, mz] = at(0.2 + 1.6 + 1.8 + 8.2 * k);
         L.route.push({ p: [mx, y, mz], jump: true, near: 2.2 });
       }
@@ -169,6 +188,11 @@ function course(name, key, line, opts = {}) {
     pad(rise) {
       const [xa, za] = at(0, -1.6), [xb, zb] = at(3, 1.6);
       L.bouncers.push(box(xa, xb, c.y - 0.5, c.y, za, zb, { power: Math.sqrt(52 * (rise + 1.2)) }));
+      // a row of firework rockets standing along each side of the pad
+      for (const e of [-1, 1]) {
+        const [ra, rza] = at(0.25, e * 1.6 - e * 0.32), [rb, rzb] = at(2.75, e * 1.6);
+        L.solids.push({ ...box(ra, rb, c.y, c.y + 1.25, rza, rzb), kind: 'rockets' });
+      }
       node(1.5, { pad: true, near: 1.4 });
       const [x, z] = at(3); c.x = x; c.z = z; c.y += rise; c.thick = rise + 4.5; c.jump = false;
       return api;
@@ -195,6 +219,11 @@ function course(name, key, line, opts = {}) {
     done() {
       const lowest = Math.min(...L.solids.map((s) => s.y1));
       L.fallY = lowest - 18;
+      if (H !== 1) {
+        L.movers.forEach((m) => { if (!m.path.hardened) { m.path.period /= H; m.path.hardened = true; } }); // (parts share their parent's path)
+        L.winds.forEach((w) => { w.fx *= H; w.fz *= H; w.on *= H; w.off /= H; });
+        L.rollers.forEach((r) => { r.every /= H; r.speed *= H; });
+      }
       furnish(L);
       return L;
     },
@@ -241,11 +270,40 @@ function furnish(L) {
       add(box(cx + a * h - r, cx + a * h + r, s.y1, s.y1 + 2.7 * sc, cz + b * h - r, cz + b * h + r), 'tree', { scale: sc });
     });
   });
-  // the finish gate's two posts
-  const fi = L.finish, [dx, dz] = fi.dir;
+  // the finish gate's two posts, its beams and (on the last stretch) the gong between them
+  const fi = L.finish, [dx, dz] = fi.dir, gx = fi.x + dx * 2, gz = fi.z + dz * 2;
   for (const across of [-1.9, 1.9]) {
-    const x = fi.x + dx * 2 - dz * across, z = fi.z + dz * 2 + dx * across;
+    const x = gx - dz * across, z = gz + dx * across;
     add(box(x - 0.225, x + 0.225, fi.y, fi.y + 4.8, z - 0.225, z + 0.225), 'post');
+  }
+  const wide = (h, d) => (dx ? box(gx - d, gx + d, 0, 0, gz - h, gz + h) : box(gx - h, gx + h, 0, 0, gz - d, gz + d));
+  add({ ...wide(2.45, 0.3), y0: fi.y + 4.1, y1: fi.y + 5.15 }, 'post');
+  if (L.key === 'storm') add({ ...wide(1.35, 0.15), y0: fi.y + 1.15, y1: fi.y + 3.85 }, 'gong');
+  // the zip line's posts, one at each end
+  for (const zl of L.zips) {
+    const e = [zl.b[0] - zl.a[0], zl.b[1] - zl.a[1], zl.b[2] - zl.a[2]], len = Math.hypot(...e);
+    for (const [p, sg] of [[zl.a, -1], [zl.b, 1]]) {
+      const x = p[0] + (e[0] / len) * 1.2 * sg + 1.9, y = p[1] + (e[1] / len) * 1.2 * sg, z = p[2] + (e[2] / len) * 1.2 * sg;
+      add(box(x - 0.175, x + 0.175, y - 5.7, y + 0.3, z - 0.175, z + 0.175), 'post');
+    }
+  }
+  // a watchtower beside each one you reach: the tower, its roof, the rock it stands on —
+  // on whichever side is clear of everything else (and of the way on)
+  for (const c of L.checks) {
+    const [cx, cz] = c.dir;
+    const clear = (x, z) => {
+      const x0 = x - 3, x1 = x + 3, z0 = z - 3, z1 = z + 3;
+      if (L.solids.some((s) => s.x1 > x0 && s.x0 < x1 && s.z1 > z0 && s.z0 < z1 && s.y1 > c.y - 17 && s.y0 < c.y + 3)) return false;
+      if (L.route.some((n) => n.p[0] > x0 - 1 && n.p[0] < x1 + 1 && n.p[2] > z0 - 1 && n.p[2] < z1 + 1)) return false;
+      return !L.movers.some((m) => { const p = m.path, mx = p.cx ?? p.x0 ?? p.px ?? p.ax, mz = p.cz ?? p.z0 ?? p.pz ?? p.az; return Math.hypot(mx - x, mz - z) < 7; });
+    };
+    const sides = [[c.x + cz * 6.6, c.z - cx * 6.6], [c.x - cz * 6.6, c.z + cx * 6.6]];
+    const [x, z] = sides.find(([sx, sz]) => clear(sx, sz)) || sides[0];
+    c.tower = { x, z };
+    add(box(x - 1.8, x + 1.8, c.y - 11, c.y + 1, z - 1.8, z + 1.8), 'tower');
+    add(box(x - 1.1, x + 1.1, c.y + 1, c.y + 1.85, z - 1.1, z + 1.1), 'tower', { roof: true });
+    add(box(x - 1.3, x + 1.3, c.y - 14, c.y - 11, z - 1.3, z + 1.3), 'under', { tier: 1 });
+    add(box(x - 0.7, x + 0.7, c.y - 16.5, c.y - 14, z - 0.7, z + 0.7), 'under', { tier: 2 });
   }
 }
 
@@ -268,7 +326,7 @@ export const LEVELS = [
     .gap(1.5, 0.8).walk(5)
     .landing(6, 0, { finish: true })
     .done(),
-  course('Dragon Festival', 'festival', 'Firework launch pads, the parade dragon and a spinning prayer-wheel carousel, in the sky.')
+  course('Dragon Festival', 'festival', 'Firework launch pads, the parade dragon and a spinning prayer-wheel carousel, in the sky.', { hard: 1.15 })
     .landing(6, 0, { spawn: true })
     .tag('BOOM', 3, 1.62, -0.6).walk(6)
     .pad(5)
@@ -285,7 +343,7 @@ export const LEVELS = [
     .tag('DYNASTY', 2.5, 1.62, -0.6).walk(5)
     .landing(6, 0, { finish: true })
     .done(),
-  course('Storm Peak', 'storm', 'Gusts on the switchbacks, a crumbling tower, a zip line and rope carts up to the gong.')
+  course('Storm Peak', 'storm', 'Gusts on the switchbacks, a crumbling tower, a zip line and rope carts up to the gong.', { hard: 1.15 })
     .landing(6, 0, { spawn: true })
     .tag('WINDY!', 3, 1.62, -0.6).walk(4)
     .wind(1, 0).stairs(7, 2.8)
@@ -303,6 +361,13 @@ export const LEVELS = [
     .gap(1.4, 0.6).stairs(6, 2.4)
     .walk(3)
     .gap(1.4, 0.6).stairs(5, 2)
+    // (a quarter longer — user, Oct 15 2026: another watchtower, a gusty climb, more crumbling stones)
+    .landing(5, -1, { check: true })
+    .wind(1, 0.9).stairs(6, 2.4)
+    .stones(3, 0.6)
+    .landing(5, 1)
+    .walk(4)
+    .gap(1.3, 0.5).stairs(5, 2)
     .tag('BONG', 2, -1.62, -0.6).walk(4)
     .landing(6, 0, { finish: true })
     .done(),

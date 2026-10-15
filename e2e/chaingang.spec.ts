@@ -98,10 +98,12 @@ test('chain gang: practise with bots, clear all three stretches, the run is save
   expect(yaw1 - yaw0).toBeGreaterThan(1.2); // turned more than a quarter: no longer looking along the Wall
   const x1 = (await chain(f, (c) => c.players))[0].x;
   await page.keyboard.down('ArrowUp');
-  await expect.poll(async () => Math.abs((await chain(f, (c) => c.players))[0].x - x1), { timeout: 20_000 }).toBeGreaterThan(0.5);
+  await expect.poll(async () => Math.abs((await chain(f, (c) => c.players))[0].x - x1), { timeout: 20_000, intervals: [50] }).toBeGreaterThan(0.5);
   await page.keyboard.up('ArrowUp');
 
-  // GRAB digs in
+  // GRAB digs in (back in the middle of the island first: on a slow runner that walk can run on off its edge)
+  await chain(f, (c) => c.debug.warp(0, 0.05, -4.2));
+  await expect.poll(async () => (await chain(f, (c) => c.players))[0].ground).toBeTruthy();
   await page.keyboard.down('Shift');
   await expect.poll(async () => (await chain(f, (c) => c.players))[0].grab).toBe(true);
   await page.keyboard.up('Shift');
@@ -171,12 +173,22 @@ test('chain gang: two phones in one room play together', async ({ browser }) => 
   await b.bringToFront();
   // (two pages in one browser: make sure B's game has the keyboard)
   await b.frameLocator('[data-testid="game-frame"]').locator('#hud').click({ position: { x: 195, y: 300 } });
+  const mineBefore = (await chain(fb, (c) => c.players))[1].z;
   await b.keyboard.down('ArrowUp');
+  // B's own phone moves B at once (it doesn't wait on the host — that was the lag)…
+  await expect.poll(async () => mineBefore - (await chain(fb, (c) => c.players))[1].z, { timeout: 10_000, intervals: [50] }).toBeGreaterThan(0.5); // (generous: two pages of software 3D on a busy runner)
+  // …and tells the host, whose simulation has B's traveller there too
   await expect.poll(async () => before - (await chain(fa, (c) => c.players))[1].z, { timeout: 30_000 }).toBeGreaterThan(1);
   await b.keyboard.up('ArrowUp');
-  // …and B sees itself where the host has it
-  const host = (await chain(fa, (c) => c.players))[1];
-  await expect.poll(async () => { const q = (await chain(fb, (c) => c.players))[1]; return Math.hypot(q.x - host.x, q.z - host.z); }, { timeout: 10_000 }).toBeLessThan(1.5);
+  const host = async () => (await chain(fa, (c) => c.players))[1];
+  const gap = async () => { const q = (await chain(fb, (c) => c.players))[1], h = await host(); return Math.hypot(q.x - h.x, q.z - h.z); };
+  await expect.poll(gap, { timeout: 10_000 }).toBeLessThan(1.5);
+  // a fall: the host puts everyone back at the start, and B's phone goes along with it
+  await chain(fb, (c) => c.debug.fall()); // (B's phone moves B — the host can't drop a traveller another phone is holding up)
+  await chain(fa, (c) => c.debug.fall());
+  // (30 s: the host's page is in the background here, where it only ticks about once a second)
+  await expect.poll(async () => (await chain(fb, (c) => c.falls)), { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(gap, { timeout: 30_000 }).toBeLessThan(0.5);
 
   // B leaves: a bot carries on in B's place on the host
   await b.close();
