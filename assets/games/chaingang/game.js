@@ -113,7 +113,7 @@ function onEvent(ev) {
     case 'land': if (ev.i === S.me) SFX.land(); break;
     case 'boing': SFX.boing(); if (ev.i === S.me) haptic('heavy'); break;
     case 'crumble': SFX.crumble(); break;
-    case 'whoops': lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
+    case 'whoops': dropSteps.host = dropSteps.mine = 0; lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
     case 'checkpoint': SFX.checkpoint(); message('WATCHTOWER!', '#18e0ff'); haptic('success'); break;
     case 'zip': SFX.zip(); break;
     case 'knock': SFX.knock(); if (ev.i === S.me) haptic('heavy'); break;
@@ -582,6 +582,7 @@ if (INIT.debug) {
     auto(on) { S.auto = on !== false; if (S.sim) S.sim.players[S.me].bot = S.auto || S.roster[S.me].bot; },
     finishLevel() { // straight past every watchtower to the finish
       if (!S.sim || S.mode !== 'play') return;
+      dropSteps.host = dropSteps.mine = 0;
       const f = S.sim.level.finish;
       S.sim.cp = S.sim.level.checks.length;
       S.sim.players.forEach((p, i) => { Object.assign(p, { x: f.x - f.dir[0] * i * 0.8, y: f.y + 0.3, z: f.z - f.dir[1] * i * 0.8, vx: 0, vy: 0, vz: 0 }); });

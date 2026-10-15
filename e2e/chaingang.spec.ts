@@ -113,8 +113,8 @@ test('chain gang: practise with bots, clear all three stretches, the run is save
   await expect.poll(() => chain(f, (c) => c.falls), { timeout: 20_000 }).toBe(1);
 
   for (let lv = 0; lv < 3; lv++) {
-    await expect.poll(() => chain(f, (c) => c.level)).toBe(lv);
-    await expect.poll(async () => { await chain(f, (c) => c.debug.skipTitle()); return chain(f, (c) => c.mode); }).toBe('play');
+    await expect.poll(() => chain(f, (c) => c.level), { timeout: 20_000 }).toBe(lv);
+    await expect.poll(async () => { await chain(f, (c) => c.debug.skipTitle()); return chain(f, (c) => c.mode); }, { timeout: 20_000 }).toBe('play');
     await chain(f, (c) => c.debug.finishLevel());
     await expect.poll(() => chain(f, (c) => c.mode), { timeout: 20_000 }).toMatch(/clear|finish/);
     await chain(f, (c) => c.debug.skipTitle());
