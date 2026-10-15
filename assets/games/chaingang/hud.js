@@ -129,7 +129,7 @@ export function createHud(canvas, game, view, toScreen) {
       card([['STRETCH ' + (V.lv + 1), 16, CYAN], [L.name.toUpperCase(), 28, PINK]]);
       wrap(L.line, W - 40 * u).forEach((s, i) => text(s, W / 2, H * 0.36 + 70 * u + i * 17 * u, 12, '#ffffff', { lw: 3 }));
       text('STAY TOGETHER · HOLD GRAB TO ANCHOR', W / 2, H * 0.36 + 116 * u, 10, YELLOW, { lw: 2.6 });
-      if (V.lv === 0) text('DRAG THE SCREEN TO LOOK AROUND', W / 2, H * 0.36 + 134 * u, 10, CYAN, { lw: 2.6 });
+      if (V.lv === 0) text('PUSH UP TO WALK ON · THE CAMERA FOLLOWS YOU', W / 2, H * 0.36 + 134 * u, 10, CYAN, { lw: 2.6 });
       ctx.globalAlpha = 1;
     } else if (S.mode === 'clear') {
       const s = S.scores[S.scores.length - 1] || { score: 0, time: 0, falls: 0 };

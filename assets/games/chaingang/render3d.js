@@ -4,12 +4,12 @@
 // the Wall snaking over them, a sea of sunset cloud far below, toon-shaded
 // stone with thick ink outlines, graffiti tags, a chunky gold chain between
 // the travellers, and confetti/sparks on everything. The camera sits behind
-// your traveller; S.cam.yaw (turned by dragging, game.js) is where it looks.
+// your traveller; S.cam.yaw (it follows the way on by itself, game.js) is where it looks.
 // hud.js draws the text on top.
 import * as THREE from 'three';
-import { MAT, makeHero } from '../rampage/models.js';
+import { MAT, makeHero, LOOKS as HERO_LOOKS } from '../rampage/models.js';
 import { moverBox, windOn, CHAIN } from './sim.js';
-import { ROPE_POINTS, ROPE_R, ropeBoxes, ropePath, stepRope } from './rope.js';
+import { ROPE_R, insideAny, ropeBoxes, ropePath, stepRope } from './rope.js';
 import { createHud } from './hud.js';
 
 const HERO_SCALE = 0.084;
@@ -471,6 +471,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     h.traverse((o) => { if (o.isMesh && o.material === MAT) { o.castShadow = true; o.add(new THREE.Mesh(o.geometry, heroOutline)); } }); // an ink outline round every part
     h.userData.key = keyName;
     h.userData.pose = {};
+    beltFor(h);
     scene.add(h);
     heroModels[i] = h;
     return h;
@@ -507,55 +508,145 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         target = { bob: Math.abs(Math.cos(a.ph)) * 0.7, lean: 0.18, legL: Math.sin(a.ph) * 0.95, legR: -Math.sin(a.ph) * 0.95, armL: -Math.sin(a.ph) * 0.8, armR: Math.sin(a.ph) * 0.8 };
       } else target = { bob: Math.sin(t * 2 + i) * 0.15, armL: Math.sin(t * 2 + i) * 0.05, armR: -Math.sin(t * 2 + i) * 0.05 };
       setPose(m, target, dt);
+      m.updateMatrixWorld(true); // (the rope ties on to its belt, just after)
     });
     for (let i = V.players.length; i < heroModels.length; i++) if (heroModels[i]) heroModels[i].visible = false;
   }
 
   // ---- the rope (how it hangs is rope.js: it never goes into anything) ----------------------------
-  // Drawn as twisted hemp: a strand per pair of beads (instanced), a knot ball
-  // at each bead, an ink outline round the strands.
-  const ropes = [];
-  const SEGS = (ROPE_POINTS - 1) * 3, KNOTS = ROPE_POINTS * 3; // (drawn along ropePath)
-  const ropeTex = canvasTex(32, 64, (c, w, h) => {
-    c.fillStyle = '#d9b47a'; c.fillRect(0, 0, w, h);
-    c.strokeStyle = '#a97c45'; c.lineWidth = 7;
-    for (let k = -2; k < 6; k++) { c.beginPath(); c.moveTo(0, k * 16); c.lineTo(w, k * 16 + 22); c.stroke(); } // the twist of the strands
-  }, 1, 3);
-  const ropeMat = toon({ map: ropeTex });
-  const strand = new THREE.InstancedMesh(new THREE.CylinderGeometry(ROPE_R, ROPE_R, 1, 8, 1, true), ropeMat, SEGS);
-  const strandInk = new THREE.InstancedMesh(new THREE.CylinderGeometry(ROPE_R * 1.35, ROPE_R * 1.35, 1, 8, 1, true), outlineMat, SEGS);
-  const knots = new THREE.InstancedMesh(new THREE.SphereGeometry(ROPE_R, 8, 6), ropeMat, KNOTS);
-  [strand, strandInk, knots].forEach((m) => { m.frustumCulled = false; m.castShadow = m !== strandInk; scene.add(m); });
-  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), SC = new THREE.Vector3(1, 1, 1), C = new THREE.Color();
-  const A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(), Y = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0);
-  const DIR = new THREE.Vector3(), MID = new THREE.Vector3();
+  // A thin three-strand braid (user, Oct 15 2026: "smaller and have a braid and wrap around
+  // the characters' waist"): three hemp strands twisting round the line rope.js gives, an ink
+  // outline round the whole, tied to a braided belt round each traveller's waist (heroFor) on
+  // the side facing the one it goes to, with a knot there.
+  const BRAID_R = ROPE_R * 0.5, BRAID_OFF = ROPE_R * 0.48, TWIST = (Math.PI * 2) / 0.2, SIDES = 6, STRANDS = 3;
+  const STRAND_COLS = [new THREE.Color(0xe8cf9a), new THREE.Color(0xc99a5c), new THREE.Color(0xd9b47a)];
+  const braidMat = toon({ vertexColors: true });
+  const braidInk = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+  /** A braid that can be redrawn along any line of up to maxPts samples. `scale` divides every size
+   *  (a belt is built inside a hero model, which is scaled down). */
+  function makeBraid(maxPts, scale = 1) {
+    const nv = maxPts * STRANDS * SIDES, pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3);
+    for (let j = 0; j < maxPts; j++) for (let k = 0; k < STRANDS; k++) for (let f = 0; f < SIDES; f++) {
+      const v = ((j * STRANDS + k) * SIDES + f) * 3, c = STRAND_COLS[k].clone().multiplyScalar(0.9 + 0.1 * Math.cos((f / SIDES) * Math.PI * 2));
+      col[v] = c.r; col[v + 1] = c.g; col[v + 2] = c.b;
+    }
+    const idx = [];
+    for (let j = 0; j + 1 < maxPts; j++) for (let k = 0; k < STRANDS; k++) for (let f = 0; f < SIDES; f++) {
+      const a = (j * STRANDS + k) * SIDES, b = ((j + 1) * STRANDS + k) * SIDES, f1 = (f + 1) % SIDES;
+      idx.push(a + f, a + f1, b + f, a + f1, b + f1, b + f);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3).setUsage(THREE.DynamicDrawUsage));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    const ipos = new Float32Array(maxPts * SIDES * 3), inor = new Float32Array(maxPts * SIDES * 3), iidx = [];
+    for (let j = 0; j + 1 < maxPts; j++) for (let f = 0; f < SIDES; f++) { const a = j * SIDES, b = a + SIDES, f1 = (f + 1) % SIDES; iidx.push(a + f, a + f1, b + f, a + f1, b + f1, b + f); }
+    const igeo = new THREE.BufferGeometry();
+    igeo.setAttribute('position', new THREE.BufferAttribute(ipos, 3).setUsage(THREE.DynamicDrawUsage));
+    igeo.setAttribute('normal', new THREE.BufferAttribute(inor, 3).setUsage(THREE.DynamicDrawUsage));
+    igeo.setIndex(iidx);
+    const mesh = new THREE.Mesh(geo, braidMat), ink = new THREE.Mesh(igeo, braidInk);
+    mesh.castShadow = true; mesh.frustumCulled = ink.frustumCulled = false;
+    const S_ = [], T = new THREE.Vector3(), N = new THREE.Vector3(), Bn = new THREE.Vector3(), Q0 = new THREE.Vector3(), Q1 = new THREE.Vector3(), R = new THREE.Vector3(), C0 = new THREE.Vector3();
+    const step = 0.025 / scale, br = BRAID_R / scale, off = BRAID_OFF / scale, inkR = (BRAID_OFF + BRAID_R + 0.012) / scale, tw = TWIST * scale;
+    /** Lay the braid along a line of points ({x, y, z}). */
+    function update(line) {
+      // even samples along the line
+      let total = 0; for (let k = 1; k < line.length; k++) total += Math.hypot(line[k].x - line[k - 1].x, line[k].y - line[k - 1].y, line[k].z - line[k - 1].z);
+      const n = Math.max(2, Math.min(maxPts, Math.ceil(total / step) + 1)), ds = total / (n - 1);
+      S_.length = 0;
+      let seg = 0, segS = 0, segL = 0;
+      const segLen = (k) => Math.hypot(line[k + 1].x - line[k].x, line[k + 1].y - line[k].y, line[k + 1].z - line[k].z);
+      if (line.length > 1) segL = segLen(0);
+      for (let j = 0; j < n; j++) {
+        const want = j * ds;
+        while (seg + 2 < line.length && segS + segL < want) { segS += segL; seg++; segL = segLen(seg); }
+        const u = segL > 1e-6 ? Math.max(0, Math.min(1, (want - segS) / segL)) : 0, a = line[seg], b = line[Math.min(seg + 1, line.length - 1)];
+        S_.push(a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u);
+      }
+      const pa = geo.attributes.position.array, na = geo.attributes.normal.array, ia = igeo.attributes.position.array, ina = igeo.attributes.normal.array;
+      N.set(0, 1, 0);
+      for (let j = 0; j < n; j++) {
+        Q0.fromArray(S_, Math.max(0, j - 1) * 3); Q1.fromArray(S_, Math.min(n - 1, j + 1) * 3);
+        T.copy(Q1).sub(Q0); if (T.lengthSq() < 1e-12) T.set(1, 0, 0); T.normalize();
+        // carry the frame along (parallel transport), so the strands never flip round
+        N.addScaledVector(T, -N.dot(T)); if (N.lengthSq() < 1e-6) N.set(T.y, -T.x, 0).addScaledVector(T, 0); if (N.lengthSq() < 1e-6) N.set(0, T.z, -T.y); N.normalize();
+        Bn.crossVectors(T, N);
+        C0.fromArray(S_, j * 3);
+        for (let f = 0; f < SIDES; f++) {
+          const ph = (f / SIDES) * Math.PI * 2, v = (j * SIDES + f) * 3;
+          R.copy(N).multiplyScalar(Math.cos(ph)).addScaledVector(Bn, Math.sin(ph));
+          ia[v] = C0.x + R.x * inkR; ia[v + 1] = C0.y + R.y * inkR; ia[v + 2] = C0.z + R.z * inkR;
+          ina[v] = R.x; ina[v + 1] = R.y; ina[v + 2] = R.z;
+        }
+        for (let k = 0; k < STRANDS; k++) {
+          const th = j * ds * tw + (k * Math.PI * 2) / STRANDS, cx = C0.x + (N.x * Math.cos(th) + Bn.x * Math.sin(th)) * off,
+            cy = C0.y + (N.y * Math.cos(th) + Bn.y * Math.sin(th)) * off, cz = C0.z + (N.z * Math.cos(th) + Bn.z * Math.sin(th)) * off;
+          for (let f = 0; f < SIDES; f++) {
+            const ph = (f / SIDES) * Math.PI * 2, v = ((j * STRANDS + k) * SIDES + f) * 3;
+            R.copy(N).multiplyScalar(Math.cos(ph)).addScaledVector(Bn, Math.sin(ph));
+            pa[v] = cx + R.x * br; pa[v + 1] = cy + R.y * br; pa[v + 2] = cz + R.z * br;
+            na[v] = R.x; na[v + 1] = R.y; na[v + 2] = R.z;
+          }
+        }
+      }
+      geo.setDrawRange(0, (n - 1) * STRANDS * SIDES * 6); igeo.setDrawRange(0, (n - 1) * SIDES * 6);
+      geo.attributes.position.needsUpdate = geo.attributes.normal.needsUpdate = true;
+      igeo.attributes.position.needsUpdate = igeo.attributes.normal.needsUpdate = true;
+    }
+    return { mesh, ink, update };
+  }
+  /** A braided belt round a hero's waist (in the model's own units), and where its rope ties on. */
+  function beltFor(h) {
+    const u = h.userData, look = HERO_LOOKS[h.userData.key] || {}, b = Object.assign({ slim: 1, torso: 1 }, look.build);
+    const zs = b.slim < 1 ? 0.92 : 1, wide = look.poncho; // (Bennett's poncho hangs over his waist: the belt goes round it)
+    // (model units: voxels are 0.5; the torso is 11 × 7 voxels, the poncho up to 14.4 × 8.8)
+    const rx = (wide ? 3.6 : 2.75) * b.slim + 0.12, rz = (wide ? 2.2 : 1.75) * zs + 0.12, y = wide ? 1.4 : 0.75;
+    const pts = [];
+    for (let k = 0; k <= 48; k++) { const a = (k / 48) * Math.PI * 2; pts.push({ x: Math.sin(a) * rx, y, z: Math.cos(a) * rz }); }
+    const belt = makeBraid(64, HERO_SCALE);
+    belt.update(pts);
+    belt.mesh.castShadow = false;
+    u.body.add(belt.mesh, belt.ink);
+    u.belt = { rx, rz, y };
+  }
+  const ropes = [], braids = [];
+  for (let i = 0; i < 3; i++) { const br = makeBraid(260); scene.add(br.mesh, br.ink); braids.push(br); }
+  const KNOTS = 6, knots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(ROPE_R * 1.25, 1), toon({ color: 0xc99a5c }), KNOTS);
+  knots.frustumCulled = false; scene.add(knots);
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), C = new THREE.Color(), SC = new THREE.Vector3(1, 1, 1);
+  const A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3();
+  /** Where on traveller i's belt the rope to `to` (a world point) ties on. */
+  function tieOn(i, to, out) {
+    const m = heroModels[i], bt = m && m.userData.belt;
+    if (!bt) return out.set(to.x, to.y, to.z);
+    const body = m.userData.body;
+    X.copy(to); body.worldToLocal(X);
+    const lx = X.x, lz = X.z, t = 1 / (Math.sqrt((lx / bt.rx) ** 2 + (lz / bt.rz) ** 2) || 1);
+    out.set(lx * t, bt.y, lz * t);
+    return body.localToWorld(out);
+  }
   function drawChain(V, dt) {
-    let ns = 0, nk = 0;
+    let nk = 0;
     const L = LEVELS[V.lv] || LEVELS[built];
     if (ropes.lv !== built) { ropes.length = 0; ropes.lv = built; }
-    for (let i = 0; i + 1 < V.players.length; i++) {
+    for (let i = 0; i < 3; i++) {
       const a = V.players[i], b = V.players[i + 1];
-      A.set(a.x, a.y + 0.9, a.z); B.set(b.x, b.y + 0.9, b.z);
+      if (!a || !b) { braids[i].mesh.visible = braids[i].ink.visible = false; continue; }
+      braids[i].mesh.visible = braids[i].ink.visible = true;
+      // tie on at the waist, on the side facing the other one
+      tieOn(i, B.set(b.x, b.y + 0.5, b.z), A); tieOn(i + 1, X.set(a.x, a.y + 0.5, a.z).clone(), B);
       const boxes = ropeBoxes(L, V.t, (k) => !!(V.crumble[k] && V.crumble[k].gone), A, B, CHAIN);
-      const P = ropePath(stepRope(ropes[i] || (ropes[i] = {}), A, B, boxes, dt || 1 / 60, CHAIN), boxes);
-      for (let k = 0; k < P.length; k++) {
-        X.set(P[k].x, P[k].y, P[k].z);
-        M4.compose(X, Q.identity(), SC); knots.setMatrixAt(nk++, M4);
-        if (k + 1 === P.length) break;
-        Y.set(P[k + 1].x, P[k + 1].y, P[k + 1].z);
-        const len = X.distanceTo(Y);
-        DIR.copy(Y).sub(X).divideScalar(len || 1);
-        MID.copy(X).add(Y).multiplyScalar(0.5);
-        Q.setFromUnitVectors(UP, DIR);
-        P_SCALE.set(1, Math.max(len, 1e-4), 1);
-        M4.compose(MID, Q, P_SCALE); strand.setMatrixAt(ns, M4); strandInk.setMatrixAt(ns, M4); ns++;
-      }
+      // pressed against something (a tree, a wall), the belt's side can be in it: tie on at the middle instead
+      if (insideAny(A, boxes)) A.set(a.x, a.y + 0.5, a.z);
+      if (insideAny(B, boxes)) B.set(b.x, b.y + 0.5, b.z);
+      braids[i].update(ropePath(stepRope(ropes[i] || (ropes[i] = {}), A, B, boxes, dt || 1 / 60, CHAIN), boxes));
+      for (const e of [A, B]) { M4.compose(e, Q.identity(), SC); knots.setMatrixAt(nk++, M4); }
     }
-    for (let k = ns; k < SEGS; k++) { M4.makeScale(0, 0, 0); strand.setMatrixAt(k, M4); strandInk.setMatrixAt(k, M4); }
     for (let k = nk; k < KNOTS; k++) { M4.makeScale(0, 0, 0); knots.setMatrixAt(k, M4); }
-    strand.instanceMatrix.needsUpdate = strandInk.instanceMatrix.needsUpdate = knots.instanceMatrix.needsUpdate = true;
+    knots.instanceMatrix.needsUpdate = true;
   }
-  const P_SCALE = new THREE.Vector3();
 
   // ---- particles (instanced cubes: confetti, sparks, debris, wind) ------------------------------
   const PN = 300;

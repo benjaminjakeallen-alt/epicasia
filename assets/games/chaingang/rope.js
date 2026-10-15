@@ -9,7 +9,7 @@
 
 import { moverBox } from './sim.js';
 
-export const BEADS = 28, ROPE_R = 0.06;
+export const BEADS = 28, ROPE_R = 0.04;
 const BEAD_R = ROPE_R + 0.04; // (a hair more than the rope's own thickness)
 
 /** Every box the rope between a and b can touch, as things are at time t. */
@@ -32,6 +32,8 @@ function depthIn(q, s, r) {
 }
 const AX = ['x', 'x', 'y', 'y', 'z', 'z'], SG = [1, -1, 1, -1, 1, -1];
 const inside = (q, boxes) => boxes.some((s) => depthIn(q, s, BEAD_R)[0] > 0);
+/** Is a point inside any of the boxes (where the rope ties on, say, with someone pressed against a tree)? */
+export const insideAny = (q, boxes) => boxes.some((s) => depthIn(q, s, ROPE_R)[0] > 0);
 /** Wedged where boxes meet (a rocket on a pad, a stone in a crack), pushing out of one
  *  pushes it into the next: then go the shortest of the six ways that clears them all. */
 function escape(q, boxes) {

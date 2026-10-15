@@ -87,19 +87,36 @@ test('chain gang: practise with bots, clear all three stretches, the run is save
   await page.keyboard.down('ArrowUp');
   await expect.poll(async () => z0 - (await chain(f, (c) => c.players))[0].z, { timeout: 20_000 }).toBeGreaterThan(2);
   await page.keyboard.up('ArrowUp');
-  // dragging the screen turns the camera; ↑ then walks the new way
+  // the camera looks along the Wall by itself: dragging the screen only looks round, and it swings back
   const yaw0 = await chain(f, (c) => c.camYaw);
   const box = (await page.getByTestId('game-frame').boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.35);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 - 170, box.y + box.height * 0.35, { steps: 8 }); // drag left
+  expect((await chain(f, (c) => c.camYaw)) - yaw0).toBeGreaterThan(1.2); // looking round
   await page.mouse.up();
-  const yaw1 = await chain(f, (c) => c.camYaw);
-  expect(yaw1 - yaw0).toBeGreaterThan(1.2); // turned more than a quarter: no longer looking along the Wall
-  const x1 = (await chain(f, (c) => c.players))[0].x;
-  await page.keyboard.down('ArrowUp');
-  await expect.poll(async () => Math.abs((await chain(f, (c) => c.players))[0].x - x1), { timeout: 20_000, intervals: [50] }).toBeGreaterThan(0.5);
-  await page.keyboard.up('ArrowUp');
+  const turn = (a: number, b: number) => Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
+  await expect.poll(async () => turn(await chain(f, (c) => c.camYaw), yaw0), { timeout: 20_000 }).toBeLessThan(0.2);
+  // and round a bend in the Wall it turns with you, so ↑ walks on the new way
+  const route: { p: number[]; jump: boolean }[] = await chain(f, (c) => c.route);
+  const dirOf = (k: number) => Math.atan2(route[k + 1].p[0] - route[k].p[0], route[k + 1].p[2] - route[k].p[2]);
+  const bend = route.findIndex((n, k) => k > 0 && k + 2 < route.length && !n.jump && !route[k + 1].jump && Math.abs(route[k + 1].p[1] - n.p[1]) < 0.1 &&
+    Math.hypot(route[k + 1].p[0] - n.p[0], route[k + 1].p[2] - n.p[2]) > 4 && turn(dirOf(k), yaw0) > 1.2);
+  expect(bend).toBeGreaterThan(0);
+  const [bx, by, bz] = route[bend].p, want = dirOf(bend);
+  await f.evaluate(`window.__chain.debug.warp(${bx + Math.sin(want) * 2}, ${by + 0.05}, ${bz + Math.cos(want) * 2})`);
+  await expect.poll(async () => turn(await chain(f, (c) => c.camYaw), want), { timeout: 20_000 }).toBeLessThan(0.3);
+
+  // music plays (from the first key press); the pause menu turns it off and on
+  await expect.poll(() => chain(f, (c) => c.music.on)).toBe(true);
+  await f.locator('#pausebtn').click();
+  await expect(f.locator('#pmusic')).toHaveText('MUSIC: ON');
+  await f.locator('#pmusic').click();
+  await expect(f.locator('#pmusic')).toHaveText('MUSIC: OFF');
+  expect(await chain(f, (c) => c.music.on)).toBe(false);
+  await f.locator('#pmusic').click();
+  expect(await chain(f, (c) => c.music.on)).toBe(true);
+  await f.locator('#resume').click();
 
   // GRAB digs in (back in the middle of the island first: on a slow runner that walk can run on off its edge)
   await chain(f, (c) => c.debug.warp(0, 0.05, -4.2));

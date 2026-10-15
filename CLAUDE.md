@@ -914,10 +914,17 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
 - **Third person, in 3D, like Chained Together** (user, Oct 14 2026, after a
   first side-scrolling version: "I didn't want a side scroller for this
   game", with a Chained Together screenshot). The camera sits behind your
-  traveller; the joystick walks you **relative to the camera**, **dragging
-  anywhere else turns it** (yaw + a little pitch; it drifts back behind you
-  as you run), Q/R or , . turn it from a keyboard. Teammates right in front
-  of the lens aren't drawn. The side-scroller is in git history (Oct 14).
+  traveller and the joystick walks you **relative to the camera**.
+  **The camera drives itself** (user, Oct 15 2026: "keep the camera behind
+  the player… so you don't have to control it"): `steerCamera()` finds where
+  you are along the level's route (`routeTrack`, kept to the stretch near
+  where you were, since the climb winds back over itself) and looks from
+  1.5 m behind to ~6 m ahead on it (`S.cam.base`, eased ~2.2/s), so ↑ always
+  walks on and the view turns round the bends with you. Dragging the screen
+  (or Q/R, , .) only looks round (`S.cam.peek`, ±2.6) and swings back
+  0.6 s after you let go; pitch too. Checked headless with bots on all three
+  stretches: you walk toward the camera only 1–6% of the time (riding things),
+  it turns ≤ 2 rad/s. Teammates right in front of the lens aren't drawn. The side-scroller is in git history (Oct 14).
   **A climb up into the sky** (user, Oct 14 2026, with three Chained
   Together screenshots: "Something more like this"): every stretch is
   floating pieces — chunks of the Wall with rock hanging under them, grassy
@@ -987,8 +994,17 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   (rockets on a pad) it takes the shortest way clear of all of them. It's
   drawn along `ropePath` (each stretch split in four, every point pushed
   out, and a point added round any corner a straight piece would cut —
-  round a thin box's nearest *clear* edge if the ends are either side) as
-  twisted hemp (instanced strands + knots, ink outline). Checked headless
+  round a thin box's nearest *clear* edge if the ends are either side).
+  **It's a thin three-strand braid tied round each traveller's waist** (user,
+  Oct 15 2026: "smaller and have a braid and wrap around characters' waist.
+  Currently it's like in their back"): `makeBraid()` in render3d resamples the
+  line every 2.5 cm and twists three hemp strands round it (a turn every
+  20 cm, parallel-transported frames so they never flip; rope 8 cm across,
+  `ROPE_R` 0.04) inside one ink tube; each hero model gets a braided belt round
+  the waist (`beltFor()`, a child of the body so it bobs and leans with it;
+  round Bennett's poncho), and each rope ties on at the belt's side facing
+  the one it goes to (`tieOn()`, ~0.5 m up), with a knot there — or at the
+  traveller's middle if they're pressed into something (`insideAny`). Checked headless
   (bots, and a random-input player, on all three stretches, every frame):
   no part of the rope inside anything, except one random-input run on
   Dragon Festival — 10 frames in 27,000, at most 5.5 cm (under the rope's
@@ -1040,23 +1056,39 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   drifting rocks, watchtowers floating on their own rocks beside the
   landings, toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with
   ink outlines (back faces pushed out) and battlements along both edges,
-  graffiti tags with drips, watchtowers whose flags light up, a chunky gold
-  chain that hangs in a curve (slack lies on the walkway), confetti/sparks/
-  debris, gust streaks. Travellers are Rampage's `makeHero` models with an
+  graffiti tags with drips, watchtowers whose flags light up, the braided
+  rope (above), confetti/sparks/debris, gust streaks. Travellers are Rampage's `makeHero` models with an
   ink outline. HUD (`hud.js`): stretch, clock, falls, score, a progress
   strip along the route with the watchtowers and everyone's dot, name tags
-  (🤖 for bots), title/clear/finish cards ("DRAG THE SCREEN TO LOOK AROUND"
-  on the first). Pad: joystick (all four ways) + GRAB + JUMP; keys
+  (🤖 for bots), title/clear/finish cards ("PUSH UP TO WALK ON · THE CAMERA
+  FOLLOWS YOU" on the first). Pad: joystick (all four ways) + GRAB + JUMP; keys
   arrows/WASD walk, Space/Z jump, Shift/E/J/X grab, Q/R turn the camera,
   Esc/P pauses (solo pauses the game; online it's only a menu).
+- **Sound** (`sound.js`, user, Oct 15 2026: "really subtle sound effects…
+  and some catchy music"), all Web Audio, nothing downloaded: a compressor on
+  the master, an effects bus and a music bus (ducked to 30% under the pause
+  menu). **Effects** are soft and short — footsteps (every ~1.25 m you walk),
+  a fwip for a jump, a thud landing, a rustle when you GRAB, a rope creak
+  when it pulls tight on you (≤ 1/s), wind chimes at a watchtower, a slide
+  whistle for WHOOPS, a soft boing/zip/knock, a plucked run on a clear, the
+  gong. **Music**: a loop in D major pentatonic over D–Bm–G–A — a flute-ish
+  lead with an 8-bar hook (then 8 bars without it), a koto-style plucked
+  arpeggio, a round bass, soft kick/clap/shaker — scheduled ~0.18 s ahead on
+  the audio clock; each stretch has its own key and tempo (`STYLE`: D 108,
+  F 116, C 124 bpm, more drums as it goes). Measured in Chromium: music
+  peaks ~0.2, effects 0.03–0.13. Pause menu: SOUND and MUSIC switches
+  (`chaingang.muted` / `chaingang.music`; the sandboxed frame usually can't
+  keep them). **Not heard on a phone yet** — the levels were measured, not
+  listened to.
 - `window.__chain`: mode, net, me, level, total, scores, falls, cp, players,
-  roster, camYaw, simulate, screenPoint; in development `debug.auto(on)`,
+  roster, camYaw, route, music, simulate, screenPoint; in development `sfx`, `debug.auto(on)`,
   `finishLevel()`, `setLevel(n)`, `fall()` (the whole gang), `skipTitle()`, `warp(x, y, z, yaw)`.
   The game keeps ticking on a timer while its page is hidden (no animation
   frames there), so a host in the background doesn't freeze the room.
 - Tests: `e2e/chaingang.spec.ts` (board; bots win every stretch; practise —
-  roster, ↑ walks along the Wall, a drag turns the camera and ↑ then walks
-  the new way, GRAB, a fall, clear all three → exact `game_scores`
+  roster, ↑ walks along the Wall, a drag looks round and the camera swings
+  back, round a bend it turns by itself, the music plays and the pause menu
+  switches it off/on, GRAB, a fall, clear all three → exact `game_scores`
   insert, leave; **two pages in one room** — code, join, traveller clash,
   host/client, the client's stick moves its traveller in the host's sim and
   the client sees it, the client leaves → a bot takes over; a code with no

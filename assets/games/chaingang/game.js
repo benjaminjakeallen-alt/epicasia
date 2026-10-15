@@ -19,6 +19,7 @@
 import { LEVELS } from './levels.js';
 import { STEP, createSim, stepSim, botInput, simulateLevel, knock } from './sim.js';
 import { createRenderer } from './render3d.js';
+import { SFX, audio, music, duck, isMuted, isMusicOn, setMuted, setMusic, musicState } from './sound.js';
 
 const INIT = window.CHAINGANG_INIT || {};
 export const HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'];
@@ -26,6 +27,7 @@ export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 
 export const COLORS = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff']; // each place on the chain
 const PAR = [110, 126, 172]; // seconds for a time bonus (the 2nd and 3rd are 15% harder, the 3rd a quarter longer)
 const TITLE_T = 2.8, CLEAR_T = 4.5;
+const PITCH = 0.42; // how far the camera looks down on you
 const SNAP_EVERY = 1 / 15, STATE_EVERY = 1 / 15, INTERP = 0.12;
 
 const NET = INIT.mode === 'host' || INIT.mode === 'client' ? INIT.mode : 'solo';
@@ -49,10 +51,12 @@ export const S = {
   mode: NET === 'client' ? 'wait' : 'lobby', // lobby (host: waiting for phones) → title → play → clear → … → finish
   modeT: 0, level: 0, sim: null, scores: [], total: 0, falls: 0, menu: false, sent: false,
   hi: Math.max(0, INIT.highScore | 0), msgs: [], view: null, gone: false, auto: false,
-  cam: { yaw: Math.PI, pitch: 0.5, dragAt: -1e9 }, // where the camera looks (yaw 0 = +z)
+  // where the camera looks (yaw 0 = +z): `base` follows the way on along the Wall by itself, `peek` is
+  // a look round from dragging the screen that springs back when you let go
+  cam: { yaw: Math.PI, base: Math.PI, peek: 0, pitch: PITCH, dragAt: -1e9, s: -1 },
 };
 /** Turns the camera to look along a direction on the ground. */
-function lookAlong(dir) { S.cam.yaw = Math.atan2(dir[0], dir[1]); }
+function lookAlong(dir) { S.cam.base = S.cam.yaw = Math.atan2(dir[0], dir[1]); S.cam.peek = 0; S.cam.s = -1; }
 export function levelScore(lv, time, falls) {
   return Math.max(250, Math.round(1000 + Math.max(0, PAR[lv] - time) * 10 - falls * 60));
 }
@@ -63,46 +67,6 @@ function lookBack() { // after a fall: face on from the watchtower everyone is b
 }
 function setMode(m) { S.mode = m; S.modeT = 0; syncButtons(); }
 function message(text, color, life) { S.msgs.push({ text, color: color || '#ffffff', t: 0, life: life || 1.6 }); }
-
-// ---- sound (Web Audio, synthesized) ------------------------------------------------
-let AC = null, master = null, muted = false;
-try { muted = localStorage.getItem('chaingang.muted') === '1'; } catch { /* storage off (sandboxed) */ }
-function audio() {
-  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.connect(AC.destination); } catch { AC = null; } }
-  if (AC && AC.state === 'suspended') AC.resume();
-  if (master) master.gain.value = muted ? 0 : 1;
-  return AC;
-}
-function tone(f, d, type, vol, slideTo, delay) {
-  const a = audio(); if (!a || muted) return;
-  const t0 = a.currentTime + (delay || 0), o = a.createOscillator(), g = a.createGain();
-  o.type = type || 'square'; o.frequency.setValueAtTime(f, t0);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + d);
-  g.gain.setValueAtTime(vol || 0.05, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + d + 0.02);
-}
-function noise(d, vol, freq, delay) {
-  const a = audio(); if (!a || muted) return;
-  const t0 = a.currentTime + (delay || 0), n = Math.floor(a.sampleRate * d);
-  const buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
-  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-  f.type = 'lowpass'; f.frequency.value = freq || 800; g.gain.value = vol || 0.12;
-  src.buffer = buf; src.connect(f); f.connect(g); g.connect(master); src.start(t0);
-}
-const SFX = {
-  jump: () => tone(330, 0.14, 'square', 0.03, 620),
-  land: () => noise(0.06, 0.05, 600),
-  boing: () => { noise(0.35, 0.12, 2600); tone(220, 0.4, 'sawtooth', 0.04, 880); [0.25, 0.32, 0.4].forEach((d) => noise(0.08, 0.12, 4000, d)); },
-  crumble: () => { noise(0.7, 0.2, 420); tone(90, 0.6, 'sawtooth', 0.05, 40); },
-  whoops: () => { [392, 370, 349, 311].forEach((f, i) => tone(f, i === 3 ? 0.6 : 0.24, 'sawtooth', 0.045, i === 3 ? 260 : 0, i * 0.22)); },
-  checkpoint: () => { [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.18, 'square', 0.04, 0, i * 0.09)); },
-  zip: () => { tone(900, 0.6, 'sawtooth', 0.025, 1800); noise(0.6, 0.05, 3000); },
-  knock: () => { noise(0.18, 0.18, 1500); [0, 0.07, 0.13].forEach((d) => noise(0.05, 0.14, 5000, d)); },
-  scramble: () => tone(260, 0.08, 'triangle', 0.04, 420),
-  gong: () => { tone(110, 2.4, 'sine', 0.18, 104); tone(166, 2, 'sine', 0.08); tone(247, 1.4, 'sine', 0.05); noise(0.4, 0.06, 900); },
-  clear: () => { [523, 659, 784, 659, 784, 1046].forEach((f, i) => tone(f, 0.16, 'square', 0.045, 0, i * 0.12)); },
-};
 
 // ---- events (from the sim on host/solo, from snapshots on clients) --------------------------
 let renderer = null;
@@ -171,7 +135,7 @@ stageEl.addEventListener('pointerdown', (e) => {
 });
 window.addEventListener('pointermove', (e) => {
   if (e.pointerId !== pad.lookId) return;
-  S.cam.yaw -= (e.clientX - pad.lookX) * 0.009;
+  S.cam.peek = Math.max(-2.6, Math.min(2.6, S.cam.peek - (e.clientX - pad.lookX) * 0.009));
   S.cam.pitch = Math.max(0.05, Math.min(1.1, S.cam.pitch + (e.clientY - pad.lookY) * 0.006));
   pad.lookX = e.clientX; pad.lookY = e.clientY; S.cam.dragAt = performance.now();
 });
@@ -214,17 +178,18 @@ window.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k) { keys[k
 // ---- menus ---------------------------------------------------------------------------------
 const pauseEl = document.getElementById('pause'), overEl = document.getElementById('over');
 function setMenu(on) {
-  S.menu = on; pauseEl.classList.toggle('show', on);
+  S.menu = on; pauseEl.classList.toggle('show', on); duck(on);
   padRelease();
   if (on) document.getElementById('resume').focus();
 }
 document.getElementById('pausebtn').addEventListener('click', () => setMenu(true));
 document.getElementById('resume').addEventListener('click', () => setMenu(false));
-document.getElementById('psound').addEventListener('click', () => {
-  muted = !muted; try { localStorage.setItem('chaingang.muted', muted ? '1' : '0'); } catch { /* ok */ }
-  audio(); syncMute();
-});
-function syncMute() { document.getElementById('psound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON'; if (master) master.gain.value = muted ? 0 : 1; }
+document.getElementById('psound').addEventListener('click', () => { setMuted(!isMuted()); syncMute(); });
+document.getElementById('pmusic').addEventListener('click', () => { setMusic(!isMusicOn()); syncMute(); });
+function syncMute() {
+  document.getElementById('psound').textContent = isMuted() ? 'SOUND: OFF' : 'SOUND: ON';
+  document.getElementById('pmusic').textContent = isMusicOn() ? 'MUSIC: ON' : 'MUSIC: OFF';
+}
 syncMute();
 function leave() { sendScore('quit'); post({ type: 'exit' }); }
 document.getElementById('exit').addEventListener('click', leave);
@@ -516,21 +481,73 @@ window.addEventListener('message', (e) => {
   }
 });
 
-// The camera turns with Q/R (or , .), by dragging, and otherwise drifts round
-// behind you as you run forward — only forward: drifting while you steer
-// sideways turned "left" with it, so a held stick ran you round in a curve.
+// The camera looks the way on along the Wall by itself (user, Oct 15 2026: "keep the camera
+// behind the player… so you don't have to control it"): it follows the level's route a few
+// metres ahead of wherever you are on it, so ↑ always walks on, and turns round the bends
+// with you. Dragging the screen (or Q/R) only looks round; let go and it swings back.
+function routeTrack(L, q, from) {
+  const Rt = L.route;
+  if (!L.camLen) { L.camLen = [0]; for (let k = 1; k < Rt.length; k++) L.camLen.push(L.camLen[k - 1] + Math.hypot(Rt[k].p[0] - Rt[k - 1].p[0], Rt[k].p[2] - Rt[k - 1].p[2])); }
+  let best = -1, bd = Infinity;
+  for (let k = 0; k + 1 < Rt.length; k++) {
+    // (keep to the stretch of route near where we were: the climb winds back over itself)
+    if (from >= 0 && (L.camLen[k + 1] < from - 10 || L.camLen[k] > from + 20)) continue;
+    const a = Rt[k].p, b = Rt[k + 1].p, ex = b[0] - a[0], ez = b[2] - a[2], l2 = ex * ex + ez * ez || 1;
+    const u = Math.max(0, Math.min(1, ((q.x - a[0]) * ex + (q.z - a[2]) * ez) / l2));
+    const d = Math.hypot(a[0] + ex * u - q.x, (a[1] + (b[1] - a[1]) * u - q.y) * 0.6, a[2] + ez * u - q.z);
+    if (d < bd) { bd = d; best = L.camLen[k] + u * Math.sqrt(l2); }
+  }
+  if (from >= 0 && bd > 6) return routeTrack(L, q, -1); // fell or was carried somewhere else
+  return best;
+}
+function routePoint(L, s) {
+  const Rt = L.route, len = L.camLen;
+  let k = 0; while (k + 2 < Rt.length && len[k + 1] < s) k++;
+  const seg = len[k + 1] - len[k] || 1, u = Math.max(0, Math.min(1, (s - len[k]) / seg));
+  return [Rt[k].p[0] + (Rt[k + 1].p[0] - Rt[k].p[0]) * u, Rt[k].p[2] + (Rt[k + 1].p[2] - Rt[k].p[2]) * u];
+}
 function steerCamera(dt) {
-  if (keys.CL) S.cam.yaw += dt * 2.2;
-  if (keys.CR) S.cam.yaw -= dt * 2.2;
+  const C = S.cam;
+  if (keys.CL) { C.peek += dt * 2.2; C.dragAt = performance.now(); }
+  if (keys.CR) { C.peek -= dt * 2.2; C.dragAt = performance.now(); }
+  // let go of the look round: swing back behind
+  if (pad.lookId === null && performance.now() - C.dragAt > 600) {
+    const k = 1 - Math.exp(-dt * 3);
+    C.peek -= C.peek * k; C.pitch += (PITCH - C.pitch) * k;
+  }
+  const me = S.view && S.view.players[S.me], L = LEVELS[S.view ? S.view.lv : S.level];
+  if (me && L && L.route.length > 1 && (S.mode === 'play' || S.mode === 'title')) {
+    C.s = routeTrack(L, me, C.s);
+    const total = L.camLen[L.camLen.length - 1];
+    const a = routePoint(L, Math.max(0, C.s - 1.5));
+    let ahead = 6, b = routePoint(L, Math.min(total, C.s + ahead));
+    while (Math.hypot(b[0] - a[0], b[1] - a[1]) < 2.5 && ahead < 20) b = routePoint(L, Math.min(total, C.s + (ahead += 2)));
+    if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.5) {
+      let d = Math.atan2(b[0] - a[0], b[1] - a[1]) - C.base;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      C.base += d * (1 - Math.exp(-dt * 2.2));
+    }
+  }
+  C.yaw = C.base + C.peek;
+}
+
+// Music while the game is on; soft footsteps, a rope creak when it pulls tight on you, and
+// a rustle when you dig in.
+const heard = { step: 0, steps: 0, taut: false, creakAt: 0, grab: false };
+function soundTick(dt) {
+  music(S.mode !== 'gone', S.view ? S.view.lv : S.level);
   const me = S.view && S.view.players[S.me];
-  if (!me || performance.now() - S.cam.dragAt < 1500 || keys.CL || keys.CR) return;
-  const sx = ((keys.R ? 1 : 0) - (keys.L ? 1 : 0)) || pad.x, sy = ((keys.B ? 1 : 0) - (keys.F ? 1 : 0)) || pad.y;
-  if (!me.zip && (sy > -0.5 || Math.abs(sx) > 0.5)) return; // steering, not running on (on the zip line it always follows)
+  if (!me || S.mode !== 'play') return;
   const speed = Math.hypot(me.vx, me.vz);
-  if (speed < 1.5 || !me.ground && !me.zip) return;
-  let d = Math.atan2(me.vx, me.vz) - S.cam.yaw;
-  d = Math.atan2(Math.sin(d), Math.cos(d));
-  if (Math.abs(d) < 1.2) S.cam.yaw += d * Math.min(1, dt * 1.6 * Math.min(1, speed / 5));
+  if (me.ground && !me.grab && speed > 1.2) {
+    heard.step += dt * speed;
+    if (heard.step > 1.25) { heard.step = 0; SFX.step(heard.steps++); }
+  } else heard.step = 0.9; // (the first step comes soon after you set off)
+  const now = performance.now();
+  if (me.taut && !heard.taut && now - heard.creakAt > 900) { SFX.creak(); heard.creakAt = now; }
+  heard.taut = me.taut;
+  if (me.grab && !heard.grab && me.ground) SFX.grab();
+  heard.grab = me.grab;
 }
 
 // ---- the frame loop ----------------------------------------------------------------------------
@@ -558,6 +575,7 @@ function tick(now) {
     S.stale = snaps.length > 0 && performance.now() - lastSnapAt > 4000 && S.mode !== 'finish';
   } else hostUpdate(dt);
   S.view = S.net === 'client' ? clientView() : hostView();
+  soundTick(dt);
   steerCamera(dt);
   if (!document.hidden) renderer.draw(now / 1000, dt);
 }
@@ -568,7 +586,7 @@ requestAnimationFrame(frame);
 window.__chain = {
   get mode() { return S.mode; }, get net() { return S.net; }, get me() { return S.me; }, get level() { return S.level; },
   get total() { return S.total; }, get scores() { return S.scores; }, get falls() { return S.view ? S.view.falls : 0; },
-  get cp() { return S.view ? S.view.cp : 0; }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; },
+  get cp() { return S.view ? S.view.cp : 0; }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },
   get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, z: p.z, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab })) : []; },
   get roster() { return S.roster.map((r) => Object.assign({}, r)); },
   screenPoint: (x, y) => renderer.screenPoint(x, y),
@@ -577,6 +595,7 @@ window.__chain = {
   programs: () => renderer.programs(),
 };
 if (INIT.debug) {
+  window.__chain.sfx = SFX;
   window.__chain.debug = {
     // let a bot drive this phone's traveller (host/solo only)
     auto(on) { S.auto = on !== false; if (S.sim) S.sim.players[S.me].bot = S.auto || S.roster[S.me].bot; },
@@ -591,7 +610,7 @@ if (INIT.debug) {
     // the whole gang off the wall, held below it for 1.5 s of game time (long enough to count as a fall) — on a
     // client only our own traveller: the others are the host's to drop
     fall() { dropSteps.host = dropSteps.mine = 90; dropNow('host'); dropNow('mine'); },
-    warp(x, y, z, yaw) { if (S.sim) S.sim.players.forEach((p, i) => { Object.assign(p, { x, y: y + i * 0.01, z: z + i * 1.2, vx: 0, vy: 0, vz: 0 }); p.ni = 0; }); if (yaw !== undefined) S.cam.yaw = yaw; },
+    warp(x, y, z, yaw) { if (S.sim) S.sim.players.forEach((p, i) => { Object.assign(p, { x, y: y + i * 0.01, z: z + i * 1.2, vx: 0, vy: 0, vz: 0 }); p.ni = 0; }); if (yaw !== undefined) { S.cam.base = S.cam.yaw = yaw; S.cam.peek = 0; } S.cam.s = -1; },
     skipTitle() { if (S.mode === 'title') S.modeT = TITLE_T + 1; if (S.mode === 'clear') S.modeT = CLEAR_T + 1; },
   };
 }
