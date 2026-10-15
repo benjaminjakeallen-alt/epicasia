@@ -4,7 +4,7 @@ export type GameFrameProps = {
   html: string;
   title: string;
   onMessage: (msg: { type?: unknown } & Record<string, unknown>) => void;
-  /** Filled with a function that posts into the game (Chain Gang Dynasty's network relay). */
+  /** Filled with a function that posts into the game (Tug of Wall's network relay). */
   postRef?: MutableRefObject<((data: unknown) => void) | null>;
 };
 

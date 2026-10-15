@@ -1,4 +1,4 @@
-// Chain Gang Dynasty — the three stretches, in 3D: a climb up into the sky,
+// Tug of Wall — the three stretches, in 3D: a climb up into the sky,
 // like Chained Together, through floating pieces of the Great Wall, rock
 // islands and planks, spiralling upward over a sea of cloud. Pure data,
 // read by the simulation (sim.js) and drawn by render3d.js. Metres, y up.
@@ -310,7 +310,7 @@ function furnish(L) {
 export const LEVELS = [
   course('Sunset Ramparts', 'ramparts', 'Floating ramparts: stairs, a plank, crumbling stones and a swinging lantern bridge.')
     .landing(6, 0, { spawn: true })
-    .tag('CHAIN GANG', 4, 1.62, -0.6).walk(8)
+    .tag('TUG OF WALL', 4, 1.62, -0.6).walk(8)
     .stairs(6, 2.4)
     .gap(1.4, 0.6).walk(6)
     .landing(5, 1, { check: true })
@@ -340,7 +340,7 @@ export const LEVELS = [
     .gap(1.3, 0.8).stairs(5, 2)
     .walk(3)
     .pad(5.4)
-    .tag('DYNASTY', 2.5, 1.62, -0.6).walk(5)
+    .tag('HEAVE!', 2.5, 1.62, -0.6).walk(5)
     .landing(6, 0, { finish: true })
     .done(),
   course('Storm Peak', 'storm', 'Gusts on the switchbacks, a crumbling tower, a zip line and rope carts up to the gong.', { hard: 1.15 })

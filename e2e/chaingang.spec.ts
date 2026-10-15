@@ -1,7 +1,7 @@
 import { expect, test, type Frame, type Page } from '@playwright/test';
 import { signInWithFakeBackend, USER_ID } from './support/fakeBackend';
 
-// Chain Gang Dynasty: up to four travellers chained together on the Great
+// Tug of Wall: up to four travellers chained together on the Great
 // Wall. Rooms run over Supabase Realtime; the fake backend closes the
 // realtime socket, so these tests set window.__CHAINGANG_LOCAL__ and the
 // room runs over a BroadcastChannel — two pages in one browser play together
@@ -44,7 +44,7 @@ async function game(page: Page): Promise<Frame> {
 }
 const chain = <T,>(f: Frame, fn: (c: any) => T) => f.evaluate(`(${fn.toString()})(window.__chain)`) as Promise<T>;
 
-test('chain gang: the board shows only its own scores', async ({ page }) => {
+test('tug of wall: the board shows only its own scores', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang');
   const rows = page.getByTestId('high-score');
@@ -54,7 +54,7 @@ test('chain gang: the board shows only its own scores', async ({ page }) => {
   await expect(rows.nth(1)).toContainText('as Miles · 1 stretch');
 });
 
-test('chain gang: every stretch is winnable by a gang of bots (1–4 of them)', async ({ page }) => {
+test('tug of wall: every stretch is winnable by a gang of bots (1–4 of them)', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('chain-practise').click();
@@ -66,7 +66,7 @@ test('chain gang: every stretch is winnable by a gang of bots (1–4 of them)', 
     }
 });
 
-test('chain gang: practise with bots, clear all three stretches, the run is saved', async ({ page }) => {
+test('tug of wall: practise with bots, clear all three stretches, the run is saved', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('hero-jake').click();
@@ -151,7 +151,7 @@ test('chain gang: practise with bots, clear all three stretches, the run is save
   await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 30_000 });
 });
 
-test('chain gang: two phones in one room play together', async ({ browser }) => {
+test('tug of wall: two phones in one room play together', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(() => { (window as any).__CHAINGANG_LOCAL__ = true; });
   const a = await ctx.newPage(), b = await ctx.newPage();
@@ -213,7 +213,7 @@ test('chain gang: two phones in one room play together', async ({ browser }) => 
   await ctx.close();
 });
 
-test('chain gang: a code nobody is hosting says so', async ({ browser }) => {
+test('tug of wall: a code nobody is hosting says so', async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(() => { (window as any).__CHAINGANG_LOCAL__ = true; });
   const p = await ctx.newPage();

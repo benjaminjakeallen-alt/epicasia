@@ -1,13 +1,13 @@
 import ArcadeBoard, { HERO } from '../../../../components/games/ArcadeBoard';
 
-// Chain Gang Dynasty: a Play card and the group's high-score board. The
+// Tug of Wall: a Play card and the group's high-score board. The
 // lobby (room codes) and the game itself are ./play.
 
 export default function ChainGang() {
   return (
     <ArcadeBoard
       game="chain_gang"
-      title="Chain Gang Dynasty"
+      title="Tug of Wall"
       tagline="Chained together on the Great Wall."
       blurb="Up to four of you, linked by a gold chain: hold on, haul each other up and cross three stretches of the Wall. Start a room and share its code, or practise with bots."
       playHref="/(app)/games/chaingang/play"

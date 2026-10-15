@@ -10,7 +10,7 @@ import GameFrame from './GameFrame';
 
 type Message = { type?: unknown } & Record<string, unknown>;
 
-// An arcade game full screen (Godzilla Rampage, Shinkansen Dash, Chain Gang Dynasty). The game
+// An arcade game full screen (Godzilla Rampage, Shinkansen Dash, Tug of Wall). The game
 // gets the HIGH SCORE to beat — the best of this phone's runs and the
 // group's saved board — plus anything the game's screen adds (`init`), and
 // reports each finished run back here to be saved.

@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
-// Chain Gang Dynasty rooms. One phone makes a room and reads out its code;
+// Tug of Wall rooms. One phone makes a room and reads out its code;
 // up to three more join with it. Everyone in the room is on one private
 // Supabase Realtime channel, `chaingang:<CODE>` (0026_chain_gang.sql lets any
 // signed-in traveller use those topics):

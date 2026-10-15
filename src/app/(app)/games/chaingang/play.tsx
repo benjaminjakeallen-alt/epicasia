@@ -27,7 +27,7 @@ import {
 import { fontFamily, type } from '../../../../theme/typography';
 import { useTheme } from '../../../../theme/useTheme';
 
-// Chain Gang Dynasty: pick a traveller, then start a room (and share its
+// Tug of Wall: pick a traveller, then start a room (and share its
 // code), join one with a code, or practise with bots. In a room the host
 // starts the game for everyone; the game runs in ArcadePlay's iframe and
 // this screen relays its network messages to and from the room
@@ -176,7 +176,7 @@ export default function ChainGangPlay() {
   };
   const share = async () => {
     if (!room) return;
-    const text = `Join my Chain Gang Dynasty room in Epic Asia: ${room.code}`;
+    const text = `Join my Tug of Wall room in Epic Asia: ${room.code}`;
     try {
       if (navigator.share) await navigator.share({ text });
       else await navigator.clipboard.writeText(room.code);
@@ -199,7 +199,7 @@ export default function ChainGangPlay() {
       <ArcadePlay
         game="chain_gang"
         html={CHAINGANG_HTML}
-        title="Chain Gang Dynasty"
+        title="Tug of Wall"
         board="/(app)/games/chaingang"
         init={init}
         onMessage={onGameMessage}
@@ -239,7 +239,7 @@ export default function ChainGangPlay() {
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <CircleButton icon="chevron-back" label="Back" onPress={() => (phase === 'lobby' ? leaveRoom() : router.back())} />
         <Text style={[styles.headerTitle, { color: colors.ink }]} accessibilityRole="header" numberOfLines={1}>
-          Chain Gang Dynasty
+          Tug of Wall
         </Text>
         <View style={styles.spacer} />
       </View>

@@ -1,4 +1,4 @@
-// Chain Gang Dynasty — how the rope between two travellers hangs (no three.js,
+// Tug of Wall — how the rope between two travellers hangs (no three.js,
 // so the checks can run it headless). A rope of beads (verlet): pinned to each
 // traveller's waist, it sags, lies on the walkway when slack and drapes over
 // edges. The simulation (sim.js) only limits the distance between travellers;

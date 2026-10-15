@@ -58,7 +58,7 @@ export const GAMES: {
   },
   {
     key: 'chain_gang',
-    title: 'Chain Gang Dynasty',
+    title: 'Tug of Wall',
     line: 'Up to four of you, roped together, across the Great Wall. Room codes for playing together.',
     icon: 'link-outline',
     image: require('../../assets/images/games/chain-gang.png'),

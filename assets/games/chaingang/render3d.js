@@ -1,4 +1,4 @@
-// Draws Chain Gang Dynasty with three.js, third person like Chained
+// Draws Tug of Wall with three.js, third person like Chained
 // Together, in a Sunset Overdrive mood: a neon sunset dome (purple →
 // magenta → orange) with a striped retro sun, rings of mountain ridges with
 // the Wall snaking over them, a sea of sunset cloud far below, toon-shaded

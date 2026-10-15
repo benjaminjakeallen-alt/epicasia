@@ -1,103 +1,15 @@
-// Chain Gang Dynasty — sound, all made in the browser (Web Audio), nothing to download.
-// User, Oct 15 2026: "really subtle sound effects for the game and some catchy music".
+// Tug of Wall — sound (user, Oct 15 2026: "really subtle sound effects for the game and some
+// catchy music"), on the shared synth (../shared/synth.js).
 //
 //   effects  soft and short: sine/triangle tones and filtered noise, well under the music
 //   music    a looping tune on the pentatonic scale (it sounds a little like East Asia):
 //            a flute-ish lead with a hook, a plucked koto-style arpeggio, a round bass,
 //            a soft kick, clap and shaker. Each stretch has its own key and speed.
-//            Scheduled a moment ahead on the audio clock, so it never stutters.
 
-let AC = null, master = null, sfxBus = null, musicBus = null, musicDuck = null;
-let muted = false, musicOn = true;
-try { muted = localStorage.getItem('chaingang.muted') === '1'; musicOn = localStorage.getItem('chaingang.music') !== '0'; } catch { /* storage off (sandboxed) */ }
+import { setup, audio, tone, noise, pluck, lead, drum, mtof, sequencer, duck, isMuted, isMusicOn, setMuted, setMusic, buses, ctx } from '../shared/synth.js';
 
-const MUSIC_LEVEL = 0.34;
-/** The audio graph, made on the first tap (browsers only start sound from one). */
-export function audio() {
-  if (!AC) {
-    try {
-      AC = new (window.AudioContext || window.webkitAudioContext)();
-      const comp = AC.createDynamicsCompressor();
-      comp.threshold.value = -18; comp.ratio.value = 3; comp.attack.value = 0.01; comp.release.value = 0.2;
-      master = AC.createGain(); master.connect(comp); comp.connect(AC.destination);
-      sfxBus = AC.createGain(); sfxBus.gain.value = 2.2; sfxBus.connect(master); // (each effect is written quiet; this sets them all just under the music)
-      musicDuck = AC.createGain(); musicDuck.connect(master);
-      musicBus = AC.createGain(); musicBus.gain.value = MUSIC_LEVEL; musicBus.connect(musicDuck);
-    } catch { AC = null; }
-  }
-  if (AC && AC.state === 'suspended') AC.resume();
-  if (master) master.gain.value = muted ? 0 : 1;
-  return AC;
-}
-export const isMuted = () => muted;
-export const isMusicOn = () => musicOn;
-export function setMuted(on) {
-  muted = on; try { localStorage.setItem('chaingang.muted', on ? '1' : '0'); } catch { /* ok */ }
-  audio();
-}
-export function setMusic(on) {
-  musicOn = on; try { localStorage.setItem('chaingang.music', on ? '1' : '0'); } catch { /* ok */ }
-  audio();
-}
-/** Quieter under the pause menu. */
-export function duck(on) {
-  if (!musicDuck) return;
-  musicDuck.gain.setTargetAtTime(on ? 0.3 : 1, AC.currentTime, 0.15);
-}
-
-// ---- building blocks ------------------------------------------------------------------------
-const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
-function env(g, t0, vol, attack, decay) {
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.linearRampToValueAtTime(vol, t0 + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + attack + decay);
-}
-function tone(f, d, { type = 'sine', vol = 0.04, slideTo = 0, delay = 0, attack = 0.005, bus = sfxBus, lp = 0, t } = {}) {
-  if (!AC || muted) return;
-  const t0 = t !== undefined ? t : AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
-  o.type = type; o.frequency.setValueAtTime(f, t0);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + d);
-  env(g, t0, vol, attack, d);
-  let out = g;
-  if (lp) { const f2 = AC.createBiquadFilter(); f2.type = 'lowpass'; f2.frequency.value = lp; g.connect(f2); out = f2; }
-  o.connect(g); out.connect(bus); o.start(t0); o.stop(t0 + attack + d + 0.05);
-}
-let noiseBuf = null;
-function noise(d, { vol = 0.05, type = 'lowpass', freq = 800, q = 0.7, sweepTo = 0, delay = 0, attack = 0.003, bus = sfxBus, t } = {}) {
-  if (!AC || muted) return;
-  if (!noiseBuf) {
-    noiseBuf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
-    const ch = noiseBuf.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
-  }
-  const t0 = t !== undefined ? t : AC.currentTime + delay, src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-  src.buffer = noiseBuf; src.loop = true;
-  f.type = type; f.frequency.setValueAtTime(freq, t0); f.Q.value = q;
-  if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t0 + d);
-  env(g, t0, vol, attack, d);
-  src.connect(f); f.connect(g); g.connect(bus); src.start(t0, Math.random() * 0.5); src.stop(t0 + attack + d + 0.05);
-}
-/** A plucked string, a little like a koto: a bright attack that mellows fast. */
-function pluck(f, t, vol, bus = musicBus) {
-  const o = AC.createOscillator(), o2 = AC.createOscillator(), g = AC.createGain(), lp = AC.createBiquadFilter();
-  o.type = 'triangle'; o2.type = 'sine'; o.frequency.value = f; o2.frequency.value = f * 2.003;
-  lp.type = 'lowpass'; lp.frequency.setValueAtTime(f * 7, t); lp.frequency.exponentialRampToValueAtTime(f * 1.6, t + 0.35);
-  const g2 = AC.createGain(); g2.gain.value = 0.35;
-  env(g, t, vol, 0.004, 0.6);
-  o.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(bus);
-  o.start(t); o2.start(t); o.stop(t + 0.7); o2.stop(t + 0.7);
-}
-/** A soft flute-ish lead: sine with a breath of noise and a slow vibrato. */
-function flute(f, t, len, vol) {
-  const o = AC.createOscillator(), g = AC.createGain(), vib = AC.createOscillator(), vg = AC.createGain();
-  o.type = 'sine'; o.frequency.value = f;
-  vib.frequency.value = 5.2; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(f * 0.008, t + Math.min(0.25, len));
-  vib.connect(vg); vg.connect(o.frequency);
-  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.03);
-  g.gain.setValueAtTime(vol, t + Math.max(0.04, len - 0.06)); g.gain.exponentialRampToValueAtTime(0.0001, t + len + 0.12);
-  o.connect(g); g.connect(musicBus);
-  o.start(t); vib.start(t); o.stop(t + len + 0.2); vib.stop(t + len + 0.2);
-  noise(Math.min(0.12, len), { vol: vol * 0.25, type: 'bandpass', freq: f * 2, q: 2, bus: musicBus, t });
-}
+setup('chaingang', 0.34);
+export { audio, duck, isMuted, isMusicOn, setMuted, setMusic };
 
 // ---- effects (each one quiet and short) -------------------------------------------------------
 export const SFX = {
@@ -114,7 +26,7 @@ export const SFX = {
   knock: () => { tone(120, 0.12, { vol: 0.06, slideTo: 60 }); noise(0.08, { vol: 0.035, freq: 1200 }); },
   scramble: () => noise(0.05, { vol: 0.015, freq: 1400 }),
   gong: () => { tone(110, 2.4, { vol: 0.09, slideTo: 104 }); tone(166, 2, { vol: 0.04 }); tone(247, 1.4, { vol: 0.025 }); noise(0.3, { vol: 0.02, freq: 900 }); },
-  clear: () => { if (!AC || muted) return; const t = AC.currentTime; [74, 76, 78, 81, 83, 86].forEach((m, i) => pluck(mtof(m), t + i * 0.09, 0.07, sfxBus)); },
+  clear: () => { const a = ctx(); if (!a) return; const t = a.currentTime; [74, 76, 78, 81, 83, 86].forEach((m, i) => pluck(mtof(m), t + i * 0.09, 0.07, buses().sfx)); },
   tap: () => tone(880, 0.05, { vol: 0.012 }),
 };
 
@@ -135,22 +47,18 @@ const HOOK = [
 ];
 // stretch → [semitones up, beats a minute, extra drive (more hats/kicks)]
 const STYLE = [[0, 108, 0], [3, 116, 1], [-2, 124, 2]];
-const M = { on: false, level: 0, step: 0, next: 0, bars: 0, timer: null };
-function playStep(step, t, spb) {
-  const [tr, , drive] = STYLE[M.level] || STYLE[0];
-  const s = step % 16, bar = Math.floor(step / 16), chord = CHORDS[bar % 4], sx = spb / 4; // seconds per 16th
+let level = 0;
+function playStep(step, t, sx) {
+  const [tr, , drive] = STYLE[level] || STYLE[0];
+  const s = step % 16, bar = Math.floor(step / 16), chord = CHORDS[bar % 4]; // (sx: seconds per 16th)
   // drums: kick on 1 and 3 (and a push into 3 when it drives), clap on 2 and 4, a shaker on the off 8ths
-  if (s === 0 || s === 8 || (drive && s === 6) || (drive > 1 && s === 14)) {
-    const o = AC.createOscillator(), g = AC.createGain();
-    o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.14);
-    env(g, t, 0.5, 0.002, 0.18); o.connect(g); g.connect(musicBus); o.start(t); o.stop(t + 0.25);
-  }
-  if (s === 4 || s === 12) noise(0.12, { vol: 0.16, type: 'bandpass', freq: 1500, q: 0.8, bus: musicBus, t });
-  if (s % 4 === 2 || (drive && s % 2 === 1)) noise(0.035, { vol: s % 4 === 2 ? 0.07 : 0.035, type: 'highpass', freq: 7000, bus: musicBus, t });
+  if (s === 0 || s === 8 || (drive && s === 6) || (drive > 1 && s === 14)) drum.kick(t);
+  if (s === 4 || s === 12) drum.clap(t);
+  if (s % 4 === 2 || (drive && s % 2 === 1)) drum.hat(t, s % 4 === 2 ? 0.07 : 0.035);
   // bass: root on 1, the octave bouncing on the & of 2 and 4
   if (s === 0 || s === 6 || s === 10 || s === 14) {
     const m = chord[0] + tr - 12 + (s === 6 || s === 14 ? 12 : 0);
-    tone(mtof(m), sx * (s === 0 ? 5 : 2), { type: 'triangle', vol: 0.22, lp: 600, bus: musicBus, t, attack: 0.008 });
+    tone(mtof(m), sx * (s === 0 ? 5 : 2), { type: 'triangle', vol: 0.22, lp: 600, bus: buses().music, t, attack: 0.008 });
   }
   // the koto arpeggio, an 8th apart, up and back
   if (s % 2 === 0) {
@@ -159,21 +67,9 @@ function playStep(step, t, spb) {
   }
   // the hook, in the first 8 of every 16 bars
   const phrase = bar % 16;
-  if (phrase < 8) for (const [at, m, len] of HOOK[phrase]) if (at === s) flute(mtof(m + tr), t, len * sx * 0.95, 0.12);
+  if (phrase < 8) for (const [at, m, len] of HOOK[phrase]) if (at === s) lead(mtof(m + tr), t, len * sx * 0.95, 0.12);
 }
-function schedule() {
-  if (!AC || !M.on || muted || !musicOn) { if (AC) M.next = AC.currentTime + 0.05; return; }
-  const spb = 60 / (STYLE[M.level] || STYLE[0])[1];
-  if (M.next < AC.currentTime) M.next = AC.currentTime + 0.05; // (back from a pause or a hidden page: no catch-up burst)
-  while (M.next < AC.currentTime + 0.18) {
-    playStep(M.step, M.next, spb);
-    M.step++; M.next += spb / 4;
-  }
-}
+const seq = sequencer({ step: playStep, bpm: () => (STYLE[level] || STYLE[0])[1] });
 /** Start the music for a stretch (again from the top when the stretch changes), or stop it. */
-export function music(on, level = 0) {
-  if (on && (!M.on || M.level !== level)) { M.step = 0; if (AC) M.next = AC.currentTime + 0.1; }
-  M.on = on; M.level = level;
-  if (!M.timer) M.timer = setInterval(schedule, 40);
-}
-export const musicState = () => ({ on: M.on && musicOn && !muted, level: M.level, step: M.step, ctx: AC ? AC.state : 'none' });
+export function music(on, lv = 0) { level = lv; seq.play(on, lv); }
+export const musicState = () => Object.assign(seq.state(), { level });

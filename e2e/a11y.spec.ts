@@ -273,8 +273,8 @@ const SCREENS: [string, string][] = [
   ['new find', '/games/lost-in-translation/new'],
   ['godzilla rampage', '/games/rampage'],
   ['shinkansen dash', '/games/shinkansen'],
-  ['chain gang dynasty', '/games/chaingang'],
-  ['chain gang dynasty: lobby', '/games/chaingang/play'],
+  ['tug of wall', '/games/chaingang'],
+  ['tug of wall: lobby', '/games/chaingang/play'],
   ['chat rooms', '/chat'],
   ['chat room', `/chat/${EVERYONE}`],
   ['new chat room', '/chat/new'],
@@ -417,7 +417,7 @@ test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }
   expect(sizes.filter(([, r]) => (r as DOMRect).width < 44 || (r as DOMRect).height < 44)).toEqual([]);
 });
 
-test('a11y: chain gang dynasty game (the iframe and its controls)', async ({ page }) => {
+test('a11y: tug of wall game (the iframe and its controls)', async ({ page }) => {
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('chain-practise').click();

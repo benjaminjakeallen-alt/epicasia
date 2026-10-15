@@ -1,4 +1,4 @@
-// Chain Gang Dynasty — up to four travellers chained together cross the
+// Tug of Wall — up to four travellers chained together cross the
 // Great Wall of China, side-on, in three stretches (levels.js). Runs inside
 // the app's sandboxed iframe (null origin): the app passes
 // window.CHAINGANG_INIT = { mode, me, players, highScore, debug } and relays
@@ -96,13 +96,27 @@ const keys = { L: false, R: false, F: false, B: false, J: false, G: false, CL: f
 const stickEl = document.querySelector('.stick'), knobEl = document.querySelector('.knob');
 const jumpEl = document.getElementById('jumpbtn'), grabEl = document.getElementById('grabbtn');
 const pad = { id: null, x: 0, y: 0, jumpId: null, grabId: null, taps: 0, lookId: null, lookX: 0, lookY: 0 };
-/** The stick (or keys) turned into a direction on the ground, from where the camera looks. */
+/** The stick (or keys) turned into a direction on the ground, from where the camera looks.
+ *  A thumb on glass rarely pushes the stick all the way, so past a small dead zone it reaches
+ *  full speed by 70% of its throw (a little gentler near the middle, for creeping along a
+ *  ledge). And while you hold a direction other than "on", it stays the direction you chose
+ *  even as the camera swings round a bend (otherwise a held stick runs you round in a curve). */
+const DEAD = 0.15, FULL = 0.7;
+const steer = { yaw: null };
 function readInput() {
   const kx = (keys.R ? 1 : 0) - (keys.L ? 1 : 0), ky = (keys.B ? 1 : 0) - (keys.F ? 1 : 0);
   let sx = kx || pad.x, sy = ky || pad.y;
   const m = Math.hypot(sx, sy);
-  if (m > 1) { sx /= m; sy /= m; }
-  const fx = Math.sin(S.cam.yaw), fz = Math.cos(S.cam.yaw); // forward; right is (−fz, fx)
+  if (m < DEAD) { sx = sy = 0; steer.yaw = null; } else {
+    const k = Math.pow(Math.min(1, (m - DEAD) / (FULL - DEAD)), 0.8) / m;
+    sx *= k; sy *= k;
+  }
+  let yaw = S.cam.yaw;
+  if (sx || sy) {
+    const off = Math.abs(Math.atan2(sx, -sy)); // 0 = straight on
+    if (off > 0.6) { if (steer.yaw === null) steer.yaw = yaw; yaw = steer.yaw; } else steer.yaw = null;
+  }
+  const fx = Math.sin(yaw), fz = Math.cos(yaw); // forward; right is (−fz, fx)
   const mx = fx * -sy + -fz * sx, mz = fz * -sy + fx * sx;
   return { mx: Math.round(mx * 100) / 100, mz: Math.round(mz * 100) / 100, jump: keys.J || pad.jumpId !== null, grab: keys.G || pad.grabId !== null };
 }

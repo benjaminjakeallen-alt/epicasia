@@ -766,3 +766,63 @@ test('skills: Emily’s endless slide, Nicole’s boba magnet and crow ducking, 
   expect(s.mode).toBe('run');
   expect(s.boardT).toBeGreaterThan(0);
 });
+
+test('skills: Mei’s kawaii charm — a tap pops what’s in her way into hearts, then needs a moment', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const fast = { timeout: 10_000, intervals: [50] };
+  const charm = () => f.evaluate(() => (window as any).__dash.charm);
+  await start(page, f, 7); // Mei plays from the start
+  await debug(f, 'calm');
+  expect((await charm()).ready).toBe(true);
+  // a tap (not a swipe) charms: a fairing and a gantry in her lane pop instead of stopping her
+  const box = (await page.getByTestId('game-frame').boundingBox())!;
+  await debug(f, 'pause', true);
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.5);
+  await debug(f, 'spawn', 'hump', 1, 12);
+  await debug(f, 'spawn', 'gantry', 1, 30);
+  await debug(f, 'step', 180); // 3 s: both reached inside the charm's 2.5 s, and it's over
+  await debug(f, 'pause', false);
+  expect(await charm()).toMatchObject({ on: false, charms: 1, charmed: 2, ready: false });
+  expect((await st(f)).mode).toBe('run');
+  // straight after, it's recharging: a tap doesn't charm, and the next fairing stops her
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.5);
+  expect((await charm()).charms).toBe(1);
+  await debug(f, 'spawn', 'hump', 1, 30);
+  await expect.poll(async () => (await st(f)).mode, fast).toBe('crash');
+});
+
+test('every time you pass Kyoto the trains go faster, and so does the song (a key higher); the pause menu switches the music', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  const at = () => f.evaluate(() => { const d = (window as any).__dash; return { speed: d.speed, round: d.round, music: d.music }; });
+  await start(page, f, 0);
+  await debug(f, 'calm');
+  await expect.poll(async () => (await at()).music.on).toBe(true); // (the song started with the first tap)
+  const lap1 = await at();
+  expect(lap1.music.bpm).toBeGreaterThanOrEqual(124);
+  expect(lap1.music.bpm).toBeLessThanOrEqual(132);
+  let last = lap1;
+  for (const round of [2, 3]) {
+    await debug(f, 'setDist', (round - 1) * 5000 + 600); // past Kyoto, and past the 400 m the new gear eases in over
+    await debug(f, 'calm');
+    await expect.poll(async () => (await at()).round).toBe(round);
+    const now = await at();
+    expect(now.speed).toBeGreaterThan(last.speed + 3);
+    expect(now.music.bpm).toBeGreaterThan(last.music.bpm);
+    expect(now.music.lap).toBe(round - 1);
+    last = now;
+  }
+  const fr = page.frameLocator('[data-testid="game-frame"]');
+  await fr.getByRole('button', { name: 'Pause' }).click();
+  await expect(fr.locator('#pmusic')).toHaveText('MUSIC: ON');
+  await fr.locator('#pmusic').click();
+  await expect(fr.locator('#pmusic')).toHaveText('MUSIC: OFF');
+  expect((await at()).music.on).toBe(false);
+  await fr.locator('#pmusic').click();
+  expect((await at()).music.on).toBe(true);
+});

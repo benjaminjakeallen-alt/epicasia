@@ -68,6 +68,7 @@ export function createHud(canvas, game, view, toScreen) {
     if (S.shield) badges.push(['LUCKY CAT', 'rgba(255,212,59,0.92)', '#3b2a00']);
     if (S.spring) badges.push(['SPRING · DOUBLE JUMP', 'rgba(140,233,154,0.94)', '#0c3318']);
     if (S.hero === 'chris') badges.push(S.t >= S.smashReady ? ['PICKAXE READY', 'rgba(222,226,230,0.94)', '#212529'] : ['PICKAXE ' + Math.ceil(S.smashReady - S.t) + 's', 'rgba(134,142,150,0.85)', '#ffffff']);
+    if (S.hero === 'mei') badges.push(S.charmT > 0 ? ['♥ KAWAII ♥', 'rgba(255,143,199,0.96)', '#4a0a2a'] : S.t >= S.charmReady ? ['CHARM READY · TAP', 'rgba(255,214,236,0.95)', '#4a0a2a'] : ['CHARM ' + Math.ceil(S.charmReady - S.t) + 's', 'rgba(134,142,150,0.85)', '#ffffff']);
     if (S.boardT > 0) badges.push(['SKATEBOARD ' + Math.ceil(S.boardT) + 's', 'rgba(255,212,59,0.95)', '#3b2a00']);
     else if (S.hero === 'jake' && S.boardCount > 0) badges.push(['ONIGIRI ' + S.boardCount + '/30', 'rgba(255,255,255,0.88)', '#212529']);
     badges.forEach(([label, bg, ink], i) => {

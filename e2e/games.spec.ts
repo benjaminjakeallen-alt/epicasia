@@ -76,15 +76,15 @@ test('Games hub: a stage shows the picked game; tiles switch it, Play opens it',
   const strip = (await page.getByTestId('games-carousel').boundingBox())!;
   await page.mouse.move(strip.x + strip.width / 2, strip.y + strip.height / 2);
   await page.mouse.wheel(196, 0); // two tiles on
-  await expect(page.getByTestId('games-title')).toHaveText('Chain Gang Dynasty');
-  await expect(page.getByRole('tab', { name: 'Chain Gang Dynasty' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('games-title')).toHaveText('Tug of Wall');
+  await expect(page.getByRole('tab', { name: 'Tug of Wall' })).toHaveAttribute('aria-selected', 'true');
   // …and it loops: one on from the last game comes round to the first
   await expect.poll(still, { timeout: 10_000 }).toBe(true);
   await page.mouse.wheel(98, 0);
   await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
   await expect.poll(still, { timeout: 10_000 }).toBe(true);
   await page.mouse.wheel(-98, 0);
-  await expect(page.getByTestId('games-title')).toHaveText('Chain Gang Dynasty');
+  await expect(page.getByTestId('games-title')).toHaveText('Tug of Wall');
   await page.getByRole('tab', { name: 'Lost in Translation' }).click();
   await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
   await expect.poll(still, { timeout: 10_000 }).toBe(true);

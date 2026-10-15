@@ -3,7 +3,7 @@ import { cached } from './offline';
 import { supabase } from './supabase';
 
 // Arcade game scores (0014_game_scores.sql): Godzilla Rampage, Shinkansen
-// Dash and Chain Gang Dynasty. Each game is an offline HTML game (assets/games/<slug>/) that posts
+// Dash and Tug of Wall. Each game is an offline HTML game (assets/games/<slug>/) that posts
 // one `score` message per finished run. Each run is saved as a row; a board
 // shows every player's best run. A run finished offline waits in
 // AsyncStorage and goes up on the next save or the next visit to the board.

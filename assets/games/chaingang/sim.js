@@ -1,4 +1,4 @@
-// Chain Gang Dynasty — the simulation (no DOM, no three.js), so the host
+// Tug of Wall — the simulation (no DOM, no three.js), so the host
 // phone, headless tests and the level-checking bots all run the same code.
 //
 // Third person, in 3D, like Chained Together: up to four travellers chained
@@ -30,6 +30,14 @@ import { LEVELS } from './levels.js';
 export const STEP = 1 / 60;
 export const R = 0.3, PH = 1.6, CHAIN = 5;
 const GRAV = 26, MAX_FALL = 24, RUN = 5.4, ACC = 62, AIR_ACC = 20, FRICTION = 58, JUMP = 9.6, STEP_UP = 0.45;
+// Feel (user, Oct 15 2026: "the controls are still too loose" — tuned from platformer practice):
+// turning swings your run round at TURN rad/s instead of scrubbing it off, reversing gets a
+// SKID boost, a tap of JUMP is a short hop (rising speed cut to JUMP_CUT on release), you fall
+// FALL_MULT× harder than you rise with a little hang at the top (APEX), and the rope moves a
+// traveller on the ground but doesn't leave them sliding (no velocity from it).
+const TURN = 14, SKID = 1.8, JUMP_CUT = 0.5, FALL_MULT = 1.35, APEX_V = 1.2, APEX = 0.6;
+/** Gravity for a vertical speed: harder on the way down, a little hang at the top while JUMP is held. */
+export function gravity(vy, held) { return held && Math.abs(vy) < APEX_V ? GRAV * APEX : vy < 0 ? GRAV * FALL_MULT : GRAV; }
 const COYOTE = 0.1, BUFFER = 0.13, SCRAMBLE = 16.5, SCRAMBLE_EVERY = 0.7, FALL_TIME = 1.1;
 const CRUMBLE_HEAVY = 0.3, CRUMBLE_STAND = 2.5, CRUMBLE_BACK = 3;
 const ZIP_SPEED = 10, BARREL_R = 0.45, KNOCK = 0.45, REACH = 3.2;
@@ -166,7 +174,19 @@ export function stepSim(sim, inputs) {
     const on = p.knockT <= 0 && mag > 0.2, sp = RUN * Math.min(1, mag * 1.3);
     const wx = on ? (mx / Math.max(mag, 1e-6)) * sp : 0, wz = on ? (mz / Math.max(mag, 1e-6)) * sp : 0;
     if (p.knockT <= 0) {
-      if (ground) approach2(p, on ? wx : 0, on ? wz : 0, (on ? ACC : FRICTION) * dt);
+      if (ground && on) {
+        const v = Math.hypot(p.vx, p.vz);
+        if (v > 0.5) {
+          const dot = (p.vx * wx + p.vz * wz) / (v * sp);
+          if (dot > -0.5) { // steering: swing the run round toward the stick, keeping its speed
+            let d = Math.atan2(wx, wz) - Math.atan2(p.vx, p.vz);
+            d = Math.atan2(Math.sin(d), Math.cos(d));
+            const a = Math.atan2(p.vx, p.vz) + Math.max(-TURN * dt, Math.min(TURN * dt, d));
+            p.vx = Math.sin(a) * v; p.vz = Math.cos(a) * v;
+          }
+          approach2(p, wx, wz, ACC * (dot < -0.5 ? SKID : 1) * dt); // (turning right round: a skid boost)
+        } else approach2(p, wx, wz, ACC * dt);
+      } else if (ground) approach2(p, 0, 0, FRICTION * dt);
       else if (on) approach2(p, wx, wz, AIR_ACC * dt);
     }
     if (on) p.face = Math.atan2(mx, mz);
@@ -178,7 +198,7 @@ export function stepSim(sim, inputs) {
       // a jump carries you the way the stick points, even from a standstill
       if (on) { const along = p.vx * (wx / sp) + p.vz * (wz / sp), want = sp * 0.85; if (along < want) { p.vx += (wx / sp) * (want - along); p.vz += (wz / sp) * (want - along); } }
       if (ground && ground.mover) { p.vx += ground.vx || 0; p.vz += ground.vz || 0; } // leaving something that moves, you keep its motion
-      p.vy = JUMP + (ground && ground.mover ? Math.max(0, ground.vy || 0) : 0); p.ground = null; p.coy = 0; p.jb = 0;
+      p.vy = JUMP + (ground && ground.mover ? Math.max(0, ground.vy || 0) : 0); p.ground = null; p.coy = 0; p.jb = 0; p.hop = true;
       sim.events.push({ e: 'jump', i });
     } else if (pressed && !ground && p.taut && p.scrT <= 0 && anchored) {
       const up = [sim.players[i - 1], sim.players[i + 1]].filter((q) => q && q.y > p.y + 0.3).sort((a, b) => b.y - a.y)[0];
@@ -189,7 +209,10 @@ export function stepSim(sim, inputs) {
         p.scrT = SCRAMBLE_EVERY; sim.events.push({ e: 'scramble', i });
       }
     }
-    p.vy = Math.max(-MAX_FALL, p.vy - GRAV * dt);
+    // let go of JUMP on the way up: a shorter hop (bots always jump full height — their jumps are planned)
+    if (p.hop && !p.held && !p.bot && p.vy > 0) { p.vy *= JUMP_CUT; p.hop = false; }
+    if (p.ground || p.vy <= 0) p.hop = false;
+    p.vy = Math.max(-MAX_FALL, p.vy - gravity(p.vy, p.held || p.bot) * dt);
     if (ground && p.vy <= 0) carry(p, ground, dt);
     move(sim, p, solids, dt);
   });
@@ -327,9 +350,9 @@ function chain(sim, solids) {
       a.x += nx * over * (wa / w); a.y += ny * over * (wa / w); a.z += nz * over * (wa / w);
       b.x -= nx * over * (wb / w); b.y -= ny * over * (wb / w); b.z -= nz * over * (wb / w);
       const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny + (b.vz - a.vz) * nz; // separating speed
-      if (rv > 0) {
-        a.vx += nx * rv * (wa / w); a.vy += ny * rv * (wa / w); a.vz += nz * rv * (wa / w);
-        b.vx -= nx * rv * (wb / w); b.vy -= ny * rv * (wb / w); b.vz -= nz * rv * (wb / w);
+      if (rv > 0) { // (someone on the ground is moved by the rope but not set sliding by it)
+        if (!a.ground) { a.vx += nx * rv * (wa / w); a.vy += ny * rv * (wa / w); a.vz += nz * rv * (wa / w); }
+        if (!b.ground) { b.vx -= nx * rv * (wb / w); b.vy -= ny * rv * (wb / w); b.vz -= nz * rv * (wb / w); }
       }
     }
   }
@@ -530,10 +553,12 @@ function landing(sim, p, node, slack = 0) {
       const t = sim.t + f * STEP;
       const ddx = wx - vx, ddz = wz - vz, dd = Math.hypot(ddx, ddz), by = AIR_ACC * STEP;
       if (dd <= by) { vx = wx; vz = wz; } else { vx += (ddx / dd) * by; vz += (ddz / dd) * by; }
-      vy -= GRAV * STEP; x += vx * STEP; y += vy * STEP; z += vz * STEP;
+      vy -= gravity(vy, true) * STEP; x += vx * STEP; y += vy * STEP; z += vz * STEP;
+      const all = solidsAt(sim, t);
+      // flying into something on the way (the carousel's drum, a battlement): not this one
+      if (all.some((q) => x + R > q.x0 && x - R < q.x1 && z + R > q.z0 && z - R < q.z1 && y + PH > q.y0 && y < q.y1 - 0.5)) break;
       if (vy > 0) continue;
       let s = null;
-      const all = solidsAt(sim, t);
       for (const q of all) if (!FURNITURE.has(q.kind) && x > q.x0 && x < q.x1 && z > q.z0 && z < q.z1 && y <= q.y1 && y > q.y1 - 0.5) { s = q; break; }
       if (s) {
         // well onto it: footing (this or a neighbouring step) all round the landing spot

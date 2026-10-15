@@ -417,6 +417,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       rate = 40;
     }
     const riding = S.boardT > 0 && S.mode === 'run';
+    if (S.hero === 'mei' && t - S.charmAt < 0.7 && S.mode === 'run') { // the charm: double peace signs up by her face
+      target = Object.assign({}, target, { armL: -2.5, armR: -2.5, armLz: -0.55, armRz: 0.55, nod: 0.15, look: 0.25 });
+    }
     if (riding && !p.air && p.slideT <= 0) target = { legL: -0.35, legR: 0.35, armL: -0.3, armR: -0.3, armLz: -1.1, armRz: 1.1, lean: 0.1, bob: 0.3 }; // surfing the manhole cover
     const swing = S.hero === 'chris' ? t - S.smashT : 9;
     pickaxe.visible = swing < 0.4;

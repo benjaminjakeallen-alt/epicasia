@@ -13,6 +13,7 @@
 // injects window.SHINKANSEN_INIT = { highScore, debug } and listens for
 // messages: ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
+import { SFX, audio, music, musicState, duck, muffled, isMuted, isMusicOn, setMuted, setMusic, setQuiet } from './sound.js';
 import { createSewer, stepSewer, featherAt, STEP as SEWER_STEP, BLOCK as SEWER_BLOCK, sewerPoints, routeExists, replay as sewerReplay } from './sewer.js';
 
 const INIT = window.SHINKANSEN_INIT || {};
@@ -41,10 +42,13 @@ const HEROES = {
   nicole: { name: 'NICOLE', skill: 'BOBA MAGNET · AUTO SLIDE', hint: 'PICKUPS COME TO YOU · SHE DUCKS CROWS' },
   jake: { name: 'JAKE', skill: 'MANHOLE SKATEBOARD', hint: 'EVERY 30 ONIGIRI: A SKATEBOARD' },
   liam: { name: 'LIAM', skill: 'NINJA STARS', hint: 'CROWS DON\'T STAND A CHANCE' },
-  mei: { name: 'MEI', skill: '', hint: '' } // (her skill is still to be picked)
+  mei: { name: 'MEI', skill: 'KAWAII CHARM', hint: 'TAP TO CHARM · HEARTS CLEAR THE WAY' }
 };
 const skill = (h) => S.hero === h && !S.simulating;
 const SMASH_EVERY = 8, GLIDE_V = 1.7, BOARD_EVERY = 30, BOARD_TIME = 15;
+// Mei's kawaii charm (user, Oct 15 2026): tap the screen (or C) → a peace-sign pose and a burst of
+// hearts; for CHARM_TIME anything on her roof she'd run into pops into hearts. Back after CHARM_EVERY.
+const CHARM_TIME = 2.5, CHARM_EVERY = 12, CHARM_PTS = 20;
 const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam', 'mei'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start, and Mei (Oct 14 2026).
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
@@ -378,68 +382,6 @@ function fairnessProblems() {
   return out.filter(function (x, i, a) { return a.indexOf(x) === i; });
 }
 
-// ---- sound (Web Audio, synthesized) ------------------------------------------------
-let AC = null, master = null, muted = false;
-try { muted = localStorage.getItem('shinkansen.muted') === '1'; } catch { /* storage off (sandboxed) */ }
-function audio() {
-  if (!AC) {
-    try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.connect(AC.destination); } catch { AC = null; }
-  }
-  if (AC && AC.state === 'suspended') AC.resume();
-  if (master) master.gain.value = muted ? 0 : 1;
-  return AC;
-}
-function tone(f, d, type, vol, slideTo, delay) {
-  const a = audio(); if (!a || muted) return;
-  const t0 = a.currentTime + (delay || 0);
-  const o = a.createOscillator(), g = a.createGain();
-  o.type = type || 'square'; o.frequency.setValueAtTime(f, t0);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + d);
-  g.gain.setValueAtTime(vol || 0.05, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + d + 0.02);
-}
-function noise(d, vol, freq, delay) {
-  const a = audio(); if (!a || muted) return;
-  const t0 = a.currentTime + (delay || 0), n = Math.floor(a.sampleRate * d);
-  const buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
-  const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-  f.type = 'lowpass'; f.frequency.value = freq || 800; g.gain.value = vol || 0.12;
-  src.buffer = buf; src.connect(f); f.connect(g); g.connect(master); src.start(t0);
-}
-const SFX = {
-  jump: function () { tone(380, 0.16, 'square', 0.04, 760); },
-  slide: function () { noise(0.25, 0.08, 1800); },
-  hop: function () { noise(0.1, 0.06, 3000); tone(600, 0.06, 'triangle', 0.03, 900); },
-  coin: function () { tone(1318, 0.07, 'square', 0.035); tone(1760, 0.1, 'square', 0.035, 0, 0.06); },
-  neko: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, 0.09, 'square', 0.04, 0, i * 0.07); }); },
-  crash: function () { noise(0.6, 0.22, 900); tone(220, 0.6, 'sawtooth', 0.06, 50); },
-  shield: function () { noise(0.3, 0.14, 2400); tone(880, 0.3, 'triangle', 0.05, 220); },
-  horn: function () { tone(330, 0.7, 'sawtooth', 0.035); tone(415, 0.7, 'sawtooth', 0.03); },
-  chime: function () { [659, 831, 988, 1319].forEach(function (f, i) { tone(f, 0.22, 'sine', 0.06, 0, i * 0.16); }); },
-  count: function (hi) { tone(hi ? 1046 : 523, hi ? 0.35 : 0.14, 'square', 0.045); },
-  sewer: function () { tone(520, 0.5, 'square', 0.04, 90); noise(0.5, 0.1, 500, 0.15); }, // down the manhole
-  pipe: function () { [392, 330, 262, 196, 131].forEach(function (f, i) { tone(f, 0.09, 'square', 0.04, 0, i * 0.08); }); }, // down the pipe
-  spring: function () { tone(300, 0.22, 'triangle', 0.05, 1200); tone(600, 0.16, 'square', 0.025, 1800, 0.05); },
-  locked: function () { tone(220, 0.12, 'square', 0.04); tone(165, 0.18, 'square', 0.04, 0, 0.1); },
-  star: function () { noise(0.08, 0.05, 5200); tone(2400, 0.08, 'triangle', 0.025, 3400); }, // a ninja star whips off
-  thunk: function () { noise(0.12, 0.09, 1200); tone(520, 0.1, 'square', 0.03, 180, 0.02); } // …and gets its crow
-};
-// A light chiptune loop while running.
-const MELODY = [523, 659, 784, 659, 587, 698, 880, 698, 523, 659, 784, 1046, 988, 784, 659, 587];
-const BASS = [131, 131, 175, 175, 147, 147, 196, 196];
-let musicT = 0, step = 0;
-function music(dt) {
-  if (S.mode !== 'run' || muted) return;
-  musicT -= dt;
-  if (musicT > 0) return;
-  musicT += 0.15 / Math.min(1.3, 0.9 + S.speed / 90);
-  if (step % 2 === 0) tone(MELODY[(step / 2) % 16], 0.12, 'triangle', 0.035);
-  if (step % 4 === 0) tone(BASS[(step / 4) % 8], 0.3, 'square', 0.025);
-  if (step % 4 === 2) noise(0.04, 0.03, 6000);
-  step++;
-}
-
 // ---- messages & particles --------------------------------------------------------------
 function say(txt, dur, col, big) { S.msgs.push({ txt: txt, t: dur || 1.4, d: dur || 1.4, col: col || '#ffd43b', big: !!big }); }
 function burst(x, y, z, cols, n, spd) {
@@ -458,11 +400,12 @@ function setMode(m) {
 function newRun(hero) {
   S.hero = hero; turnTo(ROSTER.indexOf(hero));
   seed = INIT.seed || (Date.now() % 2147483646) + 1;
+  S.runId = (S.runId || 0) + 1;
   Object.assign(S, {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false,
     sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0, stars: [], throws: 0, kills: 0, throwT: -9,
-    smashReady: 0, smashT: -9, smashes: 0, glides: 0, magnets: 0, autoSlides: 0, boardCount: 0, boardT: 0, boards: 0
+    smashReady: 0, smashT: -9, smashes: 0, charmReady: 0, charmT: 0, charmAt: -9, charms: 0, charmed: 0, glides: 0, magnets: 0, autoSlides: 0, boardCount: 0, boardT: 0, boards: 0
   });
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null, doubled: false, gliding: false };
   S.msgs = [];
@@ -541,6 +484,7 @@ window.addEventListener('keydown', function (e) {
   const k = KEYS[e.key];
   if (k) keyHeld[k] = true;
   if (k && !e.repeat) { act(k); e.preventDefault(); }
+  if ((e.key === 'c' || e.key === 'C' || e.key === 'Shift') && !e.repeat) { charm(); e.preventDefault(); }
 });
 window.addEventListener('keyup', function (e) { if (SEWER_KEYS[e.key]) padKeys[SEWER_KEYS[e.key]] = false; if (KEYS[e.key]) keyHeld[KEYS[e.key]] = false; });
 // Swipes anywhere on the screen; one move per swipe (lift and swipe again).
@@ -574,6 +518,15 @@ function touchEnd(e) {
     else if (i >= 0) { turnTo(i); SFX.hop(); haptic('light'); }
     else act(x < window.innerWidth / 2 ? 'L' : 'R');
   } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
+  else if (S.mode === 'run') charm();
+}
+/** Mei's kawaii charm: a tap while she runs. */
+function charm() {
+  if (!skill('mei') || S.mode !== 'run') return;
+  if (S.t < S.charmReady) { say('CHARM IN ' + Math.ceil(S.charmReady - S.t) + 's', 0.8, '#ffc9e3'); return; }
+  S.charmT = CHARM_TIME; S.charmReady = S.t + CHARM_EVERY; S.charmAt = S.t; S.charms++;
+  say('KAWAII!', 1.1, '#ff8fc7', true); SFX.charm(); haptic('success');
+  burst(S.p.x, S.p.y + 1.3, 0, ['#ff8fc7', '#ffd6ec', '#ffffff', '#ff5fa2'], 26, 4);
 }
 stage.addEventListener('pointerup', touchEnd);
 stage.addEventListener('pointercancel', function () { touch = null; });
@@ -630,24 +583,33 @@ function padRelease() {
 
 const pauseEl = document.getElementById('pause');
 function setMenu(on) {
-  S.menu = on; pauseEl.classList.toggle('show', on);
+  S.menu = on; pauseEl.classList.toggle('show', on); duck(on);
   padRelease();
   if (on) document.getElementById('resume').focus();
 }
 document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
 document.getElementById('resume').addEventListener('click', function () { setMenu(false); });
-document.getElementById('psound').addEventListener('click', function () {
-  muted = !muted; try { localStorage.setItem('shinkansen.muted', muted ? '1' : '0'); } catch { /* ok */ }
-  audio(); syncMute();
-});
+document.getElementById('psound').addEventListener('click', function () { setMuted(!isMuted()); syncMute(); });
+document.getElementById('pmusic').addEventListener('click', function () { setMusic(!isMusicOn()); syncMute(); });
 document.getElementById('exit').addEventListener('click', function () { sendScore('quit'); post({ type: 'exit' }); });
 document.getElementById('again').addEventListener('click', function () { newRun(S.hero); });
 document.getElementById('change').addEventListener('click', function () { setMode('select'); });
-function syncMute() { document.getElementById('psound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON'; if (master) master.gain.value = muted ? 0 : 1; }
+function syncMute() {
+  document.getElementById('psound').textContent = isMuted() ? 'SOUND: OFF' : 'SOUND: ON';
+  document.getElementById('pmusic').textContent = isMusicOn() ? 'MUSIC: ON' : 'MUSIC: OFF';
+}
 syncMute();
 
 // ---- update -----------------------------------------------------------------------------
-function speedFor(d) { return Math.min(36, 15 + d * 0.0045); }
+// The first lap speeds up from 15 to 32 m/s; then every time you pass Kyoto (each 5 km lap) the
+// trains go up a gear — 3.5 m/s faster, eased in over the first 400 m back in Tokyo — up to 50
+// (user, Oct 15 2026: "Shinkansen dash should get faster every time you pass Kyoto").
+const LAP_LEN = 5000, LAP_GEAR = 3.5, TOP = 50;
+function speedFor(d) {
+  const lap = Math.floor(d / LAP_LEN);
+  if (lap === 0) return Math.min(32, 15 + d * 0.0045);
+  return Math.min(TOP, 32 + LAP_GEAR * (lap - 1) + LAP_GEAR * Math.min(1, (d - lap * LAP_LEN) / 400));
+}
 
 function updateRunner(dt) {
   const p = S.p;
@@ -691,6 +653,10 @@ function updateRunner(dt) {
   }
   if (p.jbuf > 0) p.jbuf -= dt;
   if (S.invuln > 0) S.invuln -= dt;
+  if (S.charmT > 0) { // (hearts trail off her while it lasts)
+    S.charmT -= dt;
+    if (Math.floor(S.t * 10) !== Math.floor((S.t - dt) * 10)) S.parts.push({ x: p.x + (Math.random() - 0.5) * 0.8, y: p.y + 0.8 + Math.random() * 1.2, z: 0, vx: (Math.random() - 0.5) * 0.8, vy: 1.4, vz: 2, t: 0.7, col: Math.random() < 0.5 ? '#ff8fc7' : '#ffd6ec', s: 0.14 });
+  }
   p.anim += dt * (6 + S.speed * 0.25);
 
   if (p.air) {
@@ -728,6 +694,13 @@ function updateRunner(dt) {
     const lo = base + def.lo + (o.h || 0), hi = base + def.hi + (o.h || 0);
     if (!magnet && (p.y + h <= lo || p.y >= hi)) continue;
     if (magnet && (o.lane !== lane || p.y + h <= lo || p.y >= hi)) S.magnets++;
+    if (!def.pickup && S.charmT > 0) { // Mei's charm: it pops into hearts
+      o.gone = true; S.score += CHARM_PTS; S.charmed++;
+      burst(LANES[o.lane], lo + 0.5, S.dist - o.d, ['#ff8fc7', '#ffd6ec', '#ffffff', '#ff5fa2'], 18, 4);
+      S.pops.push({ txt: '+' + CHARM_PTS + ' ♥', t: 0.8, x: o.lane, y: lo + 0.8, d: o.d });
+      SFX.pop();
+      continue;
+    }
     if (!def.pickup && S.boardT > 0) { // the skateboard ploughs through
       o.gone = true; S.score += COIN;
       burst(LANES[o.lane], lo + 0.4, S.dist - o.d, ['#c9ced6', '#ffd43b', '#ffffff'], 14, 4);
@@ -823,7 +796,7 @@ function updateSewer(dt) {
       else if (e === 'feather') SFX.spring();
       else if (e === 'suit') { SFX.neko(); haptic('success'); say('TANUKI SUIT!', 1.6, '#ffd43b', true); say('TAP JUMP IN THE AIR TO FLOAT', 2.4, '#ffffff'); }
       else if (e === 'feather-again') SFX.coin();
-      else if (e === 'wag') tone(700, 0.08, 'triangle', 0.025, 500);
+      else if (e === 'wag') SFX.wag();
       else if (e === 'shrink') { SFX.shield(); haptic('error'); say('SUIT LOST!', 1.2, '#ff8787'); }
       else if (e === 'die') { SFX.crash(); haptic('error'); }
       else if (e === 'exit') { SFX.pipe(); haptic('success'); }
@@ -896,11 +869,10 @@ function update(dt) {
     const st = Math.floor(S.dist / STAGE_LEN), stage = st % 5, lap = Math.floor(st / 5);
     if (stage !== S.stage || lap !== S.lap) {
       S.stage = stage; S.lap = lap; S.maxStage = Math.max(S.maxStage, lap > 0 ? 4 : stage);
-      if (stage === 0) { say('ROUND ' + (lap + 1) + '!', 2, '#ffe066', true); say('BACK TO TOKYO, FASTER', 2, '#ffffff'); }
+      if (stage === 0) { say('ROUND ' + (lap + 1) + '!', 2, '#ffe066', true); say('BACK TO TOKYO · FASTER!', 2, '#ffffff'); SFX.lap(); }
       else say(STAGES[stage].name, 2.2, '#ffffff', true);
       SFX.chime(); haptic('light');
     }
-    music(dt);
   } else if (S.mode === 'crash') {
     S.speed = Math.max(0, S.speed - dt * 40);
     S.dist += S.speed * dt;
@@ -929,6 +901,8 @@ function frame(ts) {
   // steps on some frames — a visible stutter at these speeds, worst on 120 Hz
   // screens where every other frame had no step at all.)
   if (!S.paused && !S.menu) { let left = dt; while (left > 1e-6) { const h = Math.min(STEP, left); update(h); left -= h; } }
+  // the song plays through a run (muffled down in the sewer), a beat quicker every lap
+  music(S.mode === 'run' || S.mode === 'sewer' || S.mode === 'ready', S.runId, S.lap, S.speed); muffled(S.mode === 'sewer');
   R.render(dt);
   requestAnimationFrame(frame);
 }
@@ -942,7 +916,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get music() { return musicState(); }, get charm() { return { ready: S.t >= S.charmReady, on: S.charmT > 0, charms: S.charms, charmed: S.charmed }; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
   get sewer() { const w = S.sewer && S.sewer.s; return w ? { bricks: w.bricks, suit: w.suit, wags: w.wags, hurt: w.hurtT > 0, feathers: w.feathers.filter(function (f) { return !f.got; }).map(function (f) { return featherAt(f, w.t); }), x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
   sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
@@ -951,6 +925,7 @@ window.__dash = {
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)
 };
 if (INIT.debug) {
+  window.__dash.sfx = SFX;
   window.__dash.debug = {
     calm: function () { S.calm = true; S.obs.length = 0; S.gaps.length = 0; S.nextGap = 1e9; },
     spawn: function (type, lane, ahead) { add(type, lane, S.dist + ahead); },
@@ -983,7 +958,7 @@ function simulate(runSeed, metres) {
   INIT.seed = runSeed;
   newRun('chris');
   S.modeT = 2.4;
-  const muteWas = muted; muted = true;
+  setQuiet(true);
   S.simulating = true; // (the bot can't earn travellers)
   let steps = 0;
   const lane = function () { return S.p.lane; };
@@ -1014,7 +989,7 @@ function simulate(runSeed, metres) {
     update(STEP);
     steps++;
   }
-  muted = muteWas;
+  setQuiet(false);
   S.simulating = false;
   INIT.seed = keepSeed;
   const out = { dist: Math.round(S.dist), mode: S.mode, why: S.p.crash || null, stage: S.stage + 1, round: S.lap + 1, at: S.mode === 'crash' ? S.lastCrash : null };

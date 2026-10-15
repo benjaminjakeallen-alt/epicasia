@@ -1,4 +1,4 @@
-// HUD and title cards for Chain Gang Dynasty, on a 2D canvas over the 3D
+// HUD and title cards for Tug of Wall, on a 2D canvas over the 3D
 // scene in CSS pixels. Graffiti-ish type: heavy, outlined in ink with a
 // neon fill, like a Sunset Overdrive title.
 
@@ -105,8 +105,8 @@ export function createHud(canvas, game, view, toScreen) {
     const V = S.view;
     if (S.mode === 'wait' || S.mode === 'lobby') {
       ctx.fillStyle = 'rgba(26,11,46,0.55)'; ctx.fillRect(0, 0, W, H);
-      text('CHAIN GANG', W / 2, H * 0.36, 30, PINK, { depth: 4, lw: 9 });
-      text('DYNASTY', W / 2, H * 0.36 + 36 * u, 30, YELLOW, { depth: 4, lw: 9 });
+      text('TUG OF', W / 2, H * 0.36, 30, PINK, { depth: 4, lw: 9 });
+      text('WALL', W / 2, H * 0.36 + 36 * u, 30, YELLOW, { depth: 4, lw: 9 });
       const dots = '.'.repeat(1 + (Math.floor(t * 2) % 3));
       text(S.mode === 'wait' ? 'WAITING FOR THE HOST' + dots : 'WAITING FOR EVERYONE' + dots, W / 2, H * 0.36 + 84 * u, 13, '#ffffff', { lw: 3 });
       return;

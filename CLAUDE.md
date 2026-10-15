@@ -123,7 +123,7 @@ through them. Build it with standard accessibility practice:
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
 points and a leaderboard; **Lost in Translation**, **Konbini Review**,
-**Godzilla Rampage**, **Shinkansen Dash** and **Chain Gang Dynasty** (4-player
+**Godzilla Rampage**, **Shinkansen Dash** and **Tug of Wall** (4-player
 co-op) are built, plus a **trip leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
@@ -582,10 +582,17 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   (`longHair` adds a back panel and two front strands), freckles, the
   churro Mickey ears (golden rings dipped in chocolate, `tallHead` gives the
   head grid room above) with a silver bow, a sleeveless pastel checkered
-  knit top, jeans. **Playable from the start** (an assumption — say if she
-  should be a secret). Her ring dance: bouncing peace signs with a head
-  tilt, then hands under the chin. **Her special skill isn't chosen yet**
-  (`HEROES.mei.skill` empty) — being brainstormed with the user.
+  knit top, jeans. **Playable from the start** (user confirmed Oct 15
+  2026). Her ring dance: bouncing peace signs with a head tilt, then hands
+  under the chin. **Her skill — kawaii charm** (user's pick, Oct 15 2026):
+  **tap the screen** while running (a tap, not a swipe; or C / Shift) →
+  double peace signs up by her face, a burst of hearts and "KAWAII!"; for
+  `CHARM_TIME` 2.5 s anything on her roof she'd run into (fairings,
+  pantographs, gantries, crows) pops into hearts instead (+20 each,
+  `CHARM_PTS`); then `CHARM_EVERY` 12 s to recharge (HUD "CHARM READY · TAP"
+  / "CHARM 7s" / "♥ KAWAII ♥"; a tap too soon says "CHARM IN 5s"). It can't
+  save her from falling off the end of a train. `__dash.charm` {ready, on,
+  charms, charmed}.
   Runs save as hero `mei` (`0027_mei.sql`).
   **The picker is a ring** (user, Oct 12 2026: "rotary style where you can
   scroll through all character and only play the ones you unlock… Each
@@ -841,8 +848,27 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
 - **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
   (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
   Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in
-  Tokyo, faster. Speed 15 → 36 m/s. Tunnels every ~500–1000 m (darker
+  Tokyo, faster. **Faster every time you pass Kyoto** (user, Oct 15 2026):
+  the first lap goes 15 → 32 m/s, then each 5 km lap is a gear up
+  (`LAP_GEAR` 3.5 m/s, eased in over the first 400 m back in Tokyo; "BACK TO
+  TOKYO · FASTER!" and a little fanfare) to `TOP` 50 m/s from round 7.
+  Simulated: 20 of 20 bot runs pass 6 km, 19 pass 20 km (round 5, ~43 m/s),
+  7 of 8 reach 40 km at top speed. Tunnels every ~500–1000 m (darker
   light). Score = metres + onigiri + lucky cats.
+- **Sound** (`sound.js` on the shared synth `assets/games/shared/synth.js`,
+  user, Oct 15 2026: "a really catchy song that speeds up as the time you
+  pass Kyoto speeds the player up… subtle sound effects"): an upbeat J-pop /
+  eurobeat run over Am–F–C–G — four-on-the-floor kick, clap, offbeat open
+  hats with a clickety-clack before each bar, a bouncing octave bass, chord
+  stabs, an 8-bar hook on a soft detuned square lead, then 8 bars of a
+  plucked "train" arpeggio. **It follows the train:** 124 → 132 bpm through
+  the first lap, then each lap 8 bpm faster and a key higher (up to five
+  keys, 180 bpm max; `bpmFor()`); muffled (low-pass) down in the sewer,
+  ducked under the pause menu; it starts from the top each run. Effects are
+  soft and short (`SFX` — fwip, whoosh, soft bells for onigiri, chimes, a
+  bubble pop for each thing Mei's charm clears). Measured in Chromium: song
+  peaks ~0.19, effects 0.02–0.17. Pause menu: SOUND and MUSIC switches.
+  **Not heard on a phone yet.**
 - **Scores:** `game_scores` with game `shinkansen_dash`
   (`0020_shinkansen_dash.sql`); `level` = furthest stage (1–5), `round` =
   laps. Board line "as Emily · reached Mount Fuji" / "· round 2".
@@ -851,7 +877,8 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   ahead), lane, setDist, shield, gameOver, pause, go.
 - Tests: `e2e/shinkansen.spec.ts` (board, other games' scores excluded;
   Liam (not at 29,000, unlocked at 30,000, remembered, saved as him);
-  Jake (manhole → sewer, a missed jump ends the run, the full route → back
+  Mei's charm (a tap pops a fairing and a gantry, then recharges), faster
+  laps + a faster song + the MUSIC switch; Jake (manhole → sewer, a missed jump ends the run, the full route → back
   up sludge-covered and unlocked, sludge gone on the next run, saved as
   him); earning Emily, Miles (no double jump without a spring, a single jump
   passes under the guitar, the double jump gets it, the spring is used up,
@@ -861,15 +888,18 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   jump a fairing, slide a gantry and a crow, hop off an ending train, fall
   off one) + axe on the board and inside the game frame.
 
-### Games → Chain Gang Dynasty (built, Oct 14 2026)
+### Games → Tug of Wall (built, Oct 14 2026)
 
 The user's brief: "a 4 player game … a knock off version of Chained
 Together … on the Great Wall of China … 3 levels of different creative
 obstacles … art style in the vein of Sunset Overdrive … Chris, Jake,
 Bennett, Miles (I will do the girls later)"; **Mei** joined Oct 14 2026
 (five to pick from, 4 play — `HEROES` in game.js, `CHAIN_HEROES` in
-`chainGangRoom.ts`). Name and icon picked by the
-user from a shortlist ("Chain Gang Dynasty", icon A: the wall winding over a
+`chainGangRoom.ts`). **Renamed "Tug of Wall"** (user's pick, Oct 15 2026,
+once the chain became a rope; it was "Chain Gang Dynasty") — only what
+players see changed: the game key stays `chain_gang`, files stay
+`chaingang`, so old scores carry over. Icon picked by the
+user from a shortlist (icon A: the wall winding over a
 grassy hill to a watchtower with a sage banner, `assets/images/games/
 chain-gang.png`, prompts in `tools/menu-icons/README.md`).
 - **Playing together = room codes** (user's pick; Bluetooth isn't open to a
@@ -966,9 +996,28 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   with nobody holding on to anything for 2 s can't climb its own chain any
   more (it used to juggle itself in mid-air for ever). **Tighter controls:**
   `ACC` 62, `FRICTION` 58, `AIR_ACC` 20 (were 40/36/14); the model turns to
-  face the stick ~2× faster; the camera only drifts round behind you while
-  the stick points forward (drifting while steering sideways bent a held
-  direction into a curve). Fuzzing (a random-input
+  face the stick ~2× faster.
+  **Controls modelled on platformer practice** (user, Oct 15 2026: "still too
+  loose… research high quality game controls"; sources: GMTK's Platformer
+  Toolkit discussions, Juicy Beast's Toto Temple notes, the Odyssey wiki's
+  running/pivot data, jump-feel guides): **the stick** — a 15% dead zone,
+  then full speed by 70% of the throw (a thumb on glass rarely pushes all
+  the way; it used to need 77% for full speed and crept below that), a
+  slightly gentle curve near the middle; **a held direction stays put** —
+  steering anywhere but straight on keeps the direction you chose even as
+  the camera swings round a bend (`steer.yaw`). **Turning** swings your run
+  round at `TURN` 14 rad/s keeping its speed instead of scrubbing it off,
+  reversing gets a `SKID` 1.8× push; **jumps** — tap for a short hop
+  (rising speed × `JUMP_CUT` 0.5 when you let go), hold for the full jump,
+  fall `FALL_MULT` 1.35× harder than you rise with a little hang at the top
+  (`APEX`, gravity × 0.6 within 1.2 m/s of the peak while held), coyote time
+  and a jump buffer as before; **the rope** still moves someone on the
+  ground but no longer leaves them sliding (it only gives velocity to
+  travellers in the air). Bots always jump full height (their jumps are
+  planned), and their planner now refuses jumps that fly into something on
+  the way (the carousel's drum caught a lone bot). Re-proved: 96/96 bot
+  gangs, and a person leading three bots (holding JUMP for full jumps) on
+  all three stretches. Fuzzing (a random-input
   player among bots, 400k steps) ends with nobody inside stone.
 - **A rope, not a chain** (user, Oct 15 2026 — "change the chain to a rope…
   we will need a new name"; the name is still to be picked). **Every object
@@ -1080,6 +1129,10 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   (`chaingang.muted` / `chaingang.music`; the sandboxed frame usually can't
   keep them). **Not heard on a phone yet** — the levels were measured, not
   listened to.
+- The shared synth (`assets/games/shared/synth.js`): Tug of Wall and
+  Shinkansen Dash both play through it — a compressor, effects/music buses,
+  pause ducking, a muffle, tone/noise/pluck/lead/drum voices and a step
+  sequencer whose tempo is asked every step. Each game bundles its own copy.
 - `window.__chain`: mode, net, me, level, total, scores, falls, cp, players,
   roster, camYaw, route, music, simulate, screenPoint; in development `sfx`, `debug.auto(on)`,
   `finishLevel()`, `setLevel(n)`, `fall()` (the whole gang), `skipTitle()`, `warp(x, y, z, yaw)`.
@@ -1563,7 +1616,7 @@ backend code.
   `0024_shinkansen_jake.sql` (… and `jake`),
   `0025_shinkansen_liam.sql` (… and `liam`),
   `0026_chain_gang.sql` (`game_scores.game` may be `chain_gang`; the
-  realtime policies also allow `chaingang:%` topics — see Chain Gang Dynasty),
+  realtime policies also allow `chaingang:%` topics — see Tug of Wall),
   `0027_mei.sql` (`game_scores.hero` may be `mei`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
