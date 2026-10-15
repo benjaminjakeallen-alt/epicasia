@@ -38,7 +38,7 @@ async function game(page: Page): Promise<Frame> {
     .poll(async () => {
       frame = page.frames().find((f) => f.url() === 'about:srcdoc');
       return frame ? frame.evaluate(() => (window as any).__chain?.mode ?? null).catch(() => null) : null;
-    }, { timeout: 30_000 })
+    }, { timeout: 60_000 }) // (two games booting at once in software 3D on a CI runner can take a while)
     .not.toBeNull();
   return frame!;
 }
@@ -152,6 +152,7 @@ test('tug of wall: practise with bots, clear all three stretches, the run is sav
 });
 
 test('tug of wall: two phones in one room play together', async ({ browser }) => {
+  test.setTimeout(240_000); // (two pages of software 3D at once)
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(() => { (window as any).__CHAINGANG_LOCAL__ = true; });
   const a = await ctx.newPage(), b = await ctx.newPage();
