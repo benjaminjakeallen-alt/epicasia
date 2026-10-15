@@ -61,6 +61,7 @@ export default function Games() {
   // pause mid-slide long enough to look like a swipe that came to rest)
   const sliding = useRef<{ to: number; until: number } | null>(null);
   function slideTo(k: number) {
+    if (settle.current) clearTimeout(settle.current);
     sliding.current = { to: k * STEP, until: Date.now() + 1500 };
     carousel.current?.scrollTo({ x: k * STEP, animated: true });
   }
@@ -78,6 +79,8 @@ export default function Games() {
   }, [float]);
 
   function choose(i: number) {
+    // (a swipe that was about to settle mustn't then switch back to what it was resting on)
+    if (settle.current) clearTimeout(settle.current);
     const next = (i + GAMES.length) % GAMES.length;
     if (next === index) return;
     selectionTick();

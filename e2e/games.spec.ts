@@ -86,6 +86,9 @@ test('Games hub: a stage shows the picked game; tiles switch it, Play opens it',
   await page.mouse.wheel(-98, 0);
   await expect(page.getByTestId('games-title')).toHaveText('Chain Gang Dynasty');
   await page.getByRole('tab', { name: 'Lost in Translation' }).click();
+  await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
+  await expect.poll(still, { timeout: 10_000 }).toBe(true);
+  await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation'); // (and it stayed)
   await page.getByTestId('games-play').click();
   await expect(page.getByRole('heading', { name: 'Lost in Translation' }).last()).toBeVisible();
   await expect(page.getByTestId('lit-add')).toBeVisible();
