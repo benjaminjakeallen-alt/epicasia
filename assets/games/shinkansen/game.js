@@ -13,6 +13,7 @@
 // injects window.SHINKANSEN_INIT = { highScore, debug } and listens for
 // messages: ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
+import { tunnelCeiling } from './models.js';
 import { SFX, audio, music, musicState, duck, muffled, isMuted, isMusicOn, setMuted, setMusic, setQuiet } from './sound.js';
 import { createSewer, stepSewer, featherAt, STEP as SEWER_STEP, BLOCK as SEWER_BLOCK, sewerPoints, routeExists, replay as sewerReplay } from './sewer.js';
 
@@ -101,7 +102,7 @@ const BOBA_FROM = 3 * STAGE_LEN, BOBA = 250;
 const SPRING_FROM = STAGE_LEN, GUITAR_AFTER = 200, GUITAR = 500; // springs from Rice Fields on; the guitar ≥ 200 m past one
 
 // ---- the runner -----------------------------------------------------------------
-const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16; // a jump is ~1.37 m high, ~0.74 s long
+const JUMP_V = 7.4, GRAV = 20, DIVE_V = -16, HEAD = 2.1; // a jump is ~1.37 m high, ~0.74 s long (HEAD: feet to the top of the head, with a little room)
 const SLIDE_TIME = 0.72, LANE_TIME = 0.15, JUMP_BUFFER = 0.15;
 const STAND_H = 1.7, SLIDE_H = 0.72;
 const COIN = 25, NEKO = 100;
@@ -698,6 +699,8 @@ function updateRunner(dt) {
     p.gliding = skill('bennett') && held('U') && !p.dive && p.vy < -GLIDE_V; // Bennett's poncho catches the air
     if (p.gliding) { p.vy = -GLIDE_V; S.glides += dt; }
     p.y += p.vy * dt;
+    // a tunnel has a roof: your head bumps it (Miles's double jump and then a spring on top could reach it)
+    if (p.vy > 0 && inTunnel(S.dist)) { const top = tunnelCeiling(p.x, ROOF) - HEAD; if (p.y > top) { p.y = top; p.vy = 0; } }
     if (roof !== null && p.y <= roof && p.vy <= 0) {
       p.y = roof; p.air = false; p.vy = 0; p.landT = S.t; p.doubled = false; p.gliding = false;
       if (p.dive) { p.dive = false; p.slideT = SLIDE_TIME; SFX.slide(); }
@@ -970,6 +973,7 @@ window.__dash = {
   sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
   programs: function () { return R.programs(); },
+  camHeight: function () { return R.camHeight(); },
   shown: function (kind) { return R.shown(kind); }, // where the visible models of a kind are (tests)
   heroPoint: function (i) { return R.heroPoint(i); } // where hero i stands on the select screen (client px, tests)
 };
@@ -986,6 +990,7 @@ if (INIT.debug) {
     missions: function (ids) { S.missions = ids.map(function (id) { return { m: MISSIONS.find(function (m) { return m.id === id; }), done: false }; }); },
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
+    tunnel: function (ahead, len) { S.tunnels = S.tunnels.filter(function (t) { return t.d1 < S.dist; }); S.tunnels.push({ d0: S.dist + ahead, d1: S.dist + ahead + (len || 120) }); S.nextTunnel = S.dist + 2000; },
     spring: function () { S.spring = true; },
     manhole: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2, manhole: true }); return g0 - S.dist; },
     sewer: function () { enterSewer(); },

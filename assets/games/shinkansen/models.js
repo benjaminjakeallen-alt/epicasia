@@ -354,10 +354,19 @@ export function makeManhole() {
 }
 
 // ---- along the line --------------------------------------------------------------------
+// The tunnel's arch (user, Oct 17 2026: jumping in a tunnel "the character goes through the ceiling or
+// it disappears"): tall enough over the side trains for a double jump, and for the chase camera, which
+// rides above and behind you and rises as you jump — it used to come up through the lining
+export const TUNNEL_W = 7.8, TUNNEL_RISE = 6.6;
+/** How high the inside of the arch is at x (for the camera). */
+export function tunnelCeiling(x, roof) {
+  const u = Math.min(1, Math.abs(x) / TUNNEL_W);
+  return 2 + (roof + TUNNEL_RISE - 2) * Math.sqrt(1 - u * u);
+}
 /** A ring of tunnel lining (concrete arch over all three tracks). */
 export function makeTunnelRing(len, roof) {
   const b = new VoxBuilder(), glow = new VoxBuilder();
-  const W = 7.8, Hh = roof + 4.6;
+  const W = TUNNEL_W, Hh = roof + TUNNEL_RISE;
   b.add(Math.round((W * 2) / 0.5) + 2, Math.round(Hh / 0.5) + 2, Math.round(len / 0.5), (x, y, z) => {
     const wx = -W - 0.5 + x * 0.5, wy = y * 0.5;
     const r = Math.hypot(wx / W, Math.max(0, wy - 2) / (Hh - 2));
@@ -370,16 +379,19 @@ export function makeTunnelRing(len, roof) {
   g.add(mesh(b.geometry()), new THREE.Mesh(glow.geometry(), GLOW));
   return g;
 }
+// (its voxels on exactly the lining's grid — x from −W − 0.5 in 0.5 m steps — and in front of the
+// lining, not overlapping it: the two grids were 0.2 m apart and shared the first 1.5 m, and the
+// faces fought — "moving pixels" round the rim as you ran in)
 /** A tunnel mouth (portal facade with grass on top). */
 export function makePortal(roof) {
   const b = new VoxBuilder();
-  const W = 7.8, Hh = roof + 4.6;
-  b.add(48, 26, 3, (x, y, z) => {
-    const wx = -12 + x * 0.5, wy = y * 0.5;
+  const W = TUNNEL_W, Hh = roof + TUNNEL_RISE, X0 = -W - 0.5 - 3.5;
+  b.add(48, 30, 3, (x, y, z) => {
+    const wx = X0 + x * 0.5, wy = y * 0.5;
     if (Math.hypot(wx / W, Math.max(0, wy - 2) / (Hh - 2)) < 1) return null;
-    if (y >= 23) return z === 2 || hash3(x, y, z) < 0.6 ? 0x5fa35a : 0x4b8a47;
+    if (y >= 27) return z === 2 || hash3(x, y, z) < 0.6 ? 0x5fa35a : 0x4b8a47;
     return (x + y) % 5 === 0 ? 0x7d838c : 0x9aa0a8;
-  }, { size: 0.5, offset: [-12, 0, -1.5] });
+  }, { size: 0.5, offset: [X0, 0, 0] });
   return mesh(b.geometry());
 }
 

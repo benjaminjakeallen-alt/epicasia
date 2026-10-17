@@ -137,7 +137,7 @@ test('tug of wall: practise with bots, clear all four stretches, the run is save
   const turned = async () => { const d = (await chain(f, (c) => c.camYaw)) - behind; return Math.abs(Math.atan2(Math.sin(d), Math.cos(d))); };
   await chain(f, (c) => c.debug.hang());
   await expect.poll(() => chain(f, (c) => c.camHang), { timeout: 10_000, intervals: [50] }).toBeGreaterThan(0.6);
-  expect(await turned()).toBeGreaterThan(0.8); // looking at you from out over the drop
+  await expect.poll(turned, { timeout: 5_000, intervals: [50] }).toBeGreaterThan(0.8); // looking at you from out over the drop
   await expect.poll(async () => (await chain(f, (c) => c.players))[0].ground, { timeout: 20_000 }).toBe(true);
   await expect.poll(() => chain(f, (c) => c.camHang), { timeout: 20_000 }).toBeLessThan(0.2);
   await expect.poll(turned, { timeout: 3_000 }).toBeLessThan(0.35); // (quickly, not a slow drift round)

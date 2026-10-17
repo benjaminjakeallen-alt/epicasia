@@ -719,6 +719,28 @@ test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett
   }
   await debug(f, 'pause', false);
   expect((await skills(f)).spring).toBe(false);
+
+  // In a tunnel (user, Oct 17 2026: jumping in one "the character goes through the ceiling or it
+  // disappears"): his double jump and then a spring on top — the highest anyone gets — bump their head
+  // on the arch over the side train instead of going through it, and the camera stays inside the tunnel.
+  await debug(f, 'lane', 0);
+  await debug(f, 'tunnel', 0, 400);
+  await debug(f, 'spring');
+  await debug(f, 'pause', true);
+  let top = 0;
+  for (let k = 0; k < 3; k++) {
+    await page.keyboard.press('ArrowUp');
+    for (let j = 0; j < 4; j++) { await debug(f, 'step', 5); top = Math.max(top, (await st(f)).y); }
+  }
+  for (let j = 0; j < 12; j++) {
+    await debug(f, 'step', 5); top = Math.max(top, (await st(f)).y);
+    await page.waitForTimeout(120); // (let it draw a frame)
+    const cam = await f.evaluate(() => (window as any).__dash.camHeight());
+    expect(cam.y).toBeLessThan(cam.ceiling - 0.5);
+  }
+  expect(top).toBeGreaterThan(3); // (three jumps up…)
+  expect(top).toBeLessThanOrEqual(3.71); // (…to the arch: 9.2 m over the side train, less the head)
+  await debug(f, 'pause', false);
 });
 
 test('skills: Emily’s endless slide, Nicole’s boba magnet and crow ducking, Jake’s manhole skateboard', async ({ page }) => {

@@ -8,7 +8,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { MAT, makeHero, makeHeroine, makePickaxe } from '../rampage/models.js';
 import {
   GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeHeron, makeLanternArch, makeShuriken, makeBoard, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
-  makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
+  makeTunnelRing, makePortal, tunnelCeiling, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
 import { createSewer3D } from './sewer3d.js';
@@ -388,6 +388,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     return { x: RING_R * Math.sin(a), z: -RING_R + RING_R * Math.cos(a), depth: Math.cos(a), a };
   }
   const cam = { pos: new THREE.Vector3(0, ROOF + 1.3, 7), look: new THREE.Vector3(0, ROOF + 0.85, 0) };
+  const CAM_BACK = 8.6; // (how far behind you the chase camera rides)
   function camTarget() {
     if (S.mode === 'select') {
       const half = Math.tan((camera.fov / 2) * Math.PI / 180);
@@ -395,7 +396,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       return { pos: new THREE.Vector3(0, ROOF + 1.6, dist), look: new THREE.Vector3(0, ROOF + 0.7, -RING_R * 0.55) };
     }
     const px = S.p ? S.p.x : 0, py = S.p ? Math.max(-1.5, S.p.y - ROOF) : 0;
-    return { pos: new THREE.Vector3(px * 0.55, ROOF + 4.3 + py * 0.35, 8.6), look: new THREE.Vector3(px * 0.75, ROOF + 0.3 + py * 0.5, -18) };
+    const pos = new THREE.Vector3(px * 0.55, ROOF + 4.3 + py * 0.35, CAM_BACK), look = new THREE.Vector3(px * 0.75, ROOF + 0.3 + py * 0.5, -18);
+    // in a tunnel (or about to be: the camera is 8.6 m behind you), never up through its lining
+    if (game.inTunnel(S.dist - CAM_BACK) || game.inTunnel(S.dist - CAM_BACK + 3)) pos.y = Math.min(pos.y, tunnelCeiling(pos.x, ROOF) - 0.9);
+    return { pos, look };
   }
   const PV = new THREE.Vector3();
   function toScreen(x, y, z) {
@@ -592,7 +596,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     S.tunnels.forEach((tn) => {
       for (let d = tn.d0; d < tn.d1; d += 10) {
         if (d > to || d + 10 < from) continue;
-        take('ring', () => makeTunnelRing(10, ROOF)).position.set(0, 0, z(d));
+        // (the last ring cut to end exactly at the far portal, not poking out through it)
+        const ring = take('ring', () => makeTunnelRing(10, ROOF));
+        ring.position.set(0, 0, z(d)); ring.scale.z = Math.min(10, tn.d1 - d) / 10;
       }
       if (tn.d0 > from && tn.d0 < to) { const p = take('portal', () => makePortal(ROOF)); p.position.set(0, 0, z(tn.d0)); p.rotation.y = 0; }
       if (tn.d1 > from && tn.d1 < to) { const p = take('portal', () => makePortal(ROOF)); p.position.set(0, 0, z(tn.d1)); p.rotation.y = Math.PI; }
@@ -824,6 +830,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       sync(elapsed);
       const ct = camTarget(), k = 1 - Math.exp(-elapsed * 6);
       cam.pos.lerp(ct.pos, k); cam.look.lerp(ct.look, k);
+      if (S.mode !== 'select' && (game.inTunnel(S.dist - CAM_BACK) || game.inTunnel(S.dist - CAM_BACK + 3))) cam.pos.y = Math.min(cam.pos.y, tunnelCeiling(cam.pos.x, ROOF) - 0.9);
       const sh = S.shakeT > 0 ? 0.12 : 0;
       camera.position.set(cam.pos.x + (Math.random() - 0.5) * sh, cam.pos.y + (Math.random() - 0.5) * sh, cam.pos.z);
       // a gentle roll with the runner's lean, and a wider view as the train speeds up
@@ -855,5 +862,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const ringSettled = () => Math.abs((S.ring || 0) - ringRot) < 0.01;
 
   const shown = (kind) => (pools[kind] || []).filter((m) => m.visible).map((m) => [+m.position.x.toFixed(1), +m.position.y.toFixed(2), +m.position.z.toFixed(1)]); // (tests)
-  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, ringSettled, shown, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
+  // (tests: where the camera is, and how high the tunnel's arch is just over it)
+  const camHeight = () => ({ y: camera.position.y, ceiling: tunnelCeiling(camera.position.x, ROOF) });
+  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, ringSettled, shown, camHeight, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
 }

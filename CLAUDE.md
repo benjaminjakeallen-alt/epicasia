@@ -892,6 +892,23 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   drifting soft clouds; speed lines past ~19 m/s. **No catenary poles**
   along the line (user, Oct 11 2026: "remove the overhead street lamp like
   things") — don't add them back; the signal gantries are obstacles and stay.
+- **Tunnels (user, Oct 17 2026):** the user reported "moving pixels" round
+  a tunnel's rim, and that jumping in a tunnel "the character goes through
+  the ceiling or it disappears".
+  - *The rim:* the portal's voxels were on a grid 0.2 m off the lining's,
+    and the two overlapped for 1.5 m, so their faces fought. The portal
+    is now on the lining's exact grid, just in front of it, and the last
+    ring is cut to end at the far portal.
+  - *The ceiling:* the arch was ~7.8 m over the side trains, and the chase
+    camera (7.7 m, rising as you jump) came up through it. The arch is now
+    2 m taller (`TUNNEL_RISE` 6.6 over the roofs; `tunnelCeiling(x)` in
+    models.js). The camera is held 0.9 m under it while it's in or about
+    to enter a tunnel.
+  - *Jumps:* a jump bumps your head on the arch (`HEAD` 2.1 m) rather
+    than going through it. Only Miles's double jump plus a spring gets
+    that high.
+  - Debug `tunnel(ahead, len)`; `__dash.camHeight()`. Tested in the
+    skills spec (it fails without the ceiling).
 - **Route:** 1,000 m per stage — Tokyo (city, neon), Rice Fields
   (paddies, farmhouses), Mount Fuji (sakura, Fuji on the horizon), Tea
   Hills, Kyoto (maples, pagodas, torii, sunset) — then round 2 back in
