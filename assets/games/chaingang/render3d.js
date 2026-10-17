@@ -376,13 +376,15 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         if (!lowPower) { const glow = new THREE.PointLight(0xff6a3a, 6, 8, 2); glow.position.y = -1.05; g.add(glow); }
         // (a sky lantern: it floats and sways on its own — no rope through where people stand)
       } else if (m.kind === 'cart') {
-        g.add(outlined(boxGeo(m.w, m.h, m.d, 1), WOOD)); // its box is exactly its solid one: the top is the floor you stand on
+        // its box is exactly its solid one: the top is the floor you stand on. The trim sits on the body,
+        // not inside it (sharing the top face, the two flickered in and out — "weird non-solid pixels")
+        const body = outlined(boxGeo(m.w, m.h - 0.12, m.d, 1), WOOD); body.position.y = -0.06; g.add(body);
         const trim = outlined(boxGeo(m.w, 0.12, m.d, 1), GOLD); trim.position.y = m.h / 2 - 0.06; g.add(trim);
         // the two overhead cables its hangers run on, either side, from end to end of its run (well out of reach)
         const p = m.path, ex = p.bx - p.ax, ez = p.bz - p.az, el = Math.hypot(ex, ez) || 1, ux = ex / el, uz = ez / el;
         for (const e of [-1.4, 1.4]) levelGroup.add(rod(new THREE.Vector3(p.ax - ux * 3 - uz * e, p.ay + 2.8, p.az - uz * 3 + ux * e), new THREE.Vector3(p.bx + ux * 3 - uz * e, p.ay + 2.8, p.bz + uz * 3 + ux * e), 0.04, ROPE));
       } else if (m.kind === 'wheel') {
-        g.add(outlined(boxGeo(m.w, m.h, m.d, 1), WOOD));
+        const body = outlined(boxGeo(m.w, m.h - 0.08, m.d, 1), WOOD); body.position.y = -0.04; g.add(body); // (the trim on top of it, not inside it)
         const trim = outlined(boxGeo(m.w, 0.08, m.d, 1), NEONM[movers.length % NEONM.length]); trim.position.y = m.h / 2 - 0.04; g.add(trim);
       } else if (m.kind === 'part') { // a solid part riding with something: drawn to its box
         if (m.look === 'dragonHead') {
@@ -401,7 +403,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         } // (lanternBody: the lantern under the platform, already drawn with it)
       } else { // the parade dragon: red and gold, carried on poles (its box is exactly its solid one)
         g.add(outlined(boxGeo(m.w, m.h, m.d, 1), RED));
-        [-1, 1].forEach((sd) => { const fr = outlined(boxGeo(0.12, m.h * 0.7, m.d * 0.9, 1), GOLD); fr.position.set(sd * (m.w / 2 - 0.06), 0, 0); g.add(fr); });
+        [-1, 1].forEach((sd) => { const fr = outlined(boxGeo(0.12, m.h * 0.7, m.d * 0.9, 1), GOLD); fr.position.set(sd * (m.w / 2 - 0.04), 0, 0); g.add(fr); }); // (2 cm proud of its sides: flush, they flickered)
       }
       levelGroup.add(g);
       movers.push({ m, g });
@@ -524,7 +526,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         target = { bob: -1.2, lean: -0.35, legL: -1.3, legR: 0.9, armL: -1.5 + h * 0.55, armR: -1.5 - h * 0.55, armLz: -0.15, armRz: 0.15, nod: 0.25 };
       } else if (p.grab) target = { bob: -1.4, lean: 0.55, legL: -1.1, legR: 0.6, armL: -1.2, armR: -1.2, armLz: -0.3, armRz: 0.3, nod: -0.2 }; // dug in, hands on the rope
       else if (p.knock) target = { lean: -0.6, armL: -2.6, armR: -2.2, armLz: -0.8, armRz: 0.8, legL: -0.8, legR: 0.6 };
-      else if (!p.ground && p.taut && p.vy < 1) target = { armL: -3.0, armR: -2.8, legL: Math.sin(t * 9 + i) * 0.6, legR: -Math.sin(t * 9 + i) * 0.6, nod: 0.3 }; // dangling
+      else if (!p.ground && (p.hung || (p.taut && p.vy < 1))) target = { armL: -3.0, armR: -2.8, legL: Math.sin(t * 9 + i) * 0.6, legR: -Math.sin(t * 9 + i) * 0.6, nod: 0.3 }; // dangling
       else if (!p.ground) target = { legL: p.vy > 0 ? -1.2 : -0.5, legR: p.vy > 0 ? 0.5 : 0.2, armL: -2.5, armR: -2.3, armLz: -0.4, armRz: 0.4, lean: 0.12 };
       else if (speed > 0.6) {
         a.ph += dt * speed * 2.2;
@@ -732,8 +734,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     const spread = Math.max(...V.players.map((p) => Math.hypot(p.x - me.x, p.z - me.z)));
     const dist = 6.8 + Math.min(4, spread * 0.25), pitch = S.cam.pitch;
     const fx = Math.sin(S.cam.yaw), fz = Math.cos(S.cam.yaw);
-    LOOK.set(me.x + fx * 1.5, me.y + 1.5, me.z + fz * 1.5);
-    TMP.set(me.x - fx * dist * Math.cos(pitch), me.y + 1.5 + dist * Math.sin(pitch), me.z - fz * dist * Math.cos(pitch));
+    const lift = S.cam.lift * S.cam.hang; // (hanging off a ledge: look up toward it)
+    LOOK.set(me.x + fx * 1.5, me.y + 1.5 + lift, me.z + fz * 1.5);
+    TMP.set(me.x - fx * dist * Math.cos(pitch), me.y + 1.5 + dist * Math.sin(pitch) + lift * 0.4, me.z - fz * dist * Math.cos(pitch));
     const k = cam.ready ? 1 - Math.exp(-dt * 8) : 1;
     cam.pos.lerp(TMP, k); cam.look.lerp(LOOK, k);
     cam.ready = true;

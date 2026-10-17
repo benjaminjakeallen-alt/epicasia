@@ -1173,7 +1173,43 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   they're standing) — the dangler's own phone moves them, so it works online;
   bots now dig in and reel a neighbour in rather than walking away, and step
   straight off furniture (they used to stand on the rocket racks for ever).
-  `__chain.reelTest(grab)` checks it headless. **Looks:** each rope glows warm
+  `__chain.reelTest(grab)` checks it headless.
+  **Hanging fixes (user, Oct 17 2026: on Dragon Festival "these platforms
+  have weird non solid pixels", a hanging traveller "oddly bounces a little
+  over and over", and "the camera should swing in front of [the] character
+  so they can see how to jump up from a fall"):**
+  - *Platforms:* the carousel's and the carts' bodies were coplanar with
+    their trim, so they z-fought. The bodies now stop under the trim, and
+    the dragon's gold strips sit just inside its sides.
+  - *Hanging:* a traveller is `hung` (on every phone, flag 32 in
+    snapshots) after 0.35 s dangling at the end of the rope, well below a
+    teammate who's on their feet. It lasts until they're standing.
+  - *The bounce* came from the reel: it fired only on the frames the rope
+    was taut, kicked them up, the rope went slack, they dropped back, and
+    a bot holding them grabbed/let go with the taut flag. Now:
+    - once a haul starts it's steady (`hung` is set, and it continues
+      however close they get);
+    - the lift is a servo to just over the lip that only ever lifts (it
+      never slows a jump);
+    - they're drawn in at `REEL_IN_V` 1.6 m/s until there's ground under
+      them.
+  - *Bots digging in:* a bot digs in for a neighbour hanging clearly below
+    (`hanging`) and keeps holding (`p.reelFor`, ≤ 5 s, let go if the reel
+    doesn't take them) until they stand. It doesn't dig in when the
+    dangler's other neighbour is higher and already dug in: two dug in
+    either side was a tug-of-war that held the dangler stuck in the middle.
+  - *Moving holders:* reeling from someone on something moving (the
+    carousel) is allowed. It's not allowed with a moving thing right above
+    the dangler (`overhead`, which used to jam them under a cart).
+  - *Camera:* while you're `hung`, it turns to look from out over the drop
+    back at you and the teammate above (`S.cam.hang`, eased; `HANG_PITCH`
+    0.12, look target raised by `lift`), then swings back once you stand.
+    `debug.hang()` sets this up, and the practise spec checks `camHang`.
+  - Re-proved: 128/128 bot gangs, 12/12 person-led, the rope never inside
+    anything. Headless: hanging alone hangs still, and a held GRAB brings
+    them up smoothly in ~1.7 s with one grab (bots too).
+
+  **Looks:** each rope glows warm
   and throbs when pulled tight; a traveller hauling leans back hand over hand;
   watchtowers set off fireworks (rockets with spark trails, a soft boom) and
   their flag springs up; crumbling stones wobble more and more and shed grit.

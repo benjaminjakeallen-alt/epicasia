@@ -34,7 +34,7 @@ export function medalFor(lv, time, falls) {
 export const EMOTES = ['👋 HI!', '⏳ WAIT!', '➡️ THIS WAY!', '🙌 NICE!'];
 const TIPS_HOLD = 12; // the first time ever (solo): the first title card waits for a tap, at most this long
 const TITLE_T = 2.8, CLEAR_T = 4.5;
-const PITCH = 0.42; // how far the camera looks down on you
+const PITCH = 0.42, HANG_PITCH = 0.12; // how far the camera looks down on you (and while you hang off a ledge)
 const SNAP_EVERY = 1 / 15, STATE_EVERY = 1 / 15, INTERP = 0.12;
 
 const NET = INIT.mode === 'host' || INIT.mode === 'client' ? INIT.mode : 'solo';
@@ -60,7 +60,7 @@ export const S = {
   hi: Math.max(0, INIT.highScore | 0), msgs: [], view: null, gone: false, auto: false,
   // where the camera looks (yaw 0 = +z): `base` follows the way on along the Wall by itself, `peek` is
   // a look round from dragging the screen that springs back when you let go
-  cam: { yaw: Math.PI, base: Math.PI, peek: 0, pitch: PITCH, dragAt: -1e9, s: -1 },
+  cam: { yaw: Math.PI, base: Math.PI, peek: 0, pitch: PITCH, dragAt: -1e9, s: -1, hang: 0, lift: 0 },
 };
 /** Turns the camera to look along a direction on the ground. */
 function lookAlong(dir) { S.cam.base = S.cam.yaw = Math.atan2(dir[0], dir[1]); S.cam.peek = 0; S.cam.s = -1; }
@@ -376,7 +376,7 @@ function snapshot() {
     ev: events,
   };
 }
-const flagsOf = (p) => (p.ground ? 1 : 0) | (p.grab ? 2 : 0) | (p.zip ? 4 : 0) | (p.taut ? 8 : 0) | (p.knockT > 0 ? 16 : 0);
+const flagsOf = (p) => (p.ground ? 1 : 0) | (p.grab ? 2 : 0) | (p.zip ? 4 : 0) | (p.taut ? 8 : 0) | (p.knockT > 0 ? 16 : 0) | (p.hung ? 32 : 0);
 const snaps = []; // client: the last few snapshots, oldest first
 let clientClock = null, lastSnapAt = 0;
 function onSnapshot(s) {
@@ -493,7 +493,7 @@ function clientView() {
 function makePlayer(i, x, y, z, vx, vy, vz, flags, face) {
   const r = S.roster[i];
   return { i, hero: r.hero, name: i === S.me ? 'YOU' : r.name, color: COLORS[i], bot: r.bot, me: i === S.me,
-    x, y, z, vx, vy, vz, ground: !!(flags & 1), grab: !!(flags & 2), zip: !!(flags & 4), taut: !!(flags & 8), knock: !!(flags & 16), face: face || 0 };
+    x, y, z, vx, vy, vz, ground: !!(flags & 1), grab: !!(flags & 2), zip: !!(flags & 4), taut: !!(flags & 8), knock: !!(flags & 16), hung: !!(flags & 32), face: face || 0 };
 }
 function hostView() {
   const sim = S.sim;
@@ -564,13 +564,24 @@ function steerCamera(dt) {
   const C = S.cam;
   if (keys.CL) { C.peek += dt * 2.2; C.dragAt = performance.now(); }
   if (keys.CR) { C.peek -= dt * 2.2; C.dragAt = performance.now(); }
+  const me = S.view && S.view.players[S.me], L = LEVELS[S.view ? S.view.lv : S.level];
+  // hanging off a ledge on the rope (user, Oct 17 2026: "the camera should swing in front of the
+  // character so they can see how to jump up from a fall"): look from out over the drop at you and
+  // the teammate holding you, level with you and tilted up to the ledge, so ↑ climbs toward them
+  const anchor = me && me.hung ? [S.view.players[S.me - 1], S.view.players[S.me + 1]].filter((q) => q && q.y > me.y + 0.3).sort((a, b) => b.y - a.y)[0] : null;
+  C.hang += ((anchor ? 1 : 0) - C.hang) * (1 - Math.exp(-dt * (anchor ? 5 : 2.5)));
+  if (anchor) C.lift = Math.max(0, Math.min(4, anchor.y - me.y)) * 0.55;
   // let go of the look round: swing back behind
   if (pad.lookId === null && performance.now() - C.dragAt > 600) {
     const k = 1 - Math.exp(-dt * 3);
-    C.peek -= C.peek * k; C.pitch += (PITCH - C.pitch) * k;
+    C.peek -= C.peek * k; C.pitch += (PITCH + (HANG_PITCH - PITCH) * C.hang - C.pitch) * k;
   }
-  const me = S.view && S.view.players[S.me], L = LEVELS[S.view ? S.view.lv : S.level];
-  if (me && L && L.route.length > 1 && (S.mode === 'play' || S.mode === 'title')) {
+  if (anchor && Math.hypot(anchor.x - me.x, anchor.z - me.z) > 0.4) {
+    let d = Math.atan2(anchor.x - me.x, anchor.z - me.z) - C.base;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    C.base += d * (1 - Math.exp(-dt * 5));
+    C.s = -1; // (back on your feet, find your place on the route again)
+  } else if (me && L && L.route.length > 1 && (S.mode === 'play' || S.mode === 'title')) {
     C.s = routeTrack(L, me, C.s);
     const total = L.camLen[L.camLen.length - 1];
     const a = routePoint(L, Math.max(0, C.s - 1.5));
@@ -641,8 +652,8 @@ requestAnimationFrame(frame);
 window.__chain = {
   get mode() { return S.mode; }, get net() { return S.net; }, get me() { return S.me; }, get level() { return S.level; },
   get total() { return S.total; }, get scores() { return S.scores; }, get falls() { return S.view ? S.view.falls : 0; },
-  get cp() { return S.view ? S.view.cp : 0; }, get tips() { return S.tips; }, get fallsBy() { return S.fallsBy.slice(); }, get emotes() { return S.emotes.map((e) => (e ? EMOTES[e.k] : null)); }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },
-  get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, z: p.z, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab })) : []; },
+  get cp() { return S.view ? S.view.cp : 0; }, get tips() { return S.tips; }, get fallsBy() { return S.fallsBy.slice(); }, get emotes() { return S.emotes.map((e) => (e ? EMOTES[e.k] : null)); }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get camHang() { return S.cam.hang; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },
+  get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, z: p.z, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab, hung: p.hung })) : []; },
   get roster() { return S.roster.map((r) => Object.assign({}, r)); },
   screenPoint: (x, y) => renderer.screenPoint(x, y),
   // a whole gang of bots plays a stretch headless (the levels must be winnable)
@@ -673,6 +684,12 @@ if (INIT.debug) {
     // client only our own traveller: the others are the host's to drop
     fall() { dropSteps.host = dropSteps.mine = 90; dropNow('host'); dropNow('mine'); },
     warp(x, y, z, yaw) { if (S.sim) S.sim.players.forEach((p, i) => { Object.assign(p, { x, y: y + i * 0.01, z: z + i * 1.2, vx: 0, vy: 0, vz: 0 }); p.ni = 0; }); if (yaw !== undefined) { S.cam.base = S.cam.yaw = yaw; S.cam.peek = 0; } S.cam.s = -1; },
+    // you hanging 4 m down off the side of the first island, the others standing near its edge
+    hang() {
+      if (!S.sim) return;
+      const sp = S.sim.level.spawn;
+      S.sim.players.forEach((p, i) => { Object.assign(p, i === S.me ? { x: sp.x + 3.7, y: sp.y - 4.2, z: sp.z } : { x: sp.x + 1 - i * 0.7, y: sp.y + 0.05, z: sp.z }, { vx: 0, vy: 0, vz: 0, hung: false }); p.ni = 0; });
+    },
     skipTitle() { if (S.mode === 'title') S.modeT = TITLE_T + 1; if (S.mode === 'clear') S.modeT = CLEAR_T + 1; },
   };
 }

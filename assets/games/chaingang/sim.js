@@ -43,7 +43,7 @@ const CRUMBLE_HEAVY = 0.3, CRUMBLE_STAND = 2.5, CRUMBLE_BACK = 3;
 const ZIP_SPEED = 10, BARREL_R = 0.45, KNOCK = 0.45, REACH = 3.2;
 // reeling in (review, Oct 17 2026): dangling below a teammate who's dug in with GRAB on solid
 // ground, you're hauled up the rope at REEL m/s, drawn in toward them
-const REEL = 3.2, REEL_IN = 6;
+const REEL = 3.2, REEL_IN_V = 1.6;
 
 // ---- the level's moving parts at time t ------------------------------------------------------
 export function moverPos(m, t) {
@@ -150,6 +150,19 @@ export function stepSim(sim, inputs) {
   // the climbing stops — everyone drops
   sim.airT = sim.players.some((p) => p.ground || p.grab || p.zip) ? 0 : (sim.airT || 0) + dt;
   const anchored = sim.airT < 2;
+  // hanging off something on the rope: starts once you're dangling well below a teammate who's on
+  // their feet, and lasts until you're standing again (the taut flag flickers as you bounce; this
+  // doesn't — the camera and the dangling pose go by it, and a haul once begun). Every traveller,
+  // puppets too.
+  // (only once you've really been hanging a moment — at the end of the rope, not moving much — so a
+  // jump down to a lower piece is never mistaken for it and hauled back up)
+  sim.players.forEach((p, i) => {
+    if (p.ground || p.zip) { p.hung = false; p.hangT = 0; return; }
+    if (p.hung) return;
+    const held = Math.abs(p.vy) < 3 && [sim.players[i - 1], sim.players[i + 1]].some((q) => q && q.ground && q.y > p.y + 0.6 && Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > CHAIN - 0.3);
+    p.hangT = held ? (p.hangT || 0) + dt : 0;
+    p.hung = p.hangT > 0.35;
+  });
 
   sim.players.forEach((p, i) => {
     if (p.puppet || (local && i !== sim.local)) return; // moved by its own phone / placed from the host's snapshots
@@ -216,14 +229,28 @@ export function stepSim(sim, inputs) {
     if (p.hop && !p.held && !p.bot && p.vy > 0) { p.vy *= JUMP_CUT; p.hop = false; }
     if (p.ground || p.vy <= 0) p.hop = false;
     p.vy = Math.max(-MAX_FALL, p.vy - gravity(p.vy, p.held || p.bot) * dt);
-    p.reeled = false;
-    if (!ground && anchored && p.knockT <= 0) {
-      // (by distance, not the taut flag: that flickers while you bounce on the end of the rope)
-      const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5 && Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2);
+    const wasReeled = p.reeled; p.reeled = false;
+    // (not with something that moves right above you — a cart, a lantern: the reel only jammed you up under
+    // it; out from under it first, then the reel can take you. Under stone, you slide out toward them)
+    const overhead = solids.some((s) => s.mover && p.x > s.x0 - R && p.x < s.x1 + R && p.z > s.z0 - R && p.z < s.z1 + R && s.y0 > p.y + PH - 0.3 && s.y0 < p.y + PH + 3);
+    if (!ground && anchored && p.knockT <= 0 && !overhead) {
+      // (once it's begun, a haul carries on right up to them, however close)
+      const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5 && (wasReeled || Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2));
       if (up) {
         const dx = up.x - p.x, dz = up.z - p.z, d = Math.hypot(dx, dz) || 1;
-        p.vy = Math.max(p.vy, REEL); p.reeled = true;
-        if (d > 0.8 && (p.vx * dx + p.vz * dz) / d < 2.5) { p.vx += (dx / d) * REEL_IN * dt; p.vz += (dz / d) * REEL_IN * dt; }
+        p.reeled = true; p.hung = true; // (from here it's a steady haul, not a kick each time the rope pulls tight)
+        // up to just over the lip and held there, smoothly (no bobbing), while drawn in — it only ever lifts
+        // (never slows a jump); once there's
+        // ground right under your feet, let go and you step down onto it
+        const floor = groundBelow(sim, p.x, p.z, p.y + 0.05);
+        const over = p.y - floor <= 0.3;
+        if (!over) p.vy = Math.max(p.vy, Math.max(-1, Math.min(REEL, (up.y + 0.2 - p.y) * 8)));
+        // drawn in toward them at a steady pace (set, not built up: pressed against a wall face the push
+        // was cancelled every step, and they hovered at the lip with nothing to carry them over it) — until
+        // there's ground under them, however close they are: hauled up right under someone at the edge,
+        // they're still to be brought over it
+        const along = (p.vx * dx + p.vz * dz) / d;
+        if ((d > 0.8 || !over) && along < REEL_IN_V) { p.vx += (dx / d) * (REEL_IN_V - along); p.vz += (dz / d) * (REEL_IN_V - along); }
       }
     }
     if (ground && p.vy <= 0) carry(p, ground, dt);
@@ -457,8 +484,20 @@ export function botInput(sim, i) {
   // someone hanging off an edge: the one next to us on the rope, dig in (GRAB) and reel them in;
   // anyone further down the rope, haul up by walking away from them
   const hanging = sim.players.find((q) => q !== p && !q.ground && !q.zip && q.y < p.y - 1 && q.fallT === 0 && Math.abs(q.vy) < 6 && q.taut);
-  if (hanging && p.ground && nbrs.includes(hanging) && !p.ground.mover && p.ground.crumble === undefined) { out.grab = true; return out; }
-  if (hanging && p.ground) {
+  // (and once dug in, held until they're up — not let go and grabbed again each time the taut flag
+  // flickers as they bounce, which bounced them over and over; let go if the reel doesn't take them)
+  let reeling = p.reelFor != null ? sim.players[p.reelFor] : null;
+  if (reeling && (reeling.ground || reeling.zip || reeling.fallT !== 0 || reeling.y > p.y + 0.3 || sim.t > p.reelUntil
+    || (!reeling.reeled && sim.t > p.reelStart + 0.3))) reeling = null;
+  // (and not when their other neighbour is higher up and already digging in: that one hauls them, and
+  // two dug in either side was a tug-of-war that held them stuck in the middle)
+  const other = (q) => sim.players[2 * q.i - p.i];
+  const theirs = (q) => { const r = other(q); return r && r.grab && r.ground && r.y > p.y + 0.3; };
+  if (reeling && theirs(reeling)) reeling = null;
+  if (!reeling && hanging && nbrs.includes(hanging) && !theirs(hanging)) { reeling = hanging; p.reelStart = sim.t; p.reelUntil = sim.t + 5; }
+  p.reelFor = reeling ? sim.players.indexOf(reeling) : null;
+  if (reeling && p.ground && !p.ground.mover && p.ground.crumble === undefined) { out.grab = true; return out; }
+  if (hanging && p.ground && !(nbrs.includes(hanging) && theirs(hanging))) {
     const [ax, az] = flat(p.x - hanging.x, p.z - hanging.z);
     if (footing(p.x + ax * 0.8, p.z + az * 0.8)) { out.mx = ax; out.mz = az; } else out.grab = true;
     return out;

@@ -129,6 +129,13 @@ test('tug of wall: practise with bots, clear all four stretches, the run is save
   await expect.poll(async () => (await chain(f, (c) => c.players))[0].grab).toBe(true);
   await page.keyboard.up('Shift');
 
+  // hanging off a ledge on the rope: the camera swings round to look at you and the ledge, and a
+  // teammate on the island reels you up smoothly — no bouncing on the end of the rope
+  await chain(f, (c) => c.debug.hang());
+  await expect.poll(() => chain(f, (c) => c.camHang), { timeout: 10_000, intervals: [50] }).toBeGreaterThan(0.6);
+  await expect.poll(async () => (await chain(f, (c) => c.players))[0].ground, { timeout: 20_000 }).toBe(true);
+  await expect.poll(() => chain(f, (c) => c.camHang), { timeout: 20_000 }).toBeLessThan(0.2);
+
   // say something: 💬 then a choice (or a number key) puts a bubble over your traveller
   await f.locator('#emotebtn').click();
   await f.getByRole('button', { name: '👋 HI!' }).click();
