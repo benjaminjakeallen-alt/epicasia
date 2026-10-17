@@ -59,10 +59,17 @@
     background: radial-gradient(circle at 38% 30%, #9af6ff, #18e0ff 60%, #0a8fb0);
     box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 6px 0 #075a70, 0 0 0 2.5px #1a0b2e, 0 10px 18px rgba(0,0,0,0.45); text-shadow: 0 1px 0 #075a70; }
   .btns button.on { transform: translateY(4px); }
+  /* emotes: a bubble button above the joystick, and its four choices */
+  #emotebtn { position: absolute; left: 16px; bottom: calc(var(--u) * 2.6 + 34px); width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
+    pointer-events: auto; font-size: 20px; background: rgba(26,11,46,0.6); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
+  #emotes { position: absolute; left: 68px; bottom: calc(var(--u) * 2.6 + 30px); display: none; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 90px); pointer-events: auto; }
+  #emotes.show { display: flex; }
+  #emotes button { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 0; color: #1a0b2e; font: 900 13px "Arial Black", system-ui, sans-serif;
+    background: #fff; box-shadow: 0 3px 0 #b9a6d6, 0 0 0 2px #1a0b2e; }
 </style>
 </head>
 <body>
-<div id="stage" role="application" aria-label="Tug of Wall. Push the joystick to walk (the camera follows you; drag the screen to look round), JUMP to jump, hold GRAB to anchor the rope or catch a zip line. Arrow keys or WASD, Space and Shift work too; Q and R look round.">
+<div id="stage" role="application" aria-label="Tug of Wall. Push the joystick to walk (the camera follows you; drag the screen to look round), JUMP to jump, hold GRAB to anchor the rope (and reel in a teammate hanging below) or catch a zip line. 1 to 4 say something. Arrow keys or WASD, Space and Shift work too; Q and R look round.">
   <canvas id="gl" aria-hidden="true"></canvas>
   <canvas id="hud" role="img" aria-label="Tug of Wall"></canvas>
   <button id="pausebtn" aria-label="Pause" type="button">❚❚</button>
@@ -76,13 +83,17 @@
     </div>
   </div>
   <div id="pad">
+    <button id="emotebtn" type="button" aria-label="Say something to the gang" aria-expanded="false">💬</button>
+    <div id="emotes" role="group" aria-label="Say">
+      <button type="button" data-k="0">👋 HI!</button><button type="button" data-k="1">⏳ WAIT!</button><button type="button" data-k="2">➡️ THIS WAY!</button><button type="button" data-k="3">🙌 NICE!</button>
+    </div>
     <div class="stick" role="img" aria-label="Joystick: push to walk, the way the camera looks (arrow keys or WASD work too)">
       <span class="mark ml" aria-hidden="true">◀</span><span class="mark mr" aria-hidden="true">▶</span><span class="mark mu" aria-hidden="true">▲</span><span class="mark md" aria-hidden="true">▼</span>
       <div class="knob"></div>
     </div>
     <div class="btns">
       <button id="grabbtn" type="button" aria-label="Grab: hold to dig in and anchor the gang, or catch a zip line">GRAB</button>
-      <button id="jumpbtn" type="button" aria-label="Jump (when dangling, climb the chain)">JUMP</button>
+      <button id="jumpbtn" type="button" aria-label="Jump (when dangling, climb the rope)">JUMP</button>
     </div>
   </div>
   <div id="over">

@@ -41,6 +41,9 @@ export function gravity(vy, held) { return held && Math.abs(vy) < APEX_V ? GRAV 
 const COYOTE = 0.1, BUFFER = 0.13, SCRAMBLE = 16.5, SCRAMBLE_EVERY = 0.7, FALL_TIME = 1.1;
 const CRUMBLE_HEAVY = 0.3, CRUMBLE_STAND = 2.5, CRUMBLE_BACK = 3;
 const ZIP_SPEED = 10, BARREL_R = 0.45, KNOCK = 0.45, REACH = 3.2;
+// reeling in (review, Oct 17 2026): dangling below a teammate who's dug in with GRAB on solid
+// ground, you're hauled up the rope at REEL m/s, drawn in toward them
+const REEL = 3.2, REEL_IN = 6;
 
 // ---- the level's moving parts at time t ------------------------------------------------------
 export function moverPos(m, t) {
@@ -88,7 +91,7 @@ const hit = (x, y, z, s, h = PH) => x + R > s.x0 && x - R < s.x1 && z + R > s.z0
 export function createSim(levelIndex, players) {
   const level = LEVELS[levelIndex];
   const sim = {
-    levelIndex, level, t: 0, cp: 0, falls: 0, done: null, events: [],
+    levelIndex, level, t: 0, cp: 0, falls: 0, fallsBy: players.map(() => 0), done: null, events: [],
     players: players.map((pl, i) => ({ hero: pl.hero, bot: !!pl.bot, i, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, ground: null, face: 0,
       jb: 0, coy: 0, held: false, grab: false, scrT: 0, knockT: 0, fallT: 0, zip: null, taut: false, ni: 0, got: -1 })),
     crumble: level.crumbles.map(() => ({ stood: 0, heavy: 0, n: 0, goneAt: 0, gone: false })),
@@ -213,6 +216,16 @@ export function stepSim(sim, inputs) {
     if (p.hop && !p.held && !p.bot && p.vy > 0) { p.vy *= JUMP_CUT; p.hop = false; }
     if (p.ground || p.vy <= 0) p.hop = false;
     p.vy = Math.max(-MAX_FALL, p.vy - gravity(p.vy, p.held || p.bot) * dt);
+    p.reeled = false;
+    if (!ground && anchored && p.knockT <= 0) {
+      // (by distance, not the taut flag: that flickers while you bounce on the end of the rope)
+      const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5 && Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2);
+      if (up) {
+        const dx = up.x - p.x, dz = up.z - p.z, d = Math.hypot(dx, dz) || 1;
+        p.vy = Math.max(p.vy, REEL); p.reeled = true;
+        if (d > 0.8 && (p.vx * dx + p.vz * dz) / d < 2.5) { p.vx += (dx / d) * REEL_IN * dt; p.vz += (dz / d) * REEL_IN * dt; }
+      }
+    }
     if (ground && p.vy <= 0) carry(p, ground, dt);
     move(sim, p, solids, dt);
   });
@@ -255,7 +268,7 @@ export function stepSim(sim, inputs) {
   let lost = -1;
   const fall = fallLine(sim);
   sim.players.forEach((p, i) => { if (p.y < fall) { p.fallT += dt; if (p.fallT > FALL_TIME && lost < 0) lost = i; } else p.fallT = 0; });
-  if (lost >= 0) { sim.falls++; sim.rs = (sim.rs || 0) + 1; sim.events.push({ e: 'whoops', i: lost }); respawn(sim); return sim; }
+  if (lost >= 0) { sim.falls++; sim.fallsBy[lost]++; sim.rs = (sim.rs || 0) + 1; sim.events.push({ e: 'whoops', i: lost }); respawn(sim); return sim; }
 
   // watchtowers, then the finish: one counts once every traveller has been
   // there (or somewhere further on — so a tower someone went round never
@@ -441,8 +454,10 @@ export function botInput(sim, i) {
   const footing = (x, z, y = p.y) => solids.some((s) => !FURNITURE.has(s.kind) && x > s.x0 && x < s.x1 && z > s.z0 && z < s.z1 && s.y1 <= y + 0.5 && s.y1 > y - 0.6 && s.crumble === undefined && !s.mover);
   // a gust: dig in until it passes
   if (p.ground && L.winds.some((w) => inBox({ ...w, x0: w.x0 - 1, x1: w.x1 + 1, z0: w.z0 - 1, z1: w.z1 + 1 }, p.x, p.y + 0.5, p.z) && windOn(w, t + 0.15))) { out.grab = true; return out; }
-  // someone hanging off an edge: haul them up by walking away from them
+  // someone hanging off an edge: the one next to us on the rope, dig in (GRAB) and reel them in;
+  // anyone further down the rope, haul up by walking away from them
   const hanging = sim.players.find((q) => q !== p && !q.ground && !q.zip && q.y < p.y - 1 && q.fallT === 0 && Math.abs(q.vy) < 6 && q.taut);
+  if (hanging && p.ground && nbrs.includes(hanging) && !p.ground.mover && p.ground.crumble === undefined) { out.grab = true; return out; }
   if (hanging && p.ground) {
     const [ax, az] = flat(p.x - hanging.x, p.z - hanging.z);
     if (footing(p.x + ax * 0.8, p.z + az * 0.8)) { out.mx = ax; out.mz = az; } else out.grab = true;
@@ -477,6 +492,8 @@ export function botInput(sim, i) {
   }
   const node = L.route[p.ni];
   const [dx, dz] = flat(node.p[0] - p.x, node.p[2] - p.z);
+  // up on something that isn't the way (a rocket rack, a barrel stack): straight off it, toward the way on
+  if (p.ground && FURNITURE.has(p.ground.kind)) { out.mx = dx; out.mz = dz; return out; }
   if (!p.ground) { const a = p.botAir || [dx, dz]; out.mx = a[0]; out.mz = a[1]; return out; }
   p.botAir = null;
   const toNode = Math.hypot(node.p[0] - p.x, node.p[2] - p.z);

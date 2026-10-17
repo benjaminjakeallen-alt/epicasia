@@ -28,6 +28,9 @@ export const SFX = {
   gong: () => { tone(110, 2.4, { vol: 0.09, slideTo: 104 }); tone(166, 2, { vol: 0.04 }); tone(247, 1.4, { vol: 0.025 }); noise(0.3, { vol: 0.02, freq: 900 }); },
   clear: () => { const a = ctx(); if (!a) return; const t = a.currentTime; [74, 76, 78, 81, 83, 86].forEach((m, i) => pluck(mtof(m), t + i * 0.09, 0.07, buses().sfx)); },
   tap: () => tone(880, 0.05, { vol: 0.012 }),
+  emote: () => { tone(1175, 0.08, { vol: 0.014 }); tone(1568, 0.12, { vol: 0.012, delay: 0.06 }); },
+  // a watchtower's fireworks: a soft thump far off, then a crackle
+  boom: () => { tone(90, 0.35, { vol: 0.03, slideTo: 50 }); noise(0.5, { vol: 0.012, type: 'highpass', freq: 3500, delay: 0.08 }); },
 };
 
 // ---- music --------------------------------------------------------------------------------
@@ -46,7 +49,7 @@ const HOOK = [
   [[0, 76, 2], [2, 74, 2], [4, 71, 4], [8, 69, 6], [14, 66, 2]],
 ];
 // stretch → [semitones up, beats a minute, extra drive (more hats/kicks)]
-const STYLE = [[0, 108, 0], [3, 116, 1], [-2, 124, 2]];
+const STYLE = [[0, 108, 0], [3, 116, 1], [-2, 124, 2], [5, 120, 2]]; // (the 4th, at night: G, a touch slower than Storm Peak)
 let level = 0;
 function playStep(step, t, sx) {
   const [tr, , drive] = STYLE[level] || STYLE[0];

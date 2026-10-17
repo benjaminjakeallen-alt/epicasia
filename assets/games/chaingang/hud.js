@@ -20,7 +20,8 @@ function progress(L, q) {
 }
 
 export function createHud(canvas, game, view, toScreen) {
-  const { S, LEVELS, PAR } = game;
+  const { S, LEVELS, PAR, EMOTES } = game;
+  const MEDAL = { gold: ['#ffd23a', '#7a5200'], silver: ['#e3e6ef', '#5a5f70'], bronze: ['#e39a5a', '#6a3412'] };
   const ctx = canvas.getContext('2d');
   let u = 1;
 
@@ -74,6 +75,18 @@ export function createHud(canvas, game, view, toScreen) {
       text(label, s.x, s.y - 0.5 * u, 9, p.color, { stroke: false });
       if (p.me) { ctx.beginPath(); ctx.moveTo(s.x - 5 * u, s.y + 8 * u); ctx.lineTo(s.x + 5 * u, s.y + 8 * u); ctx.lineTo(s.x, s.y + 13 * u); ctx.closePath(); ctx.fillStyle = p.color; ctx.fill(); }
       if (p.grab) text('HOLDING!', s.x, s.y - 17 * u, 9, YELLOW, { lw: 2.4 });
+      const em = S.emotes[p.i];
+      if (em && EMOTES[em.k]) { // a speech bubble, popping in
+        const pop = Math.min(1, em.t * 8), fade = Math.min(1, (2.4 - em.t) * 4), by = s.y - (p.grab ? 40 : 30) * u;
+        ctx.globalAlpha = fade;
+        ctx.font = `900 ${11 * pop * u}px ${FONT}`;
+        const bw = ctx.measureText(EMOTES[em.k]).width + 16 * u;
+        round(s.x - bw / 2, by - 12 * u * pop, bw, 24 * u * pop, 12 * u * pop, '#ffffff', INK, 2);
+        ctx.beginPath(); ctx.moveTo(s.x - 5 * u, by + 11 * u * pop); ctx.lineTo(s.x + 5 * u, by + 11 * u * pop); ctx.lineTo(s.x, by + 18 * u * pop); ctx.closePath();
+        ctx.fillStyle = '#ffffff'; ctx.fill();
+        text(EMOTES[em.k], s.x, by, 11 * pop, INK, { stroke: false });
+        ctx.globalAlpha = 1;
+      }
     });
   }
   function messages() {
@@ -90,6 +103,15 @@ export function createHud(canvas, game, view, toScreen) {
     lines.forEach(([s, size, col], k) => text(s, W / 2, H * 0.36 + k * size * 1.25 * u, size, col, { depth: 4, lw: size * 0.3 }));
     if (sub) text(sub, W / 2, H * 0.36 + lines.reduce((a, l) => a + l[1] * 1.25, 0) * u + 6 * u, 12, '#ffffff', { lw: 3 });
   }
+  /** A medal: a round coin with a ribbon notch, gold, silver or bronze. */
+  function medal(kind, x, y, r) {
+    const [face, edge] = MEDAL[kind] || MEDAL.bronze;
+    ctx.fillStyle = '#ff2d95'; ctx.beginPath(); ctx.moveTo(x - r * 0.7, y - r * 2); ctx.lineTo(x - r * 0.15, y - r * 0.6); ctx.lineTo(x - r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#18e0ff'; ctx.beginPath(); ctx.moveTo(x + r * 0.7, y - r * 2); ctx.lineTo(x + r * 0.15, y - r * 0.6); ctx.lineTo(x + r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = face; ctx.fill(); ctx.lineWidth = 2.2 * u; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.68, 0, Math.PI * 2); ctx.lineWidth = 1.6 * u; ctx.strokeStyle = edge; ctx.stroke();
+    text('★', x, y + r * 0.05, r * 0.9 / u, edge, { stroke: false });
+  }
   function wrap(s, max) { // the level's one-liner over two lines on a narrow phone
     ctx.font = `900 ${12 * u}px ${FONT}`;
     if (ctx.measureText(s).width < max) return [s];
@@ -97,6 +119,20 @@ export function createHud(canvas, game, view, toScreen) {
     return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
   }
 
+  /** The first time ever: how to play, under the title, until JUMP. */
+  function tips(W, H, t) {
+    const y0 = H * 0.36 + 152 * u, lines = [
+      ['JOYSTICK', 'WALK · THE CAMERA FOLLOWS'], ['JUMP', 'JUMP · HANGING? TAP TO CLIMB THE ROPE'],
+      ['GRAB', 'DIG IN · REEL IN A TEAMMATE BELOW'], ['💬', 'SAY SOMETHING TO THE GANG'],
+    ];
+    round(16 * u, y0, W - 32 * u, (lines.length * 24 + 34) * u, 16 * u, 'rgba(26,11,46,0.78)', CYAN, 2);
+    lines.forEach(([k, v], i) => {
+      const y = y0 + (18 + i * 24) * u;
+      text(k, 30 * u, y, 11, YELLOW, { align: 'left', lw: 2.6 });
+      text(v, 112 * u, y, 9.5, '#ffffff', { align: 'left', stroke: false });
+    });
+    if (Math.floor(t * 2) % 2) text('PRESS JUMP TO GO', W / 2, y0 + (lines.length * 24 + 20) * u, 12, PINK, { lw: 3 });
+  }
   function draw(t) {
     const W = view.cw, H = view.ch;
     u = Math.max(0.85, Math.min(1.6, Math.min(W, H * 0.62) / 360));
@@ -131,14 +167,29 @@ export function createHud(canvas, game, view, toScreen) {
       text('STAY TOGETHER · HOLD GRAB TO ANCHOR', W / 2, H * 0.36 + 116 * u, 10, YELLOW, { lw: 2.6 });
       if (V.lv === 0) text('PUSH UP TO WALK ON · THE CAMERA FOLLOWS YOU', W / 2, H * 0.36 + 134 * u, 10, CYAN, { lw: 2.6 });
       ctx.globalAlpha = 1;
+      if (S.tips && V.lv === 0 && S.net === 'solo') tips(W, H, t);
     } else if (S.mode === 'clear') {
       const s = S.scores[S.scores.length - 1] || { score: 0, time: 0, falls: 0 };
       card([['STRETCH CLEARED!', 24, YELLOW], ['+' + s.score, 30, PINK]],
         clock(s.time) + ' (PAR ' + clock(PAR[V.lv]) + ') · ' + s.falls + (s.falls === 1 ? ' FALL' : ' FALLS'));
+      if (s.medal) { // the medal swings in
+        const k = Math.min(1, S.modeT * 2.5), r = 22 * u * (0.4 + 0.6 * k), y = H * 0.36 - 58 * u;
+        medal(s.medal, W / 2, y, r);
+        text(s.medal.toUpperCase(), W / 2, y + r + 12 * u, 11, MEDAL[s.medal][0], { lw: 3 });
+      }
     } else if (S.mode === 'finish') {
       const falls = S.scores.reduce((a, q) => a + q.falls, 0);
-      card([['THE GANG MADE IT!', 22, YELLOW], [String(S.total), 40, PINK]], 'ALL THREE STRETCHES · ' + falls + (falls === 1 ? ' FALL' : ' FALLS'));
+      card([['THE GANG MADE IT!', 22, YELLOW], [String(S.total), 40, PINK]], 'ALL ' + ['ONE', 'TWO', 'THREE', 'FOUR', 'FIVE'][LEVELS.length - 1] + ' STRETCHES · ' + falls + (falls === 1 ? ' FALL' : ' FALLS'));
       if (S.total >= S.hi && S.total > 0) text('NEW BEST!', W / 2, H * 0.26, 16, CYAN, { depth: 3, lw: 4.5 });
+      // a medal for each stretch
+      const n = S.scores.length, gap = 46 * u, my = H * 0.36 + 136 * u;
+      S.scores.forEach((q, k) => { if (q.medal) medal(q.medal, W / 2 + (k - (n - 1) / 2) * gap, my, 16 * u); });
+      // who fell the most (all in good fun)
+      const most = Math.max(0, ...S.fallsBy.map((f) => f || 0));
+      if (most > 0) {
+        const who = S.fallsBy.map((f, i) => (f === most ? (i === S.me ? 'YOU' : S.roster[i] && S.roster[i].name) : null)).filter(Boolean);
+        text('BUTTERFINGERS: ' + who.join(' & ') + ' · ' + most + (most === 1 ? ' FALL' : ' FALLS'), W / 2, my + 38 * u, 10.5, '#ffd7f0', { lw: 2.6 });
+      } else text('NOBODY FELL! 🎉', W / 2, my + 38 * u, 11, '#3dff8a', { lw: 2.8 });
     }
   }
   return { draw };

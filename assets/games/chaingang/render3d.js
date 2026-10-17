@@ -23,6 +23,9 @@ const SKIES = [
     hemi: [0xe3c8ff, 0x3a1a5a, 1.45], key: [0xffb27a, 2.4], rim: [0x18e0ff, 1.4] },
   { sky: ['#14103a', '#2c2470', '#5a3a9e', '#a8479c', '#ff5f7a', '#ffc070'], sun: ['#fff1a0', '#ff6f6f'], ridges: [0x2f2868, 0x4a3a8a], mist: 0xb59cff,
     hemi: [0xdcd4ff, 0x30285a, 1.45], key: [0xffd0a0, 2.3], rim: [0x7b2cff, 1.5] },
+  // the 4th stretch, at night: a deep blue sky with stars, a big pale moon (striped like the sun), sky lanterns rising
+  { sky: ['#010208', '#03061c', '#0a0f36', '#171a52', '#2c2266', '#5a3478'], sun: ['#fffbe8', '#b8c8ff'], ridges: [0x0c0a26, 0x16123a], mist: 0x241c52,
+    hemi: [0x9aa6ff, 0x120c28, 1.0], key: [0xc8d4ff, 1.35], rim: [0xff8a3d, 2.0], night: true },
 ];
 const NEON = [0xff2d95, 0x18e0ff, 0xffe11a, 0x7b2cff, 0x3dff8a];
 
@@ -217,6 +220,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     rim.color.set(look.rim[0]); rim.intensity = look.rim[1];
     scene.fog.color.set(look.mist);
     cloudMat.color.set(look.mist);
+    stars.visible = skyLanterns.visible = !!look.night;
   }
   // a sea of sunset cloud far below: falling means falling into it
   const cloudTex = canvasTex(512, 512, (c, w, h) => {
@@ -232,6 +236,21 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const cloudSea = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), cloudMat);
   cloudSea.rotation.x = -Math.PI / 2;
   scene.add(cloudSea);
+  // night: stars on the dome, and paper sky lanterns rising all round
+  const starGeo = new THREE.BufferGeometry(), starPos = [];
+  for (let i = 0; i < 700; i++) {
+    const a = rnd() * Math.PI * 2, e = 0.08 + Math.pow(rnd(), 0.7) * 1.4, r = 560;
+    starPos.push(Math.cos(a) * Math.cos(e) * r, Math.sin(e) * r, Math.sin(a) * Math.cos(e) * r);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 2, sizeAttenuation: false, fog: false, depthWrite: false, transparent: true, opacity: 0.85 }));
+  stars.renderOrder = -19; stars.visible = false;
+  scene.add(stars);
+  const SKYL = 46, skyLanterns = new THREE.InstancedMesh(new THREE.BoxGeometry(1.1, 1.4, 1.1), new THREE.MeshBasicMaterial({ color: 0xffa64d, toneMapped: false, fog: false }), SKYL);
+  skyLanterns.frustumCulled = false; skyLanterns.visible = false;
+  scene.add(skyLanterns);
+  const skyl = [];
+  for (let i = 0; i < SKYL; i++) skyl.push({ a: rnd() * Math.PI * 2, r: 14 + rnd() * 60, y: rnd() * 60 - 30, sp: 0.6 + rnd() * 0.9, ph: rnd() * 6 });
 
   // ---- the level ---------------------------------------------------------------------------
   const levelGroup = new THREE.Group();
@@ -409,11 +428,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     });
     L.zips.forEach((z) => {
       const a = new THREE.Vector3(...z.a), b = new THREE.Vector3(...z.b);
-      const dir = new THREE.Vector3().subVectors(b, a).normalize();
+      const dir = new THREE.Vector3().subVectors(b, a).normalize(), hz = Math.hypot(dir.x, dir.z);
+      const ox = (dir.z / hz) * 1.9, oz = (-dir.x / hz) * 1.9; // (beside the line: the same boxes as levels.js)
       levelGroup.add(rod(a.clone().addScaledVector(dir, -1.2), b.clone().addScaledVector(dir, 1.2), 0.05, toon({ color: 0x2b2b3a })));
       [a.clone().addScaledVector(dir, -1.2), b.clone().addScaledVector(dir, 1.2)].forEach((p) => {
-        const post = outlined(boxGeo(0.35, 6, 0.35, 1), WOOD); post.position.set(p.x + 1.9, p.y - 3 + 0.3, p.z); levelGroup.add(post);
-        levelGroup.add(rod(new THREE.Vector3(p.x + 1.9, p.y + 0.3, p.z), p, 0.04, toon({ color: 0x2b2b3a })));
+        const post = outlined(boxGeo(0.35, 6, 0.35, 1), WOOD); post.position.set(p.x + ox, p.y - 3 + 0.3, p.z + oz); levelGroup.add(post);
+        levelGroup.add(rod(new THREE.Vector3(p.x + ox, p.y + 0.3, p.z + oz), p, 0.04, toon({ color: 0x2b2b3a })));
       });
     });
     // watchtowers by the checkpoints, a gate or gong at the end
@@ -499,7 +519,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const speed = Math.hypot(p.vx, p.vz);
       let target;
       if (p.zip) target = { armL: -3.0, armR: -3.0, legL: -0.4, legR: 0.3, lean: 0.1 };
-      else if (p.grab) target = { bob: -1.4, lean: 0.55, legL: -1.1, legR: 0.6, armL: -1.2, armR: -1.2, armLz: -0.3, armRz: 0.3, nod: -0.2 }; // dug in, hands on the chain
+      else if (p.grab && p.taut) { // hauling: leaning back, hand over hand on the rope
+        const h = Math.sin(t * 9 + i);
+        target = { bob: -1.2, lean: -0.35, legL: -1.3, legR: 0.9, armL: -1.5 + h * 0.55, armR: -1.5 - h * 0.55, armLz: -0.15, armRz: 0.15, nod: 0.25 };
+      } else if (p.grab) target = { bob: -1.4, lean: 0.55, legL: -1.1, legR: 0.6, armL: -1.2, armR: -1.2, armLz: -0.3, armRz: 0.3, nod: -0.2 }; // dug in, hands on the rope
       else if (p.knock) target = { lean: -0.6, armL: -2.6, armR: -2.2, armLz: -0.8, armRz: 0.8, legL: -0.8, legR: 0.6 };
       else if (!p.ground && p.taut && p.vy < 1) target = { armL: -3.0, armR: -2.8, legL: Math.sin(t * 9 + i) * 0.6, legR: -Math.sin(t * 9 + i) * 0.6, nod: 0.3 }; // dangling
       else if (!p.ground) target = { legL: p.vy > 0 ? -1.2 : -0.5, legR: p.vy > 0 ? 0.5 : 0.2, armL: -2.5, armR: -2.3, armLz: -0.4, armRz: 0.4, lean: 0.12 };
@@ -524,7 +547,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const braidInk = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
   /** A braid that can be redrawn along any line of up to maxPts samples. `scale` divides every size
    *  (a belt is built inside a hero model, which is scaled down). */
-  function makeBraid(maxPts, scale = 1) {
+  function makeBraid(maxPts, scale = 1, mat = braidMat) {
     const nv = maxPts * STRANDS * SIDES, pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3);
     for (let j = 0; j < maxPts; j++) for (let k = 0; k < STRANDS; k++) for (let f = 0; f < SIDES; f++) {
       const v = ((j * STRANDS + k) * SIDES + f) * 3, c = STRAND_COLS[k].clone().multiplyScalar(0.9 + 0.1 * Math.cos((f / SIDES) * Math.PI * 2));
@@ -546,7 +569,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     igeo.setAttribute('position', new THREE.BufferAttribute(ipos, 3).setUsage(THREE.DynamicDrawUsage));
     igeo.setAttribute('normal', new THREE.BufferAttribute(inor, 3).setUsage(THREE.DynamicDrawUsage));
     igeo.setIndex(iidx);
-    const mesh = new THREE.Mesh(geo, braidMat), ink = new THREE.Mesh(igeo, braidInk);
+    const mesh = new THREE.Mesh(geo, mat), ink = new THREE.Mesh(igeo, braidInk);
     mesh.castShadow = true; mesh.frustumCulled = ink.frustumCulled = false;
     const S_ = [], T = new THREE.Vector3(), N = new THREE.Vector3(), Bn = new THREE.Vector3(), Q0 = new THREE.Vector3(), Q1 = new THREE.Vector3(), R = new THREE.Vector3(), C0 = new THREE.Vector3();
     const step = 0.025 / scale, br = BRAID_R / scale, off = BRAID_OFF / scale, inkR = (BRAID_OFF + BRAID_R + 0.012) / scale, tw = TWIST * scale;
@@ -612,7 +635,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     u.belt = { rx, rz, y };
   }
   const ropes = [], braids = [];
-  for (let i = 0; i < 3; i++) { const br = makeBraid(260); scene.add(br.mesh, br.ink); braids.push(br); }
+  // each rope has its own material, so it can glow warm when it's pulled tight (review, Oct 17 2026)
+  for (let i = 0; i < 3; i++) { const br = makeBraid(260, 1, toon({ vertexColors: true })); br.tension = 0; scene.add(br.mesh, br.ink); braids.push(br); }
   const KNOTS = 6, knots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(ROPE_R * 1.25, 1), toon({ color: 0xc99a5c }), KNOTS);
   knots.frustumCulled = false; scene.add(knots);
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), C = new THREE.Color(), SC = new THREE.Vector3(1, 1, 1);
@@ -642,6 +666,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       if (insideAny(A, boxes)) A.set(a.x, a.y + 0.5, a.z);
       if (insideAny(B, boxes)) B.set(b.x, b.y + 0.5, b.z);
       braids[i].update(ropePath(stepRope(ropes[i] || (ropes[i] = {}), A, B, boxes, dt || 1 / 60, CHAIN), boxes));
+      // tight: it glows warm and throbs
+      const want = Math.max(0, Math.min(1, (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) / CHAIN - 0.86) / 0.12));
+      braids[i].tension += (want - braids[i].tension) * Math.min(1, (dt || 0.016) * 10);
+      const k = braids[i].tension * (0.75 + 0.25 * Math.sin(V.t * 14 + i));
+      braids[i].mesh.material.emissive.setRGB(0.85 * k, 0.28 * k, 0.05 * k);
       for (const e of [A, B]) { M4.compose(e, Q.identity(), SC); knots.setMatrixAt(nk++, M4); }
     }
     for (let k = nk; k < KNOTS; k++) { M4.makeScale(0, 0, 0); knots.setMatrixAt(k, M4); }
@@ -711,7 +740,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     camera.position.copy(cam.pos);
     camera.lookAt(cam.look);
     // the sky, sun, ridges and cloud sea stay "at infinity" round the camera
-    dome.position.copy(camera.position);
+    dome.position.copy(camera.position); stars.position.copy(camera.position);
     ridges.forEach((r) => { r.position.set(camera.position.x, LEVELS[V.lv].fallY + 30, camera.position.z); });
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 500); sun.lookAt(camera.position);
     cloudSea.position.x = camera.position.x; cloudSea.position.z = camera.position.z;
@@ -726,6 +755,22 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   const hud = createHud(hudCanvas, game, view, toScreen);
 
+  // ---- fireworks: rockets that rise with a spark trail and burst (watchtowers, the finish) ---------
+  const rockets = [];
+  const FW = [['#ff2d95', '#ffd7f0'], ['#18e0ff', '#ffffff'], ['#ffe11a', '#fff7b0'], ['#b57bff', '#ffd7ff'], ['#3dff8a', '#ffffff']];
+  function fireworks(x, y, z, n) {
+    for (let k = 0; k < n; k++) rockets.push({ x: x + (rnd() - 0.5) * 3, y, z: z + (rnd() - 0.5) * 3, vx: (rnd() - 0.5) * 3, vz: (rnd() - 0.5) * 3, vy: 13 + rnd() * 5, wait: k * 0.22 + rnd() * 0.1, cols: FW[k % FW.length], trail: 0 });
+  }
+  function drawRockets(dt) {
+    for (let k = rockets.length - 1; k >= 0; k--) {
+      const r = rockets[k];
+      if ((r.wait -= dt) > 0) continue;
+      r.vy -= 14 * dt; r.x += r.vx * dt; r.y += r.vy * dt; r.z += r.vz * dt;
+      if ((r.trail -= dt) <= 0 && parts.length < PN - 2) { r.trail = 0.03; parts.push({ x: r.x, y: r.y, z: r.z, vx: 0, vy: -1, vz: 0, t: 0, life: 0.35, size: 0.1, col: '#ffe9b0', grav: 2, spin: 0 }); }
+      if (r.vy < 2.5) { burst(r.x, r.y, r.z, 44, r.cols, 8, 0.15, 1.3, 3); rockets.splice(k, 1); if (game.boom) game.boom(); }
+    }
+  }
+
   // ---- events from the game: bursts of colour ------------------------------------------------------
   function event(ev) {
     const V = S.view, p = V && ev.i >= 0 ? V.players[ev.i] : null;
@@ -733,10 +778,13 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (ev.e === 'boing' && p) { burst(p.x, p.y + 0.2, p.z, 44, ['#ff2d95', '#ffe11a', '#18e0ff', '#ffffff'], 9, 0.16, 1.2); bouncers.forEach((b) => { if (Math.hypot(p.x - (b.b.x0 + b.b.x1) / 2, p.z - (b.b.z0 + b.b.z1) / 2) < 3) b.kick = 1; }); }
     else if (ev.e === 'knock' && p) burst(p.x, p.y + 0.8, p.z, 26, ['#ffe11a', '#ff8a3d', '#ffffff'], 7, 0.1, 0.6);
     else if (ev.e === 'crumble' && L) { const c = L.crumbles[ev.k]; if (c) burst((c.x0 + c.x1) / 2, c.y1, (c.z0 + c.z1) / 2, 30, ['#c9a08a', '#8a5a5a', '#5b3b4a'], 4, 0.22, 1.2, 14); }
-    else if (ev.e === 'checkpoint' && L) { const c = L.checks[ev.k - 1], tw = towers[ev.k - 1]; if (c && tw) burst(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 60, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'], 7, 0.16, 1.6); }
+    else if (ev.e === 'checkpoint' && L) {
+      const c = L.checks[ev.k - 1], tw = towers[ev.k - 1];
+      if (c && tw) { burst(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 60, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'], 7, 0.16, 1.6); tw.pop = 1; fireworks(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 5); }
+    }
     else if (ev.e === 'jump' && p && ev.i === S.me) burst(p.x, p.y, p.z, 6, ['#ffffff', '#ffd7f0'], 2, 0.08, 0.35, 4);
     else if (ev.e === 'land' && p) burst(p.x, p.y, p.z, 5, ['#e8c8b8'], 1.5, 0.09, 0.3, 4);
-    else if (ev.e === 'done' && L) { const end = towers.find((q) => q.end); if (end) { burst(end.g.position.x, end.g.position.y + 3, end.g.position.z, 110, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff', '#ffffff'], 11, 0.16, 2); end.ring = 1; } }
+    else if (ev.e === 'done' && L) { const end = towers.find((q) => q.end); if (end) { burst(end.g.position.x, end.g.position.y + 3, end.g.position.z, 110, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff', '#ffffff'], 11, 0.16, 2); end.ring = 1; fireworks(end.g.position.x, end.g.position.y + 3, end.g.position.z, 9); } }
     else if (ev.e === 'zip' && p) burst(p.x, p.y + 1.9, p.z, 14, ['#ffe11a', '#ffffff'], 4, 0.07, 0.4, 2);
   }
 
@@ -758,10 +806,13 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       crumbles.forEach((c, k) => {
         const st = V.crumble[k] || { gone: false, stood: 0 };
         c.fall = st.gone ? Math.min(1, c.fall + dt * 1.5) : Math.max(0, c.fall - dt * 3);
-        const shake = !st.gone && st.stood > 0.6 ? Math.sin(t * 60) * 0.05 * Math.min(1, st.stood) : 0;
+        // giving way: it wobbles more and more, and grit trickles off it
+        const w = !st.gone ? Math.min(1, Math.max(0, st.stood - 0.15) / 2) : 0, wob = Math.sin(t * (22 + w * 30) + k);
         c.g.visible = c.fall < 0.98;
-        c.g.position.set(c.home.x + shake, c.home.y - c.fall * c.fall * 9, c.home.z);
-        c.g.rotation.z = c.fall * 0.8;
+        c.g.position.set(c.home.x + wob * 0.06 * w, c.home.y - c.fall * c.fall * 9 - w * 0.06, c.home.z + Math.cos(t * 27 + k) * 0.04 * w);
+        c.g.rotation.set(wob * 0.05 * w, 0, c.fall * 0.8 + Math.cos(t * 19 + k) * 0.04 * w);
+        c.dust = (c.dust || 0) - dt;
+        if (w > 0.25 && c.dust <= 0 && parts.length < PN - 2) { c.dust = 0.32 - w * 0.2; parts.push({ x: c.home.x + (rnd() - 0.5) * 1.2, y: c.home.y - 0.3, z: c.home.z + (rnd() - 0.5) * 1.2, vx: 0, vy: -0.5, vz: 0, t: 0, life: 0.8, size: 0.1, col: '#c9a08a', grav: 6, spin: 4 }); }
       });
       bouncers.forEach((b) => { b.kick = Math.max(0, b.kick - dt * 3); b.g.scale.y = 1 - b.kick * 0.35 + Math.sin(b.kick * 10) * b.kick * 0.15; });
       towers.forEach((tw, k) => {
@@ -770,6 +821,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
           return;
         }
         tw.flag.material.color.set(k < V.cp ? NEON[k % 4] : 0x8a8296);
+        tw.pop = Math.max(0, (tw.pop || 0) - dt * 1.6); // reached: the flag springs up big
+        tw.flag.scale.setScalar(1 + Math.sin(tw.pop * Math.PI) * 0.7);
         const pos = tw.flag.geometry.attributes.position; // a flapping flag
         for (let v = 0; v < pos.count; v++) { const x = pos.getX(v); pos.setZ(v, Math.sin(t * 6 + x * 3 + k) * 0.12 * (x + 0.8)); }
         pos.needsUpdate = true;
@@ -793,7 +846,18 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       }
       drawPlayers(V, t, dt);
       drawChain(V, dt);
+      if (skyLanterns.visible) { // night: lanterns drifting up round the gang
+        const me = V.players[S.me] || V.players[0];
+        skyl.forEach((q, n) => {
+          q.y += q.sp * dt; if (q.y > 45) q.y = -35;
+          P.set(me.x + Math.cos(q.a + t * 0.01) * q.r, me.y + q.y, me.z + Math.sin(q.a + t * 0.01) * q.r);
+          E.set(0, t * 0.2 + q.ph, Math.sin(t + q.ph) * 0.12); Q.setFromEuler(E); SC.setScalar(1);
+          M4.compose(P, Q, SC); skyLanterns.setMatrixAt(n, M4);
+        });
+        skyLanterns.instanceMatrix.needsUpdate = true;
+      }
     }
+    drawRockets(dt);
     drawParts(dt);
     if (renderer && V) {
       // software GL (CI, some emulators): redraw the 3D at most ~12 times a second

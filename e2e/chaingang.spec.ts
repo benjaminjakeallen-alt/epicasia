@@ -19,7 +19,7 @@ const DATA = {
     { id: SARAH, display_name: 'Sarah Lee', avatar_url: null },
   ],
   game_scores: [
-    run('s1', SARAH, 4200, 3, 'bennett'),
+    run('s1', SARAH, 4200, 4, 'bennett'),
     run('m1', USER_ID, 1300, 1, 'miles'),
     run('d1', SARAH, 90000, 5, 'chris', 'shinkansen_dash'), // another game's: not on this board
   ],
@@ -50,23 +50,27 @@ test('tug of wall: the board shows only its own scores', async ({ page }) => {
   const rows = page.getByTestId('high-score');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText('4,200');
-  await expect(rows.nth(0)).toContainText('as Bennett · all three stretches');
+  await expect(rows.nth(0)).toContainText('as Bennett · all four stretches');
   await expect(rows.nth(1)).toContainText('as Miles · 1 stretch');
 });
 
 test('tug of wall: every stretch is winnable by a gang of bots (1–4 of them)', async ({ page }) => {
+  test.setTimeout(240_000); // (four stretches, three gangs each, headless)
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('chain-practise').click();
   const f = await game(page);
-  for (let lv = 0; lv < 3; lv++)
+  for (let lv = 0; lv < 4; lv++)
     for (const n of [1, 2, 4]) {
       const r = await f.evaluate(([lv, n]) => (window as any).__chain.simulate(lv, n, 1.3), [lv, n]);
       expect(r, `stretch ${lv + 1} with ${n}`).toMatchObject({ done: true });
     }
+  // GRAB on solid ground reels in the teammate hanging below you; without it they stay hanging
+  expect(await chain(f, (c) => c.reelTest(true))).toMatchObject({ onTop: true });
+  expect(await chain(f, (c) => c.reelTest(false))).toMatchObject({ onTop: false });
 });
 
-test('tug of wall: practise with bots, clear all three stretches, the run is saved', async ({ page }) => {
+test('tug of wall: practise with bots, clear all four stretches, the run is saved', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('hero-jake').click();
@@ -125,11 +129,19 @@ test('tug of wall: practise with bots, clear all three stretches, the run is sav
   await expect.poll(async () => (await chain(f, (c) => c.players))[0].grab).toBe(true);
   await page.keyboard.up('Shift');
 
+  // say something: 💬 then a choice (or a number key) puts a bubble over your traveller
+  await f.locator('#emotebtn').click();
+  await f.getByRole('button', { name: '👋 HI!' }).click();
+  await expect.poll(() => chain(f, (c) => c.emotes[0])).toBe('👋 HI!');
+  await expect(f.getByRole('button', { name: '👋 HI!' })).toBeHidden(); // (the choices close)
+  await page.keyboard.press('4');
+  await expect.poll(() => chain(f, (c) => c.emotes[0])).toBe('🙌 NICE!');
+
   // falling off the wall costs a fall and puts everyone back at the start
   await chain(f, (c) => c.debug.fall());
   await expect.poll(() => chain(f, (c) => c.falls), { timeout: 20_000 }).toBe(1);
 
-  for (let lv = 0; lv < 3; lv++) {
+  for (let lv = 0; lv < 4; lv++) {
     await expect.poll(() => chain(f, (c) => c.level), { timeout: 20_000 }).toBe(lv);
     await expect.poll(async () => { await chain(f, (c) => c.debug.skipTitle()); return chain(f, (c) => c.mode); }, { timeout: 20_000 }).toBe('play');
     await chain(f, (c) => c.debug.finishLevel());
@@ -139,12 +151,15 @@ test('tug of wall: practise with bots, clear all three stretches, the run is sav
   await expect.poll(() => chain(f, (c) => c.mode), { timeout: 20_000 }).toBe('finish');
   const total = await chain(f, (c) => c.total);
   const scores = await chain(f, (c) => c.scores);
-  expect(scores).toHaveLength(3);
+  expect(scores).toHaveLength(4);
   expect(scores[0].falls).toBe(1);
+  // a medal for each stretch, and whose fall it was (for the finish card's "butterfingers")
+  for (const q of scores) expect(['gold', 'silver', 'bronze']).toContain(q.medal);
+  expect((await chain(f, (c) => c.fallsBy)).reduce((a: number, b: number) => a + b, 0)).toBe(1);
   expect(total).toBe(scores.reduce((a: number, s: { score: number }) => a + s.score, 0));
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length, { timeout: 15_000 }).toBe(1);
   expect(backend.inserts.find((i) => i.table === 'game_scores')!.body).toEqual([
-    { game: 'chain_gang', user_id: USER_ID, score: total, level: 3, round: 1, hero: 'jake' },
+    { game: 'chain_gang', user_id: USER_ID, score: total, level: 4, round: 1, hero: 'jake' },
   ]);
   // leave
   await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'LEAVE', exact: true }).click();
@@ -201,6 +216,9 @@ test('tug of wall: two phones in one room play together', async ({ browser }) =>
   const host = async () => (await chain(fa, (c) => c.players))[1];
   const gap = async () => { const q = (await chain(fb, (c) => c.players))[1], h = await host(); return Math.hypot(q.x - h.x, q.z - h.z); };
   await expect.poll(gap, { timeout: 10_000 }).toBeLessThan(1.5);
+  // B says something: the host's phone shows the bubble over B's traveller
+  await b.keyboard.press('1');
+  await expect.poll(() => chain(fa, (c) => c.emotes[1]), { timeout: 30_000, intervals: [100] }).toBe('👋 HI!');
   // a fall: the host puts everyone back at the start, and B's phone goes along with it
   await chain(fb, (c) => c.debug.fall()); // (B's phone moves B — the host can't drop a traveller another phone is holding up)
   await chain(fa, (c) => c.debug.fall());
@@ -224,4 +242,20 @@ test('tug of wall: a code nobody is hosting says so', async ({ browser }) => {
   await p.getByTestId('join-room').click();
   await expect(p.getByTestId('no-host')).toContainText('Nobody is hosting room ZZZZ', { timeout: 10_000 });
   await ctx.close();
+});
+
+test('tug of wall: the first time, a how-to-play card holds the first stretch until you press JUMP', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await page.addInitScript(() => { if (window.top === window) localStorage.removeItem('epicasia.chaingang.tips'); });
+  await open(page, '/games/chaingang/play');
+  await page.getByTestId('chain-practise').click();
+  const f = await game(page);
+  expect(await chain(f, (c) => c.tips)).toBe(true);
+  await expect.poll(() => chain(f, (c) => c.mode)).toBe('title');
+  await page.waitForTimeout(4000); // (a title card is 2.8 s)
+  expect(await chain(f, (c) => c.mode)).toBe('title');
+  await page.keyboard.press(' ');
+  await expect.poll(() => chain(f, (c) => c.mode), { timeout: 20_000 }).toBe('play');
+  expect(await chain(f, (c) => c.tips)).toBe(false);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.chaingang.tips'))).toBe('1');
 });

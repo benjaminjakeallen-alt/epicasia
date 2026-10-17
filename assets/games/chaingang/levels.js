@@ -1,4 +1,4 @@
-// Tug of Wall — the three stretches, in 3D: a climb up into the sky,
+// Tug of Wall — the four stretches, in 3D: a climb up into the sky,
 // like Chained Together, through floating pieces of the Great Wall, rock
 // islands and planks, spiralling upward over a sea of cloud. Pure data,
 // read by the simulation (sim.js) and drawn by render3d.js. Metres, y up.
@@ -188,6 +188,8 @@ function course(name, key, line, opts = {}) {
     pad(rise) {
       const [xa, za] = at(0, -1.6), [xb, zb] = at(3, 1.6);
       L.bouncers.push(box(xa, xb, c.y - 0.5, c.y, za, zb, { power: Math.sqrt(52 * (rise + 1.2)) }));
+      // stone under it, down to the pieces either side (a fallen traveller used to wedge in the slot under the pad)
+      L.solids.push(box(xa, xb, c.y - 4.5, c.y - 0.5, za, zb, { kind: 'wall', along: f()[0] ? 'x' : 'z', step: true }));
       // a row of firework rockets standing along each side of the pad
       for (const e of [-1, 1]) {
         const [ra, rza] = at(0.25, e * 1.6 - e * 0.32), [rb, rzb] = at(2.75, e * 1.6);
@@ -281,9 +283,11 @@ function furnish(L) {
   if (L.key === 'storm') add({ ...wide(1.35, 0.15), y0: fi.y + 1.15, y1: fi.y + 3.85 }, 'gong');
   // the zip line's posts, one at each end
   for (const zl of L.zips) {
-    const e = [zl.b[0] - zl.a[0], zl.b[1] - zl.a[1], zl.b[2] - zl.a[2]], len = Math.hypot(...e);
+    const e = [zl.b[0] - zl.a[0], zl.b[1] - zl.a[1], zl.b[2] - zl.a[2]], len = Math.hypot(...e), h = Math.hypot(e[0], e[2]);
+    // (beside the line, 1.9 m to one side, whichever way it runs — not in the way on)
+    const ox = (e[2] / h) * 1.9, oz = (-e[0] / h) * 1.9;
     for (const [p, sg] of [[zl.a, -1], [zl.b, 1]]) {
-      const x = p[0] + (e[0] / len) * 1.2 * sg + 1.9, y = p[1] + (e[1] / len) * 1.2 * sg, z = p[2] + (e[2] / len) * 1.2 * sg;
+      const x = p[0] + (e[0] / len) * 1.2 * sg + ox, y = p[1] + (e[1] / len) * 1.2 * sg, z = p[2] + (e[2] / len) * 1.2 * sg + oz;
       add(box(x - 0.175, x + 0.175, y - 5.7, y + 0.3, z - 0.175, z + 0.175), 'post');
     }
   }
@@ -369,6 +373,34 @@ export const LEVELS = [
     .walk(4)
     .gap(1.3, 0.5).stairs(5, 2)
     .tag('BONG', 2, -1.62, -0.6).walk(4)
+    .landing(6, 0, { finish: true })
+    .done(),
+  // (review, Oct 17 2026: a 4th stretch — at night, a bit of everything from the first three)
+  course('Lantern Night', 'night', 'The Wall by lantern light: a bit of everything you have crossed, in the dark, up to the summit.', { hard: 1.15 })
+    .landing(6, 0, { spawn: true })
+    .tag('LAST ONE', 3, 1.62, -0.6).walk(6)
+    .lanterns(3)
+    .landing(5, 1, { check: true })
+    .barrels().stairs(6, 2.4)
+    .gap(1.3, 0.5).walk(4)
+    .stones(4, 0.6)
+    .landing(5, 1, { check: true })
+    .walk(3)
+    .pad(5)
+    .walk(3)
+    .landing(5, 0)
+    .carts(2)
+    .landing(5, -1, { check: true })
+    .dragon(5)
+    .landing(6, 0, { check: true })
+    .zip(24, 4)
+    .wind(-1, 0.5).walk(6)
+    .landing(5, 1, { check: true })
+    .carousel()
+    .landing(5, -1)
+    .stairs(6, 2.4)
+    .gap(1.4, 0.6).walk(4)
+    .tag('SUMMIT', 2, -1.62, -0.6).walk(3)
     .landing(6, 0, { finish: true })
     .done(),
 ];

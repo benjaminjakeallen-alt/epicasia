@@ -955,7 +955,7 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   With `window.__CHAINGANG_LOCAL__` the same room runs over a
   BroadcastChannel — that's how the e2e plays two pages together.
 - **Screens:** `games/chaingang/index` (ArcadeBoard, "as Bennett · all
-  three stretches"), `games/chaingang/play` — pick a traveller (saved as
+  four stretches"), `games/chaingang/play` — pick a traveller (saved as
   `epicasia.chaingang.hero`), then **Start a room** (big code + Share),
   **Join** with a code, or **Practise with bots**; the lobby lists the gang,
   greys out travellers others have (a later joiner who clashes is moved to a
@@ -1136,8 +1136,37 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   `__chain.simulate`) — gangs of 1–4 bots at 8 start timings all finish all
   three (96/96), and a person leading three bots finishes too; the e2e
   checks 1, 2 and 4. Re-run after any level or physics change.
+- **Polish (review, Oct 17 2026):** a **4th stretch, Lantern Night**
+  (`night`, hard 1.15, par 168 s, route 175 m, 5 watchtowers): lanterns,
+  barrels on stairs, crumbling stones, a launch pad, rope carts, the dragon,
+  a zip line into a gusty walk, the carousel and stairs to the summit — at
+  night (a dark sky with stars, a striped moon, paper sky lanterns rising all
+  round; `SKIES[3].night`), its own key in the music (G, 120 bpm).
+  **Reeling in:** GRAB on solid ground and the teammate next to you hanging
+  below is hauled up the rope (`REEL` 3.2 m/s, drawn in toward you, until
+  they're standing) — the dangler's own phone moves them, so it works online;
+  bots now dig in and reel a neighbour in rather than walking away, and step
+  straight off furniture (they used to stand on the rocket racks for ever).
+  `__chain.reelTest(grab)` checks it headless. **Looks:** each rope glows warm
+  and throbs when pulled tight; a traveller hauling leans back hand over hand;
+  watchtowers set off fireworks (rockets with spark trails, a soft boom) and
+  their flag springs up; crumbling stones wobble more and more and shed grit.
+  **Emotes:** 💬 above the joystick (or keys 1–4) — HI / WAIT / THIS WAY /
+  NICE — a speech bubble over your traveller on every phone (event `emote`;
+  clients send `{t:'e'}`); a bot cheers at each watchtower. **Medals** per
+  stretch (gold ≤ 85% of par with ≤ 1 fall, silver ≤ par with ≤ 3, else
+  bronze) on the clear card and in a row on the finish card, with
+  "BUTTERFINGERS: …" for whoever fell most (`sim.fallsBy`, `fb` in snapshots)
+  or "NOBODY FELL!". **First-time tips** (solo): the first title card waits
+  on a how-to-play card until JUMP (`INIT.tips` / `tips-seen`). Fixed on the
+  way: zip-line posts were offset +1.9 m in x whatever way the line ran (in
+  the way on a line along x), and launch pads now have stone under them (a
+  fallen traveller wedged in the slot). Proved: 128/128 bot gangs (1–4 bots,
+  8 timings, 4 stretches), 12/12 person-led runs, rope never inside anything
+  for bots (≤ 5.6 cm with a random-input player). The board reads "all four
+  stretches" for `level` 4.
 - **Scores:** per stretch `max(250, 1000 + 10·(par − time) − 60·falls)`
-  (par 110/126/172 s), summed; each phone saves its own row in
+  (par 110/126/172/168 s), summed; each phone saves its own row in
   `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
   its own hero) at the finish, or on leaving with something cleared.
 - **Look** (`render3d.js`): Sunset Overdrive — a neon sunset dome per
@@ -1183,10 +1212,11 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
 - Tests: `e2e/chaingang.spec.ts` (board; bots win every stretch; practise —
   roster, ↑ walks along the Wall, a drag looks round and the camera swings
   back, round a bend it turns by itself, the music plays and the pause menu
-  switches it off/on, GRAB, a fall, clear all three → exact `game_scores`
-  insert, leave; **two pages in one room** — code, join, traveller clash,
+  switches it off/on, GRAB, emotes (button and keys), a fall, clear all four
+  → medals, whose fall it was, exact `game_scores` insert, leave; reeling in
+  (headless); the first-time tips card; **two pages in one room** — code, join, traveller clash,
   host/client, the client's stick moves its traveller in the host's sim and
-  the client sees it, the client leaves → a bot takes over; a code with no
+  the client sees it, the client's emote shows on the host, the client leaves → a bot takes over; a code with no
   host) + axe on the board, the lobby and inside the game frame.
 
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)

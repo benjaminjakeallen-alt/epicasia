@@ -1,5 +1,5 @@
 // Tug of Wall — up to four travellers chained together cross the
-// Great Wall of China, side-on, in three stretches (levels.js). Runs inside
+// Great Wall of China, in four stretches (levels.js). Runs inside
 // the app's sandboxed iframe (null origin): the app passes
 // window.CHAINGANG_INIT = { mode, me, players, highScore, debug } and relays
 // network messages, because only the app can reach the room.
@@ -25,7 +25,14 @@ const INIT = window.CHAINGANG_INIT || {};
 export const HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'];
 export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 'MILES', mei: 'MEI' };
 export const COLORS = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff']; // each place on the chain
-const PAR = [110, 126, 172]; // seconds for a time bonus (the 2nd and 3rd are 15% harder, the 3rd a quarter longer)
+const PAR = [110, 126, 172, 168]; // seconds for a time bonus (the 2nd and 3rd are 15% harder, the 3rd a quarter longer; the 4th, at night, everything at once)
+/** A stretch's medal: gold for well under par with at most one fall, silver for par, bronze for getting there. */
+export function medalFor(lv, time, falls) {
+  return time <= PAR[lv] * 0.85 && falls <= 1 ? 'gold' : time <= PAR[lv] && falls <= 3 ? 'silver' : 'bronze';
+}
+// Emotes (review, Oct 17 2026): a speech bubble over your traveller, seen on every phone.
+export const EMOTES = ['👋 HI!', '⏳ WAIT!', '➡️ THIS WAY!', '🙌 NICE!'];
+const TIPS_HOLD = 12; // the first time ever (solo): the first title card waits for a tap, at most this long
 const TITLE_T = 2.8, CLEAR_T = 4.5;
 const PITCH = 0.42; // how far the camera looks down on you
 const SNAP_EVERY = 1 / 15, STATE_EVERY = 1 / 15, INTERP = 0.12;
@@ -49,7 +56,7 @@ function haptic(kind) { post({ type: 'haptic', kind }); }
 export const S = {
   net: NET, me: ME, roster: ROSTER,
   mode: NET === 'client' ? 'wait' : 'lobby', // lobby (host: waiting for phones) → title → play → clear → … → finish
-  modeT: 0, level: 0, sim: null, scores: [], total: 0, falls: 0, menu: false, sent: false,
+  modeT: 0, level: 0, sim: null, scores: [], total: 0, falls: 0, fallsBy: [], menu: false, sent: false, tips: !!INIT.tips, emotes: [],
   hi: Math.max(0, INIT.highScore | 0), msgs: [], view: null, gone: false, auto: false,
   // where the camera looks (yaw 0 = +z): `base` follows the way on along the Wall by itself, `peek` is
   // a look round from dragging the screen that springs back when you let go
@@ -83,6 +90,7 @@ function onEvent(ev) {
     case 'knock': SFX.knock(); if (ev.i === S.me) haptic('heavy'); break;
     case 'scramble': if (ev.i === S.me) SFX.scramble(); break;
     case 'done': SFX.gong(); break;
+    case 'emote': if (EMOTES[ev.k]) { S.emotes[ev.i] = { k: ev.k, t: 0 }; SFX.emote(); } break;
   }
   if (renderer) renderer.event(ev);
 }
@@ -181,6 +189,7 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) padRe
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') { setMenu(!S.menu); e.preventDefault(); return; }
   if (S.menu) return;
+  if (e.key >= '1' && e.key <= '4') { sendEmote(+e.key - 1); return; }
   const k = KEYS[e.key];
   if (!k) return;
   audio();
@@ -188,6 +197,26 @@ window.addEventListener('keydown', (e) => {
   keys[k] = true; e.preventDefault();
 });
 window.addEventListener('keyup', (e) => { const k = KEYS[e.key]; if (k) { keys[k] = false; e.preventDefault(); } });
+
+// ---- emotes --------------------------------------------------------------------------------
+const emoteBtn = document.getElementById('emotebtn'), emotesEl = document.getElementById('emotes');
+function sendEmote(k) {
+  if (!EMOTES[k] || !S.view || S.mode === 'wait' || S.mode === 'lobby' || S.mode === 'gone') return;
+  const ev = { e: 'emote', i: S.me, k };
+  if (S.net === 'client') send({ t: 'e', i: S.me, k }); else events.push(ev);
+  onEvent(ev);
+  showEmotes(false);
+}
+function showEmotes(on) { emotesEl.classList.toggle('show', on); emoteBtn.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+emoteBtn.addEventListener('click', () => { audio(); showEmotes(!emotesEl.classList.contains('show')); });
+emotesEl.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => sendEmote(+b.dataset.k)));
+/** Host/solo: at a watchtower, one of the bots cheers. */
+function botCheer() {
+  const bots = S.roster.map((r, i) => (r.bot ? i : -1)).filter((i) => i >= 0 && i !== S.me);
+  if (!bots.length) return;
+  const ev = { e: 'emote', i: bots[Math.floor(Math.random() * bots.length)], k: 3 };
+  events.push(ev); onEvent(ev);
+}
 
 // ---- menus ---------------------------------------------------------------------------------
 const pauseEl = document.getElementById('pause'), overEl = document.getElementById('over');
@@ -217,6 +246,7 @@ function syncButtons() {
   overEl.classList.toggle('show', over);
   document.getElementById('again').style.display = over && S.net !== 'client' && S.mode !== 'gone' ? '' : 'none';
   document.querySelector('#pad').classList.toggle('show', !over);
+  if (over) showEmotes(false);
 }
 
 // ---- scores ---------------------------------------------------------------------------------
@@ -231,7 +261,7 @@ function sendScore(outcome) {
 const ready = new Set([S.me]); // host: phones whose game has loaded
 let lobbyWait = 0;
 function startRun() {
-  Object.assign(S, { scores: [], total: 0, falls: 0, sent: false, level: 0 });
+  Object.assign(S, { scores: [], total: 0, falls: 0, fallsBy: S.roster.map(() => 0), sent: false, level: 0 });
   startLevel(0);
 }
 function startLevel(lv) {
@@ -293,7 +323,14 @@ function hostUpdate(dt) {
     if (humans.every((i) => ready.has(i)) || lobbyWait > 8) startRun();
     return;
   }
-  if (S.mode === 'title') { if (S.modeT > TITLE_T) setMode('play'); }
+  if (S.mode === 'title') {
+    if (S.tips && S.net === 'solo' && S.level === 0) { // the first time: the how-to-play card waits for JUMP
+      S.tipsT = (S.tipsT || 0) + dt;
+      if (S.tipsT < 1) S.tipTaps = pad.taps; // (a press from before the card doesn't count)
+      else if (pad.taps > S.tipTaps || S.tipsT > TIPS_HOLD) { S.tips = false; post({ type: 'tips-seen' }); S.modeT = TITLE_T - 0.4; seenTaps.me = pad.taps; }
+      if (S.tips) S.modeT = Math.min(S.modeT, 1.2);
+    } else if (S.modeT > TITLE_T) setMode('play');
+  }
   else if (S.mode === 'clear') {
     if (S.modeT > CLEAR_T) {
       if (S.level + 1 < LEVELS.length) startLevel(S.level + 1);
@@ -308,11 +345,12 @@ function hostUpdate(dt) {
       placePuppets(S.sim);
       dropNow('host'); if (dropSteps.host > 0) dropSteps.host--;
       stepSim(S.sim, inputsFor(S.sim));
-      for (const ev of S.sim.events) { events.push(ev); onEvent(ev); }
+      for (const ev of S.sim.events) { events.push(ev); onEvent(ev); if (ev.e === 'checkpoint') botCheer(); }
       if (S.sim.done !== null) {
         const sc = levelScore(S.level, S.sim.done, S.sim.falls);
-        S.scores.push({ score: sc, time: S.sim.done, falls: S.sim.falls });
+        S.scores.push({ score: sc, time: S.sim.done, falls: S.sim.falls, medal: medalFor(S.level, S.sim.done, S.sim.falls) });
         S.total += sc; S.falls += S.sim.falls;
+        S.sim.fallsBy.forEach((n, i) => { S.fallsBy[i] = (S.fallsBy[i] || 0) + n; });
         SFX.clear(); haptic('success');
         setMode('clear');
         break;
@@ -331,7 +369,7 @@ function snapshot() {
   const sim = S.sim;
   return {
     t: 's', mode: S.mode, mt: r2(S.modeT), lv: S.level, tm: sim ? r2(sim.t) : 0, cp: sim ? sim.cp : 0, f: sim ? sim.falls : 0, rs: sim ? sim.rs || 0 : 0,
-    sc: S.scores, bots: S.roster.map((r) => (r.bot ? 1 : 0)),
+    sc: S.scores, fb: S.fallsBy, bots: S.roster.map((r) => (r.bot ? 1 : 0)),
     ps: sim ? sim.players.map((p) => [r2(p.x), r2(p.y), r2(p.z), r2(p.vx), r2(p.vy), r2(p.vz), flagsOf(p), r2(p.face)]) : [],
     cr: sim ? sim.crumble.map((c) => (c.gone ? -1 : r2(c.stood + c.heavy * 4))) : [],
     br: sim ? sim.barrels.map((b) => [r2(b.x), r2(b.y), r2(b.z), r2(b.spin), b.dx, b.dz]) : [],
@@ -345,7 +383,7 @@ function onSnapshot(s) {
   if (S.gone) return;
   const prevMode = S.mode, prevLevel = S.level;
   if (s.lv !== S.level || !snaps.length) { snaps.length = 0; lookAlong(LEVELS[s.lv].spawn.dir); }
-  S.level = s.lv; S.scores = s.sc || []; S.total = S.scores.reduce((a, b) => a + b.score, 0);
+  S.level = s.lv; S.scores = s.sc || []; S.total = S.scores.reduce((a, b) => a + b.score, 0); S.fallsBy = Array.isArray(s.fb) ? s.fb : [];
   S.roster.forEach((r, i) => { r.bot = !!(s.bots && s.bots[i]); });
   if (s.mode !== prevMode || s.lv !== prevLevel) {
     if (prevMode === 'finish') S.sent = false; // the host started again
@@ -361,6 +399,7 @@ function onSnapshot(s) {
   for (const ev of s.ev || []) {
     // a barrel hit us on the host: knock our own traveller back here
     if (ev.e === 'knock' && ev.i === S.me && mine.sim && mine.lv === s.lv) knock(mine.sim.players[S.me], ev.dx || 0, ev.dz || 0);
+    if (ev.e === 'emote' && ev.i === S.me) continue; // (ours was shown when we sent it)
     onEvent(ev);
   }
 }
@@ -479,6 +518,7 @@ window.addEventListener('message', (e) => {
     const m = d.msg;
     if (S.net === 'host') {
       if (m.t === 'hi' && typeof m.i === 'number') ready.add(m.i);
+      else if (m.t === 'e' && typeof m.i === 'number' && m.i !== S.me && S.roster[m.i] && EMOTES[m.k]) { const ev = { e: 'emote', i: m.i, k: m.k | 0 }; events.push(ev); onEvent(ev); }
       else if (m.t === 'p' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
         ready.add(m.i);
         const n = (v) => (Number.isFinite(+v) ? +v : 0);
@@ -567,7 +607,7 @@ function soundTick(dt) {
 // ---- the frame loop ----------------------------------------------------------------------------
 renderer = createRenderer({
   glCanvas: document.getElementById('gl'), hudCanvas: document.getElementById('hud'), stage: document.getElementById('stage'),
-  game: { S, LEVELS, COLORS, NAMES, PAR },
+  game: { S, LEVELS, COLORS, NAMES, PAR, EMOTES, boom: () => SFX.boom() },
 });
 let last = performance.now();
 function frame(now) {
@@ -583,6 +623,7 @@ function tick(now) {
   S.modeT += dt;
   S.msgs.forEach((m) => { m.t += dt; });
   S.msgs = S.msgs.filter((m) => m.t < m.life);
+  S.emotes = S.emotes.map((e) => (e && (e.t += dt) < 2.4 ? e : null));
   if (S.net === 'client') {
     clientUpdate(dt);
     // the host has gone quiet: say so (the app tells us if it really left)
@@ -600,12 +641,19 @@ requestAnimationFrame(frame);
 window.__chain = {
   get mode() { return S.mode; }, get net() { return S.net; }, get me() { return S.me; }, get level() { return S.level; },
   get total() { return S.total; }, get scores() { return S.scores; }, get falls() { return S.view ? S.view.falls : 0; },
-  get cp() { return S.view ? S.view.cp : 0; }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },
+  get cp() { return S.view ? S.view.cp : 0; }, get tips() { return S.tips; }, get fallsBy() { return S.fallsBy.slice(); }, get emotes() { return S.emotes.map((e) => (e ? EMOTES[e.k] : null)); }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },
   get players() { return S.view ? S.view.players.map((p) => ({ x: p.x, y: p.y, z: p.z, hero: p.hero, bot: p.bot, ground: p.ground, grab: p.grab })) : []; },
   get roster() { return S.roster.map((r) => Object.assign({}, r)); },
   screenPoint: (x, y) => renderer.screenPoint(x, y),
   // a whole gang of bots plays a stretch headless (the levels must be winnable)
   simulate: (lv, n, startAt) => simulateLevel(lv, n, 240, startAt || 0),
+  // reeling in, headless: one traveller hangs off the first island's edge; the other stands, with or without GRAB
+  reelTest: (grab) => {
+    const sim = createSim(0, [{ hero: 'chris' }, { hero: 'jake' }]), sp = sim.level.spawn, [a, b] = sim.players;
+    Object.assign(a, { x: sp.x + 1, y: sp.y, z: sp.z }); Object.assign(b, { x: sp.x + 3.7, y: sp.y - 4.2, z: sp.z });
+    for (let k = 0; k < 210; k++) stepSim(sim, [{ grab: !!grab }, {}]);
+    return { hanging: +(b.y - sp.y).toFixed(2), standing: +a.x.toFixed(2), onTop: !!b.ground && b.y > sp.y - 0.3 };
+  },
   programs: () => renderer.programs(),
 };
 if (INIT.debug) {
