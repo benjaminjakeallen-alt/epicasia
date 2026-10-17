@@ -67,14 +67,16 @@ let G = [
 let LEVELS = [
   { ladders: [[0, 150], [0, 60, 1], [1, 30], [1, 100], [2, 160], [2, 80, 1], [3, 28], [3, 110], [4, 136], [4, 70, 1]],
     holes: [], tools: [[2, 120]], matcha: [3, 60], icy: [], throwEvery: 3.1, speed: 40, ladderChance: 0.22, cartChance: 0, dropEvery: 0, fire: 0 },
+  // Levels 2 and 3 were too easy (user, Oct 17 2026): quicker, faster barrels (sometimes two at once), more
+  // carts and drops, Godzilla's atomic fire from level 2, one more gap each — and level 2 one power-up, not two
   { ladders: [[0, 40], [0, 140, 1], [1, 150], [1, 90, 1], [2, 30], [2, 120], [3, 160], [3, 60, 1], [4, 100]],
-    holes: [[2, 96, 106], [4, 40, 50]], tools: [[1, 100], [3, 120]], matcha: [2, 70], icy: [], throwEvery: 2.6, speed: 46, ladderChance: 0.28, cartChance: 0.35, dropEvery: 5.5, fire: 0 },
+    holes: [[2, 96, 106], [3, 75, 85], [4, 40, 50]], tools: [[3, 120]], matcha: [2, 70], icy: [], throwEvery: 2.15, speed: 52, ladderChance: 0.34, cartChance: 0.45, dropEvery: 4.3, fire: 1, double: 0.12 },
   { ladders: [[0, 100], [0, 30, 1], [1, 160], [2, 60], [2, 130, 1], [3, 150], [4, 96], [4, 120, 1]],
-    holes: [[3, 90, 100]], tools: [[1, 40], [4, 90]], matcha: [3, 40], icy: [1, 3], throwEvery: 2.3, speed: 50, ladderChance: 0.33, cartChance: 0.3, dropEvery: 4.6, fire: 0 },
+    holes: [[2, 95, 105], [3, 90, 100]], tools: [[1, 40], [4, 90]], matcha: [3, 40], icy: [1, 3], throwEvery: 1.95, speed: 55, ladderChance: 0.4, cartChance: 0.4, dropEvery: 3.8, fire: 1, double: 0.2 },
   { ladders: [[0, 160], [1, 20], [1, 120, 1], [2, 170], [3, 30], [3, 90, 1], [4, 140]],
     holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], matcha: [1, 40], icy: [],
     // Kaiju Showdown's own hazard: fire vents that blast in turn
-    vents: [[1, 110, 0], [3, 60, 1.6], [2, 100, 0.8]], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 },
+    vents: [[1, 110, 0], [3, 60, 1.6], [2, 100, 0.8]], throwEvery: 1.8, speed: 58, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 },
   // Level 5, the finale — much harder: one ladder up per girder at the far
   // end (a full zig-zag every floor), gaps to jump, an icy girder, a single
   // power-up, faster barrels thrown in pairs, more drops and atomic fire.
@@ -405,6 +407,13 @@ function routeProblems() {
       const safe = gi === 4 ? ups.filter(function (d) { return d[1] - LADDER_REACH > stompEdge; }) : ups;
       if (!safe.length) out.push('level ' + (li + 1) + ': no safe ladder up from girder ' + gi);
     }
+    // and no gap where a ladder starts or lands (you'd step off it into the hole)
+    L.holes.forEach(function (h) {
+      L.ladders.forEach(function (d) {
+        const ends = !d[2] && (d[0] === h[0] || d[0] === h[0] - 1); // (a broken ladder goes nowhere: never stood at)
+        if (ends && d[1] > h[1] - LADDER_REACH - 4 && d[1] < h[2] + LADDER_REACH + 4) out.push('level ' + (li + 1) + ': a gap at ' + h[1] + '–' + h[2] + ' on girder ' + h[0] + ' by the ladder at ' + d[1]);
+      });
+    });
   });
   return out;
 }

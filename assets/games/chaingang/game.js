@@ -85,6 +85,7 @@ function onEvent(ev) {
     case 'boing': SFX.boing(); if (ev.i === S.me) haptic('heavy'); break;
     case 'crumble': SFX.crumble(); break;
     case 'whoops': dropSteps.host = dropSteps.mine = 0; lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
+    case 'restart': lookAlong(LEVELS[S.view ? S.view.lv : S.level].spawn.dir); message('BACK TO THE START!', '#ffd23f', 2); break;
     case 'checkpoint': SFX.checkpoint(); message('WATCHTOWER!', '#18e0ff'); haptic('success'); break;
     case 'zip': SFX.zip(); break;
     case 'knock': SFX.knock(); if (ev.i === S.me) haptic('heavy'); break;
@@ -227,6 +228,13 @@ function setMenu(on) {
 }
 document.getElementById('pausebtn').addEventListener('click', () => setMenu(true));
 document.getElementById('resume').addEventListener('click', () => setMenu(false));
+// back to the start of this stretch (user, Oct 17 2026): the host (or you, playing alone) starts it
+// again; anyone else asks the host, who does it for the whole gang
+document.getElementById('restart').addEventListener('click', () => {
+  setMenu(false);
+  if (S.net === 'client') send({ t: 'restart', i: S.me });
+  else restartLevel();
+});
 document.getElementById('psound').addEventListener('click', () => { setMuted(!isMuted()); syncMute(); });
 document.getElementById('pmusic').addEventListener('click', () => { setMusic(!isMusicOn()); syncMute(); });
 function syncMute() {
@@ -263,6 +271,14 @@ let lobbyWait = 0;
 function startRun() {
   Object.assign(S, { scores: [], total: 0, falls: 0, fallsBy: S.roster.map(() => 0), sent: false, level: 0 });
   startLevel(0);
+}
+/** The stretch again from its start (the clock too); the falls so far still count. */
+function restartLevel() {
+  if (!S.sim || !['title', 'play'].includes(S.mode)) return;
+  const falls = S.sim.falls, fallsBy = S.sim.fallsBy.slice(), rs = (S.sim.rs || 0) + 1;
+  startLevel(S.level);
+  Object.assign(S.sim, { falls, fallsBy, rs }); // (a new rs: everyone's phone goes where the host puts them)
+  const ev = { e: 'restart' }; events.push(ev); onEvent(ev);
 }
 function startLevel(lv) {
   S.level = lv;
@@ -463,10 +479,18 @@ function clientUpdate(dt) {
     send({ t: 'p', i: S.me, lv: mine.lv, rs: mine.rs, x: r2(me.x), y: r2(me.y), z: r2(me.z), vx: r2(me.vx), vy: r2(me.vy), vz: r2(me.vz), f: flags, c: g && g.crumble !== undefined ? g.crumble : -1, face: r2(me.face) });
   }
 }
+/** The snapshots to place the others from: the newest alone, if those are from before a reset. */
+function afterReset(a, b, newest) {
+  return (a.rs || 0) !== (newest.rs || 0) || (b.rs || 0) !== (newest.rs || 0) ? [newest, newest] : [a, b];
+}
 function clientView() {
   if (!snaps.length) return null;
   let a = snaps[0], b = snaps[snaps.length - 1];
   for (let k = 0; k + 1 < snaps.length; k++) if (snaps[k].tm <= clientClock && snaps[k + 1].tm >= clientClock) { a = snaps[k]; b = snaps[k + 1]; break; }
+  // just after a fall the host has put everyone back at the watchtower: show them there now, not a beat
+  // behind where they were still falling (our own rope to those old places dragged us off the platform —
+  // "looks like respawn isn't on the platform but too low")
+  [a, b] = afterReset(a, b, snaps[snaps.length - 1]);
   const span = b.tm - a.tm, k = span > 0 ? Math.max(0, Math.min(1, (clientClock - a.tm) / span)) : 1;
   const lerp = (u, v) => u + (v - u) * k;
   const t = span > 0 ? lerp(a.tm, b.tm) : b.tm;
@@ -518,6 +542,7 @@ window.addEventListener('message', (e) => {
     const m = d.msg;
     if (S.net === 'host') {
       if (m.t === 'hi' && typeof m.i === 'number') ready.add(m.i);
+      else if (m.t === 'restart' && typeof m.i === 'number' && S.roster[m.i]) restartLevel();
       else if (m.t === 'e' && typeof m.i === 'number' && m.i !== S.me && S.roster[m.i] && EMOTES[m.k]) { const ev = { e: 'emote', i: m.i, k: m.k | 0 }; events.push(ev); onEvent(ev); }
       else if (m.t === 'p' && typeof m.i === 'number' && m.i !== S.me && m.i >= 0 && m.i < S.roster.length) {
         ready.add(m.i);
@@ -664,6 +689,36 @@ window.__chain = {
     Object.assign(a, { x: sp.x + 1, y: sp.y, z: sp.z }); Object.assign(b, { x: sp.x + 3.7, y: sp.y - 4.2, z: sp.z });
     for (let k = 0; k < 210; k++) stepSim(sim, [{ grab: !!grab }, {}]);
     return { hanging: +(b.y - sp.y).toFixed(2), standing: +a.x.toFixed(2), onTop: !!b.ground && b.y > sp.y - 0.3 };
+  },
+  // three people online, headless (user, Oct 17 2026: "when we all fell we all whipped in a circle and we
+  // never reset"): a host and two phones as they really run — the host moves its own traveller and places
+  // the others where their phones last said (repD steps ago); each phone moves only its own and places the
+  // others from the host's snapshots (snapD steps old). All three dropped off the first island at once.
+  netFallTest: (lv, snapD, repD) => {
+    const roster = [0, 1, 2].map(() => ({ hero: 'chris', bot: false }));
+    const host = createSim(lv, roster); host.players.forEach((p, i) => { p.puppet = i !== 0; });
+    const phones = [1, 2].map((i) => { const q = createSim(lv, roster); q.local = i; return q; });
+    const sp = host.level.spawn;
+    for (const q of [host, ...phones]) q.players.forEach((p, i) => Object.assign(p, { x: sp.x + 4.5 + i * 0.4, y: sp.y + 0.5, z: sp.z - i * 1.5, vx: 3, vy: 2, vz: 0, ground: null }));
+    const state = (p) => ({ x: p.x, y: p.y, z: p.z, vx: p.vx, vy: p.vy, vz: p.vz, ground: !!p.ground, grab: p.grab });
+    const snapsT = [], reps = { 1: [], 2: [] }, rsSeen = { 1: 0, 2: 0 };
+    let whoops = 0;
+    for (let k = 0; k < 60 * 20; k++) {
+      for (const i of [1, 2]) { const r = reps[i][reps[i].length - 1 - repD]; if (r && r.rs === (host.rs || 0)) Object.assign(host.players[i], r, { ground: r.ground ? { puppet: true } : null, zip: null }); }
+      stepSim(host, host.players.map(() => ({})));
+      whoops += host.events.filter((e) => e.e === 'whoops').length;
+      snapsT.push({ rs: host.rs || 0, ps: host.players.map(state) });
+      phones.forEach((q, j) => {
+        const me = j + 1, newest = snapsT[snapsT.length - 1], [s0] = afterReset(snapsT[Math.max(0, snapsT.length - 1 - snapD)], newest, newest);
+        if (rsSeen[me] !== newest.rs) { rsSeen[me] = newest.rs; Object.assign(q.players[me], newest.ps[me], { vx: 0, vy: 0, vz: 0, ground: null, zip: null, grab: false, fallT: 0 }); }
+        q.t = host.t;
+        s0.ps.forEach((o, i) => { if (i !== me) Object.assign(q.players[i], o, { ground: o.ground ? { ghost: true } : null, zip: null }); });
+        stepSim(q, q.players.map(() => ({})));
+        reps[me].push(Object.assign(state(q.players[me]), { rs: rsSeen[me] }));
+      });
+    }
+    const ps = [host.players[0], phones[0].players[1], phones[1].players[2]];
+    return { whoops, standing: ps.every((p) => !!p.ground && Math.abs(p.y - sp.y) < 0.3 && Math.hypot(p.x - sp.x, p.z - sp.z) < 3) };
   },
   programs: () => renderer.programs(),
 };

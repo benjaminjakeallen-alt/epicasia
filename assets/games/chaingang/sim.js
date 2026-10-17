@@ -44,6 +44,7 @@ const ZIP_SPEED = 10, BARREL_R = 0.45, KNOCK = 0.45, REACH = 3.2;
 // reeling in (review, Oct 17 2026): dangling below a teammate who's dug in with GRAB on solid
 // ground, you're hauled up the rope at REEL m/s, drawn in toward them
 const REEL = 3.2, REEL_IN_V = 1.6;
+const FREE_FALL = 1; // s with nobody supported before the rope stops holding anyone (longer than a jump)
 
 // ---- the level's moving parts at time t ------------------------------------------------------
 export function moverPos(m, t) {
@@ -377,6 +378,11 @@ function move(sim, p, solids, dt) {
 function chain(sim, solids) {
   const ps = sim.players;
   ps.forEach((p) => { p.taut = false; });
+  // nobody on their feet, holding on or on the zip for a while: the rope holds nobody up — the whole
+  // gang falls (user, Oct 17 2026, three people online: "when we all fell we all whipped in a circle
+  // and we never reset". Each phone ties its traveller to where it last saw the others, so with nothing
+  // to hang from the gang held itself up in mid-air, swinging round, and never fell far enough to reset)
+  if ((sim.airT || 0) > FREE_FALL) return;
   const inv = (p) => (p.grab || p.puppet ? 0 : p.zip ? 0.15 : p.ground ? 0.35 : 1);
   for (let it = 0; it < 4; it++) {
     for (let i = 0; i + 1 < ps.length; i++) {

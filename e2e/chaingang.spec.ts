@@ -154,6 +154,19 @@ test('tug of wall: practise with bots, clear all four stretches, the run is save
   await chain(f, (c) => c.debug.fall());
   await expect.poll(() => chain(f, (c) => c.falls), { timeout: 20_000 }).toBe(1);
 
+  // the pause menu starts the stretch again from its beginning (the fall still counts)
+  await chain(f, (c) => c.debug.skipTitle());
+  await expect.poll(() => chain(f, (c) => c.mode)).toBe('play');
+  const far = (await chain(f, (c) => c.route))[6].p;
+  await chain(f, (c) => c.debug.warp(0, 0, 0)); // (somewhere else first…)
+  await f.evaluate(([x, y, z]) => (window as any).__chain.debug.warp(x, y + 0.05, z), far);
+  await f.locator('#pausebtn').click();
+  await f.getByRole('button', { name: 'Restart this stretch from the beginning' }).click();
+  await expect.poll(() => chain(f, (c) => c.mode)).toBe('title');
+  const fromStart = async () => { const q = (await chain(f, (c) => c.players))[0]; return Math.hypot(q.x - 0, q.z + 3); };
+  await expect.poll(fromStart, { timeout: 10_000 }).toBeLessThan(2.5); // (…and back at the start: 0, −3)
+  expect(await chain(f, (c) => [c.level, c.cp, c.falls])).toEqual([0, 0, 1]);
+
   for (let lv = 0; lv < 4; lv++) {
     await expect.poll(() => chain(f, (c) => c.level), { timeout: 20_000 }).toBe(lv);
     await expect.poll(async () => { await chain(f, (c) => c.debug.skipTitle()); return chain(f, (c) => c.mode); }, { timeout: 20_000 }).toBe('play');
@@ -238,11 +251,29 @@ test('tug of wall: two phones in one room play together', async ({ browser }) =>
   // (30 s: the host's page is in the background here, where it only ticks about once a second)
   await expect.poll(async () => (await chain(fb, (c) => c.falls)), { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(gap, { timeout: 30_000 }).toBeLessThan(0.5);
+  // B restarts the stretch from the pause menu: B's phone asks, the host starts it again for everyone
+  await expect.poll(() => chain(fa, (c) => c.mode), { timeout: 30_000 }).toBe('play');
+  await fb.locator('#pausebtn').click();
+  await fb.getByRole('button', { name: 'Restart this stretch from the beginning' }).click();
+  await expect.poll(() => chain(fa, (c) => c.mode), { timeout: 30_000 }).toBe('title');
+  await expect.poll(() => chain(fb, (c) => c.mode), { timeout: 30_000 }).toBe('title');
 
   // B leaves: a bot carries on in B's place on the host
   await b.close();
   await expect.poll(async () => (await chain(fa, (c) => c.roster))[1].bot, { timeout: 40_000 }).toBe(true); // (presence drop + a 5 s grace)
   await ctx.close();
+});
+
+test('tug of wall: three people online all falling at once go back to the watchtower, onto it', async ({ page }) => {
+  // (user, Oct 17 2026: "when we all fell we all whipped in a circle and we never reset on the platform"):
+  // a host and two phones, headless, with the network lag of a phone on mobile data (~0.15–0.6 s)
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/chaingang/play');
+  await page.getByTestId('chain-practise').click();
+  const f = await game(page);
+  for (const lv of [0, 1, 2, 3]) for (const [snapD, repD] of [[9, 6], [36, 30]]) {
+    expect(await f.evaluate(([l, a, b]) => (window as any).__chain.netFallTest(l, a, b), [lv, snapD, repD])).toEqual({ whoops: 1, standing: true });
+  }
 });
 
 test('tug of wall: a code nobody is hosting says so', async ({ browser }) => {

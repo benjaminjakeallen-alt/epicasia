@@ -577,6 +577,17 @@ Tower behind) — then they loop harder (`1.15^round`).
   (`Z_PLAYER`), ladders sit just behind it (`Z_LADDER`), and each ladder
   comes up through a hatch cut into the front of the girder above
   (`Z_HATCH`), so nothing swaps in front of/behind anything.
+- **Levels 2 and 3 made harder** (user, Oct 17 2026: "too easy"):
+  - Level 2: Godzilla throws every 2.15 s (was 2.6), barrels move at 52
+    (was 46), and some come in pairs (`double` 0.12). More carts (0.45)
+    and drops (every 4.3 s), atomic fire 1, a third gap (girder 3, x
+    75–85), and one power-up instead of two.
+  - Level 3: throws every 1.95 s, speed 55, `double` 0.2, ladderChance
+    0.4, carts 0.4, drops every 3.8 s, atomic fire 1, and a second gap
+    (girder 2, x 95–105).
+  - Level 4 is nudged up to keep the curve: throws every 1.8 s, speed 58.
+  - `routeProblems()` now also fails a gap within reach of the start or
+    landing of a working ladder.
 - **Every level must be winnable** (user, Oct 3 2026: on level 3 "you have
   to climb a ladder straight into Godzilla's feet"): its only ladder onto
   girder 5 landed at x 40, inside the stomp zone (x < `GZ_X + GZ_W + 4`); it
@@ -1249,6 +1260,30 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   8 timings, 4 stretches), 12/12 person-led runs, rope never inside anything
   for bots (≤ 5.6 cm with a random-input player). The board reads "all four
   stretches" for `level` 4.
+- **Online falls fixed** (user, Oct 17 2026, three people, no bots: "when
+  we all fell we all whipped in a circle and we never reset on the
+  platform… looks like respawn isn't on the platform but too low"). There
+  were two causes:
+  - *Holding itself up:* each phone ties its traveller to where it last
+    saw the others, so a gang with nothing to hang from held itself up in
+    mid-air. Swinging round, it never fell far enough to reset. Now
+    nobody supported for `FREE_FALL` 1 s (on the ground, GRAB or the zip)
+    → the rope holds nobody up and the gang falls (`chain()` in sim.js).
+  - *Dragged off after a reset:* a phone kept placing the others from
+    snapshots from before the reset, so its rope dragged it back off the
+    platform. It fell again and again. Now `afterReset()` uses the newest
+    snapshot until the old ones are gone.
+  - `__chain.netFallTest(lv, snapD, repD)` runs a host and two phones
+    headless with real lag and drops all three off the first island. The
+    spec wants exactly one reset with everyone standing on it, on all
+    four stretches, at ~0.15 s and ~0.6 s of lag.
+  - Before the fix, at 0.6 s nobody ever reset. The bots' proofs still
+    hold (128/128, 12/12, rope clean).
+- **RESTART STRETCH** in the pause menu: the stretch from its start, clock
+  too, with the falls so far still counted (`restartLevel()`, a new `rs`
+  so every phone goes where the host puts it, "BACK TO THE START!").
+  Online, a non-host's button asks the host (`{t:'restart'}`), who
+  restarts it for everyone.
 - **Scores:** per stretch `max(250, 1000 + 10·(par − time) − 60·falls)`
   (par 110/126/172/168 s), summed; each phone saves its own row in
   `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
