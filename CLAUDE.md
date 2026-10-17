@@ -1203,8 +1203,13 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
     the dangler (`overhead`, which used to jam them under a cart).
   - *Camera:* while you're `hung`, it turns to look from out over the drop
     back at you and the teammate above (`S.cam.hang`, eased; `HANG_PITCH`
-    0.12, look target raised by `lift`), then swings back once you stand.
-    `debug.hang()` sets this up, and the practise spec checks `camHang`.
+    0.12, look target raised by `lift`). Once you're on a platform it
+    returns behind you (user: "then return behind them when they get on a
+    platform"), and briskly: the route steering runs at rate 4 instead of
+    2.2 while the hang view fades out. `debug.hang()` sets this up. The
+    practise spec checks that `camHang` rises, that the camera is turned
+    away while you hang, and that it's back within 0.35 rad of the way on
+    within 3 s of standing.
   - Re-proved: 128/128 bot gangs, 12/12 person-led, the rope never inside
     anything. Headless: hanging alone hangs still, and a held GRAB brings
     them up smoothly in ~1.7 s with one grab (bots too).

@@ -590,7 +590,7 @@ function steerCamera(dt) {
     if (Math.hypot(b[0] - a[0], b[1] - a[1]) > 0.5) {
       let d = Math.atan2(b[0] - a[0], b[1] - a[1]) - C.base;
       d = Math.atan2(Math.sin(d), Math.cos(d));
-      C.base += d * (1 - Math.exp(-dt * 2.2));
+      C.base += d * (1 - Math.exp(-dt * (C.hang > 0.02 ? 4 : 2.2))); // (back behind you briskly once you're up off a hang)
     }
   }
   C.yaw = C.base + C.peek;
