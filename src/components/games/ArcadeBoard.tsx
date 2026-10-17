@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
@@ -12,6 +12,7 @@ import { useAuth } from '../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../lib/chat';
 import { personColor } from '../../lib/chatFormat';
 import { fetchScores, flushRuns, highScores, localBest, type ArcadeGame, type ScoreRow } from '../../lib/arcade';
+import { markOpened } from '../../lib/gameSeen';
 import { shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
@@ -52,6 +53,10 @@ export default function ArcadeBoard({
   const [best, setBest] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    markOpened(game); // (the Games hub stops showing it as NEW)
+  }, [game]);
 
   const load = useCallback(() => {
     setError(null);

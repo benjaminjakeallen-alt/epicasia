@@ -1,5 +1,6 @@
+import { dailyWinnerHistory, tripAwards, type Award, type DayWin } from './awards';
 import { fetchMembers } from './chat';
-import { GAMES, fetchEntries, fetchVotes, leaderboard, voteCounts, type GameKey } from './games';
+import { GAMES, fetchEntries, fetchVotes, leaderboard, voteCounts, type Entry, type GameKey, type Vote } from './games';
 import { ARCADE, fetchScores, highScores, type ArcadeGame } from './arcade';
 
 // The trip leaderboard: one table across every game. Games score in
@@ -62,8 +63,8 @@ export function combine(
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** Every game's ranking, from the same tables each game's own board uses. */
-export async function fetchGameResults(): Promise<GameResult[]> {
+/** Every game's ranking, from the same tables each game's own board uses (and the rows behind them). */
+async function loadResults(): Promise<{ results: GameResult[]; entries: Map<GameKey, Entry[]>; votes: Vote[] }> {
   const isArcade = (k: string): k is ArcadeGame => k in ARCADE;
   const voteGames = GAMES.filter((g) => !isArcade(g.key)).map((g) => g.key as GameKey);
   const arcadeGames = GAMES.map((g) => g.key).filter(isArcade);
@@ -94,12 +95,45 @@ export async function fetchGameResults(): Promise<GameResult[]> {
       })),
     }),
   );
-  return results;
+  return { results, entries: new Map(voteGames.map((g, i) => [g, entryLists[i]])), votes };
+}
+
+export async function fetchGameResults(): Promise<GameResult[]> {
+  return (await loadResults()).results;
 }
 
 export async function fetchTripStandings(): Promise<TripStanding[]> {
-  const [results, members] = await Promise.all([fetchGameResults(), fetchMembers()]);
-  return combine(results, new Map(members.map((m) => [m.id, { name: m.name, avatar: m.avatar }])));
+  return (await fetchTripBoard()).standings;
+}
+
+export type TripBoard = {
+  standings: TripStanding[];
+  awards: Award[];
+  days: DayWin[];
+  people: Map<string, { name: string; avatar: string | null }>;
+};
+
+/** The standings, the trip awards and every day's winners, in one load. */
+export async function fetchTripBoard(): Promise<TripBoard> {
+  const [{ results, entries, votes }, members] = await Promise.all([loadResults(), fetchMembers()]);
+  const lit = entries.get('lost_in_translation') ?? [],
+    konbini = entries.get('konbini_review') ?? [];
+  const title = (key: string) => GAMES.find((g) => g.key === key)?.title ?? key;
+  const people = new Map(members.map((m) => [m.id, { name: m.name, avatar: m.avatar }]));
+  return {
+    people,
+    standings: combine(results, people),
+    awards: tripAwards(
+      lit,
+      konbini,
+      votes,
+      results.filter((r) => r.game in ARCADE),
+    ),
+    days: dailyWinnerHistory(
+      [...entries].map(([game, list]) => ({ game, title: title(game), entries: list })),
+      votes,
+    ),
+  };
 }
 
 export function ordinal(n: number): string {

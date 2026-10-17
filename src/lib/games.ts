@@ -186,6 +186,44 @@ export async function addReview(
   return data as Entry;
 }
 
+/** Upvotes on someone's entries in a list (for "new upvotes since you last looked"). */
+export function upvotesFor(entries: Entry[], counts: Map<string, number>, userId: string): number {
+  return entries.reduce((n, e) => n + (e.created_by === userId ? (counts.get(e.id) ?? 0) : 0), 0);
+}
+
+/** The cities a list of entries comes from, in route order (for the city filter). */
+export function citiesIn(entries: Entry[], order: readonly CityKey[]): CityKey[] {
+  const have = new Set(entries.map((e) => e.city).filter(Boolean));
+  return order.filter((c) => have.has(c));
+}
+
+// Lost in Translation's daily hunt (review, Oct 17 2026): a theme for the day,
+// just for fun (any find still counts). One per trip day from Jun 6 2027, and
+// by day of the year before and after.
+export const HUNTS = [
+  'Menus',
+  'Signs on doors',
+  'T-shirts and bags',
+  'Snack packaging',
+  'Instructions',
+  'Warning signs',
+  'Shop names',
+  'In the toilets',
+  'Station and airport signs',
+  'Hotel notices',
+  'Souvenirs',
+  'Street signs',
+  'Drinks labels',
+  'Anything you can wear',
+  'Free choice: the very best one',
+] as const;
+const TRIP_START = Date.UTC(2027, 5, 6);
+export function huntFor(day: string): string {
+  const t = Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)));
+  const k = Math.round((t - TRIP_START) / 86_400_000);
+  return HUNTS[((k % HUNTS.length) + HUNTS.length) % HUNTS.length];
+}
+
 /** Konbini Review's snack list: best rated first (ties: more upvotes, then newest). */
 export function bySnackRating(entries: Entry[], counts: Map<string, number>): Entry[] {
   return [...entries].sort(

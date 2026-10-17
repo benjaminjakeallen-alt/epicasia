@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
-import { selectionTick } from '../../../lib/haptics';
+import { stepFeedback } from '../../../lib/feedback';
+import { openedGames } from '../../../lib/gameSeen';
 import { GAMES } from '../../../lib/games';
 import { shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
@@ -78,12 +79,20 @@ export default function Games() {
     return () => loop?.stop();
   }, [float]);
 
+  // games this phone hasn't opened yet wear a NEW badge
+  const [opened, setOpened] = useState<string[] | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      openedGames().then(setOpened);
+    }, []),
+  );
+
   function choose(i: number) {
     // (a swipe that was about to settle mustn't then switch back to what it was resting on)
     if (settle.current) clearTimeout(settle.current);
     const next = (i + GAMES.length) % GAMES.length;
     if (next === index) return;
-    selectionTick();
+    stepFeedback();
     setIndex(next);
     pop.setValue(0);
     spark.setValue(0);
@@ -248,7 +257,7 @@ export default function Games() {
               <Pressable
                 testID={real ? `game-${g.key}` : undefined}
                 accessibilityRole={real ? 'tab' : undefined}
-                accessibilityLabel={real ? g.title : undefined}
+                accessibilityLabel={real ? `${g.title}${opened && !opened.includes(g.key) ? ', new' : ''}` : undefined}
                 accessibilityState={real ? { selected: on } : undefined}
                 aria-selected={real ? on : undefined}
                 focusable={real}
@@ -267,6 +276,16 @@ export default function Games() {
                 ]}
               >
                 <Image source={g.image} style={styles.tileImage} contentFit="contain" accessibilityLabel="" />
+                {opened && !opened.includes(g.key) ? (
+                  <View
+                    style={[styles.newBadge, { backgroundColor: colors.ink }]}
+                    testID={real ? `new-${g.key}` : undefined}
+                    aria-hidden // (the tile's label says "new")
+                    pointerEvents="none"
+                  >
+                    <Text style={[styles.newText, { color: colors.card }]}>NEW</Text>
+                  </View>
+                ) : null}
               </Pressable>
             </Animated.View>
           );
@@ -315,4 +334,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileImage: { width: 66, height: 66 },
+  newBadge: { position: 'absolute', top: -6, right: -6, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
+  newText: { fontFamily: fontFamily.bodySemiBold, fontSize: 11, letterSpacing: 0.3 },
 });

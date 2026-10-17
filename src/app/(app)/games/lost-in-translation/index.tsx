@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../../../components/Avatar';
@@ -9,25 +9,33 @@ import CircleButton from '../../../../components/CircleButton';
 import OfflineNotice from '../../../../components/OfflineNotice';
 import { JournalSkeleton } from '../../../../components/Skeleton';
 import SkyBackdrop from '../../../../components/SkyBackdrop';
+import CityChips from '../../../../components/games/CityChips';
+import VoteButton from '../../../../components/games/VoteButton';
+import WinnerBadge from '../../../../components/games/WinnerBadge';
 import { useAuth } from '../../../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../../../lib/chat';
 import { personColor } from '../../../../lib/chatFormat';
 import { confirm } from '../../../../lib/confirm';
 import { todayDay } from '../../../../lib/dates';
+import { winFeedback } from '../../../../lib/feedback';
+import { markOpened, seenUpvotes, setSeenUpvotes } from '../../../../lib/gameSeen';
 import {
+  citiesIn,
   dailyWinners,
   deleteEntry,
   entryDay,
   fetchEntries,
   fetchVotes,
+  huntFor,
   leaderboard,
   setVote,
+  upvotesFor,
   voteCounts,
   type Entry,
   type Vote,
 } from '../../../../lib/games';
 import { signedUrls } from '../../../../lib/photos';
-import { CITIES } from '../../../../lib/weather';
+import { CITIES, type CityKey } from '../../../../lib/weather';
 import { shadow } from '../../../../theme/colors';
 import { fontFamily, type } from '../../../../theme/typography';
 import { useTheme } from '../../../../theme/useTheme';
@@ -36,7 +44,9 @@ import { useTheme } from '../../../../theme/useTheme';
 // the trip and upvotes their favourites. Points = upvotes received. Each
 // day's most-upvoted photo is highlighted as that day's winner ("Leading
 // today" while the day is still on). Photos live in the private `games`
-// bucket — not in the shared Photos gallery.
+// bucket — not in the shared Photos gallery. On top: the day's hunt (a theme,
+// just for fun), how many new upvotes you've had since you last looked, and a
+// nudge if you haven't posted today; chips filter by city.
 
 const GAME = 'lost_in_translation' as const;
 type Tab = 'top' | 'new' | 'board';
@@ -58,6 +68,12 @@ export default function LostInTranslation() {
   const [tab, setTab] = useState<Tab>('top');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [city, setCity] = useState<CityKey | null>(null);
+  const [newUp, setNewUp] = useState(0);
+
+  useEffect(() => {
+    markOpened(GAME);
+  }, []);
 
   const load = useCallback(() => {
     setError(null);
@@ -66,12 +82,20 @@ export default function LostInTranslation() {
         setEntries(e);
         setVotes(v);
         setMembers(m);
+        // upvotes on your finds since you last looked
+        const now = upvotesFor(e, voteCounts(v), me),
+          seen = await seenUpvotes(GAME);
+        if (seen !== null && now > seen) {
+          setNewUp(now - seen);
+          winFeedback();
+        }
+        setSeenUpvotes(GAME, now);
         const paths = e.flatMap((x) => [x.storage_path, ...(x.thumb_path ? [x.thumb_path] : [])]);
         if (paths.length) setUrls(await signedUrls('games', paths).catch(() => ({})));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [me]);
 
   useFocusEffect(
     useCallback(() => {
@@ -85,12 +109,21 @@ export default function LostInTranslation() {
   const board = useMemo(() => leaderboard(entries, counts), [entries, counts]);
   const today = todayDay();
 
+  const cities = useMemo(
+    () =>
+      citiesIn(
+        entries,
+        CITIES.map((c) => c.key),
+      ),
+    [entries],
+  );
+  const postedToday = entries.some((e) => e.created_by === me && entryDay(e) === today);
   const shown = useMemo(() => {
-    const list = [...entries];
+    const list = entries.filter((e) => !city || e.city === city);
     if (tab === 'top')
       list.sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || (a.created_at < b.created_at ? 1 : -1));
     return list;
-  }, [entries, counts, tab]);
+  }, [entries, counts, tab, city]);
 
   const member = (id: string) => {
     const i = members.findIndex((m) => m.id === id);
@@ -118,8 +151,7 @@ export default function LostInTranslation() {
   }
 
   async function remove(e: Entry) {
-    if (!(await confirm('Delete this find?', 'It and its upvotes will be removed for everyone.')))
-      return;
+    if (!(await confirm('Delete this find?', 'It and its upvotes will be removed for everyone.'))) return;
     try {
       await deleteEntry(e);
       setEntries((prev) => prev.filter((x) => x.id !== e.id));
@@ -169,6 +201,7 @@ export default function LostInTranslation() {
         })}
       </View>
       <OfflineNotice />
+      {tab !== 'board' && !loading ? <CityChips cities={cities} value={city} onChange={setCity} /> : null}
 
       {loading ? (
         <JournalSkeleton label="Loading finds" />
@@ -236,105 +269,114 @@ export default function LostInTranslation() {
               </Pressable>
             </View>
           ) : (
-            shown.map((e) => {
-              const m = member(e.created_by);
-              const n = counts.get(e.id) ?? 0;
-              const mine = e.created_by === me;
-              const voted = votes.some((v) => v.entry_id === e.id && v.user_id === me);
-              const day = entryDay(e);
-              const won = winnerIds.has(e.id);
-              const url = urls[e.storage_path];
-              const thumb = e.thumb_path ? urls[e.thumb_path] : undefined;
-              const ratio = e.width && e.height ? Math.min(1.6, Math.max(0.62, e.width / e.height)) : 4 / 3;
-              const city = CITIES.find((c) => c.key === e.city)?.name;
-              return (
+            <>
+              {newUp > 0 ? (
                 <View
-                  key={e.id}
-                  testID="find"
-                  style={[
-                    styles.card,
-                    { backgroundColor: colors.card },
-                    won && { borderColor: colors.winner, borderWidth: 3 },
-                  ]}
+                  style={[styles.note, { backgroundColor: colors.winnerSoft }]}
+                  testID="new-upvotes"
+                  accessibilityLiveRegion="polite"
                 >
-                  <View style={[styles.clip, won && styles.clipWon]}>
-                    {won ? (
-                      <View style={[styles.badge, { backgroundColor: colors.winnerSoft }]} testID="winner-badge">
-                        <Ionicons name="trophy" size={16} color={colors.winnerInk} />
-                        <Text style={[styles.badgeText, { color: colors.winnerInk }]}>
-                          {day === today ? 'Leading today' : `Winner · ${dayLabel(day)}`}
-                        </Text>
-                      </View>
-                    ) : null}
-                    {url ? (
-                      <Image
-                        source={{ uri: url, cacheKey: `games:${e.storage_path}` }}
-                        placeholder={thumb ? { uri: thumb, cacheKey: `games:${e.thumb_path}` } : undefined}
-                        style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]}
-                        contentFit="cover"
-                        transition={150}
-                        accessibilityLabel={e.caption ? `Photo: ${e.caption}` : `Photo by ${m.name}`}
-                      />
-                    ) : (
-                      <View style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]} />
-                    )}
-                    <View style={styles.body}>
-                      {e.caption ? <Text style={[styles.caption, { color: colors.ink }]}>“{e.caption}”</Text> : null}
-                      <View style={styles.meta}>
-                        <Avatar name={m.name} path={m.avatar} color={m.color} size={28} />
-                        <Text style={[type.caption, styles.flex, { color: colors.inkSecondary }]} numberOfLines={1}>
-                          {mine ? 'You' : m.name}
-                          {city ? ` · ${city}` : ''} · {dayLabel(day)}
-                        </Text>
-                        {mine ? (
-                          <>
-                            <View
-                              style={[styles.vote, { borderColor: colors.border }]}
-                              accessible
-                              accessibilityLabel={`Your find, ${plural(n, 'upvote')}`}
-                            >
-                              <Ionicons name="arrow-up" size={18} color={colors.inkSecondary} />
-                              <Text style={[styles.voteText, { color: colors.inkSecondary }]}>{n}</Text>
-                            </View>
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Delete your find"
-                              onPress={() => remove(e)}
-                              style={styles.iconHit}
-                            >
-                              <Ionicons name="trash-outline" size={19} color={colors.inkTertiary} />
-                            </Pressable>
-                          </>
-                        ) : (
-                          <Pressable
-                            testID="upvote"
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: voted }}
-                            aria-pressed={voted}
-                            accessibilityLabel={
-                              voted ? `Remove your upvote, ${plural(n, 'upvote')}` : `Upvote, ${plural(n, 'upvote')}`
-                            }
-                            onPress={() => toggleVote(e)}
-                            style={({ pressed }) => [
-                              styles.vote,
-                              {
-                                borderColor: voted ? colors.accent : colors.border,
-                                backgroundColor: voted ? colors.accent : pressed ? colors.accentSoft : colors.card,
-                              },
-                            ]}
-                          >
-                            <Ionicons name="arrow-up" size={18} color={voted ? colors.onAccent : colors.highlight} />
-                            <Text style={[styles.voteText, { color: voted ? colors.onAccent : colors.highlight }]}>
-                              {n}
-                            </Text>
-                          </Pressable>
-                        )}
+                  <Ionicons name="sparkles" size={20} color={colors.winnerInk} />
+                  <Text style={[type.body, styles.flex, { color: colors.winnerInk }]}>
+                    {plural(newUp, 'new upvote')} on your finds since you last looked
+                  </Text>
+                </View>
+              ) : null}
+              <View style={[styles.note, { backgroundColor: colors.card }]} testID="daily-hunt">
+                <Ionicons name="search" size={20} color={colors.highlight} />
+                <Text style={[type.body, styles.flex, { color: colors.ink }]}>
+                  <Text style={{ fontFamily: fontFamily.bodySemiBold }}>Today’s hunt: </Text>
+                  {huntFor(today).toLowerCase()}
+                </Text>
+              </View>
+              {!postedToday ? (
+                <Pressable
+                  testID="post-nudge"
+                  accessibilityRole="button"
+                  onPress={() => router.push('/(app)/games/lost-in-translation/new')}
+                  style={({ pressed }) => [styles.note, { backgroundColor: pressed ? colors.accentSoft : colors.card }]}
+                >
+                  <Ionicons name="camera-outline" size={20} color={colors.highlight} />
+                  <Text style={[type.body, styles.flex, { color: colors.ink }]}>
+                    Nothing from you today yet. Post a find
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
+                </Pressable>
+              ) : null}
+              {shown.map((e) => {
+                const m = member(e.created_by);
+                const n = counts.get(e.id) ?? 0;
+                const mine = e.created_by === me;
+                const voted = votes.some((v) => v.entry_id === e.id && v.user_id === me);
+                const day = entryDay(e);
+                const won = winnerIds.has(e.id);
+                const url = urls[e.storage_path];
+                const thumb = e.thumb_path ? urls[e.thumb_path] : undefined;
+                const ratio = e.width && e.height ? Math.min(1.6, Math.max(0.62, e.width / e.height)) : 4 / 3;
+                const city = CITIES.find((c) => c.key === e.city)?.name;
+                return (
+                  <View
+                    key={e.id}
+                    testID="find"
+                    style={[
+                      styles.card,
+                      { backgroundColor: colors.card },
+                      won && { borderColor: colors.winner, borderWidth: 3 },
+                    ]}
+                  >
+                    <View style={[styles.clip, won && styles.clipWon]}>
+                      {won ? (
+                        <WinnerBadge label={day === today ? 'Leading today' : `Winner · ${dayLabel(day)}`} />
+                      ) : null}
+                      {url ? (
+                        <Image
+                          source={{ uri: url, cacheKey: `games:${e.storage_path}` }}
+                          placeholder={thumb ? { uri: thumb, cacheKey: `games:${e.thumb_path}` } : undefined}
+                          style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]}
+                          contentFit="cover"
+                          transition={150}
+                          accessibilityLabel={e.caption ? `Photo: ${e.caption}` : `Photo by ${m.name}`}
+                        />
+                      ) : (
+                        <View style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]} />
+                      )}
+                      <View style={styles.body}>
+                        {e.caption ? <Text style={[styles.caption, { color: colors.ink }]}>“{e.caption}”</Text> : null}
+                        <View style={styles.meta}>
+                          <Avatar name={m.name} path={m.avatar} color={m.color} size={28} />
+                          <Text style={[type.caption, styles.flex, { color: colors.inkSecondary }]} numberOfLines={1}>
+                            {mine ? 'You' : m.name}
+                            {city ? ` · ${city}` : ''} · {dayLabel(day)}
+                          </Text>
+                          {mine ? (
+                            <>
+                              <View
+                                style={[styles.vote, { borderColor: colors.border }]}
+                                accessible
+                                accessibilityLabel={`Your find, ${plural(n, 'upvote')}`}
+                              >
+                                <Ionicons name="arrow-up" size={18} color={colors.inkSecondary} />
+                                <Text style={[styles.voteText, { color: colors.inkSecondary }]}>{n}</Text>
+                              </View>
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Delete your find"
+                                onPress={() => remove(e)}
+                                style={styles.iconHit}
+                              >
+                                <Ionicons name="trash-outline" size={19} color={colors.inkTertiary} />
+                              </Pressable>
+                            </>
+                          ) : (
+                            <VoteButton count={n} voted={voted} onToggle={() => toggleVote(e)} />
+                          )}
+                        </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              );
-            })
+                );
+              })}
+            </>
           )}
         </ScrollView>
       )}
@@ -380,19 +422,16 @@ const styles = StyleSheet.create({
   card: { borderRadius: 22, boxShadow: shadow.card },
   clip: { borderRadius: 22, overflow: 'hidden' },
   clipWon: { borderRadius: 19 },
-  badge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 1,
+  note: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    boxShadow: shadow.card,
   },
-  badgeText: { fontFamily: fontFamily.bodySemiBold, fontSize: 14 },
   photo: { width: '100%' },
   body: { padding: 14, gap: 10 },
   caption: { fontFamily: fontFamily.displayItalic, fontSize: 20, lineHeight: 26 },

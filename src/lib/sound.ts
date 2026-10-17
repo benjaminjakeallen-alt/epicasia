@@ -1,5 +1,6 @@
 // UI sounds, synthesized with Web Audio (no file fetch, no latency): a soft
-// tick per step of the ring and a "tock" on opening.
+// tick per step of the ring, a "tock" on opening, a little rising pop for
+// an upvote and a chime for a win.
 // Browsers only start audio from a user gesture, so preloadSounds() arms a
 // one-time unlock on the first tap/click.
 
@@ -79,4 +80,21 @@ export function playConfirm() {
   const t = c.currentTime;
   tone(c, 880, t, 0.09, 0.07);
   tone(c, 1320, t + 0.012, 0.07, 0.04);
+}
+
+/** An upvote: a soft pop that rises. */
+export function playVote() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  tone(c, 660, t, 0.08, 0.05);
+  tone(c, 990, t + 0.05, 0.12, 0.045);
+}
+
+/** A win (new upvotes, a daily winner): three soft bells. */
+export function playWin() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  [1046.5, 1318.5, 1568].forEach((f, i) => tone(c, f, t + i * 0.09, 0.5, 0.035));
 }

@@ -359,6 +359,32 @@ leaderboard (below) combines every game.
   `games` and inserts **no** `gallery_photos` row; delete removes row +
   files) + axe audits of the hub, wall, leaderboard and new-find form.
 
+### Games → photo games, hub and leaderboard polish (Oct 17 2026)
+
+From the games review. **Walls** (Lost in Translation, Konbini Review):
+upvoting pops the pill (a spring) with a rising "pop" and a haptic tick
+(`VoteButton`, `voteFeedback()` → `playVote()` in `sound.ts`); the daily
+winner's trophy badge has a soft sheen sweeping across it (`WinnerBadge`,
+still under Reduce Motion); **"N new upvotes on your finds/reviews since you
+last looked"** (per phone, `epicasia.games.<game>.seenUpvotes`, with a chime
+— `winFeedback()`); a nudge to post when you haven't today (`post-nudge`);
+city chips once the entries come from two or more cities (`CityChips`).
+Lost in Translation has a **daily hunt** — a theme for the day, just for fun
+(`HUNTS`/`huntFor(day)` in games.ts: one per trip day from Jun 6 2027, by
+date otherwise). Konbini Review keeps what you've typed as a **draft** on
+the phone until you post (`epicasia.konbini.draft`; the video can't be).
+**Hub:** a tick sound as well as the haptic when the pick changes; a dark
+"NEW" pill on games this phone hasn't opened (`epicasia.games.opened`,
+marked by each game's own screen — the walls and `ArcadeBoard`; the pill is
+aria-hidden, the tile's label says ", new"). **Trip leaderboard:** "Trip
+awards" — Eagle eye (most finds), Bravest snacker (most reviews), Toughest
+critic (lowest average rating, ≥ 2 reviews, among 2+ reviewers), Most
+generous (upvotes given), Crowd favourite (daily wins), Arcade ace (top
+scores) — ties share an award; and "Daily winners", newest day first
+(`src/lib/awards.ts`, all from `fetchTripBoard()`). Its scroll view is
+focusable (axe: a scrollable region with no controls). Tests in
+`games.spec.ts` / `konbini.spec.ts` + the axe audits.
+
 ### Games → Konbini Review (built, Oct 3 2026)
 
 Buy a mystery snack or drink, **film your reaction**, rate it 1–5. Screens

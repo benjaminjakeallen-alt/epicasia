@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import FormButton from '../../../../components/form/FormButton';
 import FormField from '../../../../components/form/FormField';
@@ -10,6 +10,7 @@ import Stars from '../../../../components/games/Stars';
 import { useAuth } from '../../../../lib/AuthProvider';
 import { todayDay } from '../../../../lib/dates';
 import { addReview } from '../../../../lib/games';
+import { clearKonbiniDraft, loadKonbiniDraft, saveKonbiniDraft } from '../../../../lib/gameSeen';
 import { MAX_VIDEO_BYTES, type PickedPhoto } from '../../../../lib/photos';
 import { stopForDay } from '../../../../lib/places';
 import { CITIES, type CityKey } from '../../../../lib/weather';
@@ -19,7 +20,8 @@ import { useTheme } from '../../../../theme/useTheme';
 
 // Post a Konbini Review: your reaction video (film it now or pick one),
 // what the snack was, a 1–5 rating, a one-line verdict and the city. The
-// video goes to the game only, not to Photos.
+// video goes to the game only, not to Photos. What you've typed is kept as a
+// draft on this phone until you post (the video can't be: pick it again).
 
 const RATINGS = [
   '1 star, never again',
@@ -41,6 +43,24 @@ export default function NewReview() {
   const [city, setCity] = useState<CityKey | null>(() => (stopForDay(todayDay())?.key as CityKey | undefined) ?? null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const loaded = useRef(false);
+
+  // a review started earlier: carry on with it
+  useEffect(() => {
+    loadKonbiniDraft().then((d) => {
+      if (d && !loaded.current) {
+        setSnack(d.snack);
+        setRating(d.rating);
+        setCaption(d.caption);
+      }
+      loaded.current = true;
+    });
+  }, []);
+  useEffect(() => {
+    if (!loaded.current) return;
+    const t = setTimeout(() => saveKonbiniDraft({ snack, rating, caption }), 300);
+    return () => clearTimeout(t);
+  }, [snack, rating, caption]);
 
   async function pick(fromCamera: boolean) {
     setError(null);
@@ -72,6 +92,8 @@ export default function NewReview() {
     setSaving(true);
     try {
       await addReview(session.user.id, video, { snack, rating, caption, city });
+      loaded.current = false; // (no saving the draft again on the way out)
+      await clearKonbiniDraft();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not post your review');

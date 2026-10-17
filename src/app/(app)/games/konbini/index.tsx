@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../../../components/Avatar';
@@ -10,14 +10,20 @@ import OfflineNotice from '../../../../components/OfflineNotice';
 import { JournalSkeleton } from '../../../../components/Skeleton';
 import SkyBackdrop from '../../../../components/SkyBackdrop';
 import PhotoViewer from '../../../../components/chat/PhotoViewer';
+import CityChips from '../../../../components/games/CityChips';
 import Stars from '../../../../components/games/Stars';
+import VoteButton from '../../../../components/games/VoteButton';
+import WinnerBadge from '../../../../components/games/WinnerBadge';
 import { useAuth } from '../../../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../../../lib/chat';
 import { personColor } from '../../../../lib/chatFormat';
 import { confirm } from '../../../../lib/confirm';
 import { todayDay } from '../../../../lib/dates';
+import { winFeedback } from '../../../../lib/feedback';
+import { markOpened, seenUpvotes, setSeenUpvotes } from '../../../../lib/gameSeen';
 import {
   bySnackRating,
+  citiesIn,
   dailyWinners,
   deleteEntry,
   entryDay,
@@ -25,12 +31,13 @@ import {
   fetchVotes,
   leaderboard,
   setVote,
+  upvotesFor,
   voteCounts,
   type Entry,
   type Vote,
 } from '../../../../lib/games';
 import { durationLabel, savePhoto, sharePhoto, signedUrls } from '../../../../lib/photos';
-import { CITIES } from '../../../../lib/weather';
+import { CITIES, type CityKey } from '../../../../lib/weather';
 import { shadow } from '../../../../theme/colors';
 import { fontFamily, type } from '../../../../theme/typography';
 import { useTheme } from '../../../../theme/useTheme';
@@ -64,6 +71,12 @@ export default function KonbiniReview() {
   const [playing, setPlaying] = useState<Entry | null>(null);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [city, setCity] = useState<CityKey | null>(null);
+  const [newUp, setNewUp] = useState(0);
+
+  useEffect(() => {
+    markOpened(GAME);
+  }, []);
 
   const load = useCallback(() => {
     setError(null);
@@ -72,12 +85,20 @@ export default function KonbiniReview() {
         setEntries(e);
         setVotes(v);
         setMembers(m);
+        // upvotes on your reviews since you last looked
+        const now = upvotesFor(e, voteCounts(v), me),
+          seen = await seenUpvotes(GAME);
+        if (seen !== null && now > seen) {
+          setNewUp(now - seen);
+          winFeedback();
+        }
+        setSeenUpvotes(GAME, now);
         const paths = e.flatMap((x) => [x.storage_path, ...(x.thumb_path ? [x.thumb_path] : [])]);
         if (paths.length) setUrls(await signedUrls('games', paths).catch(() => ({})));
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, []);
+  }, [me]);
 
   useFocusEffect(
     useCallback(() => {
@@ -88,15 +109,18 @@ export default function KonbiniReview() {
   const counts = useMemo(() => voteCounts(votes), [votes]);
   const winnerIds = useMemo(() => new Set(dailyWinners(entries, counts).values()), [entries, counts]);
   const board = useMemo(() => leaderboard(entries, counts), [entries, counts]);
-  const snacks = useMemo(() => bySnackRating(entries, counts), [entries, counts]);
+  const inCity = useMemo(() => entries.filter((e) => !city || e.city === city), [entries, city]);
+  const snacks = useMemo(() => bySnackRating(inCity, counts), [inCity, counts]);
+  const cities = useMemo(() => citiesIn(entries, CITIES.map((c) => c.key)), [entries]);
   const today = todayDay();
+  const postedToday = entries.some((e) => e.created_by === me && entryDay(e) === today);
 
   const shown = useMemo(() => {
-    const list = [...entries];
+    const list = [...inCity];
     if (tab === 'top')
       list.sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || (a.created_at < b.created_at ? 1 : -1));
     return list;
-  }, [entries, counts, tab]);
+  }, [inCity, counts, tab]);
 
   const member = (id: string) => {
     const i = members.findIndex((m) => m.id === id);
@@ -182,12 +206,39 @@ export default function KonbiniReview() {
         })}
       </View>
       <OfflineNotice />
+      {tab !== 'board' && !loading ? <CityChips cities={cities} value={city} onChange={setCity} /> : null}
 
       {loading ? (
         <JournalSkeleton label="Loading reviews" />
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {error ? <Text style={[type.body, { color: colors.error }]}>{error}</Text> : null}
+          {newUp > 0 && tab !== 'board' ? (
+            <View
+              style={[styles.note, { backgroundColor: colors.winnerSoft }]}
+              testID="new-upvotes"
+              accessibilityLiveRegion="polite"
+            >
+              <Ionicons name="sparkles" size={20} color={colors.winnerInk} />
+              <Text style={[type.body, styles.flex, { color: colors.winnerInk }]}>
+                {plural(newUp, 'new upvote')} on your reviews since you last looked
+              </Text>
+            </View>
+          ) : null}
+          {entries.length > 0 && !postedToday && (tab === 'top' || tab === 'new') ? (
+            <Pressable
+              testID="post-nudge"
+              accessibilityRole="button"
+              onPress={add}
+              style={({ pressed }) => [styles.note, { backgroundColor: pressed ? colors.accentSoft : colors.card }]}
+            >
+              <Ionicons name="videocam-outline" size={20} color={colors.highlight} />
+              <Text style={[type.body, styles.flex, { color: colors.ink }]}>
+                Tried a snack today? Film your reaction
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
+            </Pressable>
+          ) : null}
 
           {entries.length === 0 && !error ? (
             <View style={[styles.empty, { backgroundColor: colors.card }]} testID="konbini-empty">
@@ -324,14 +375,7 @@ export default function KonbiniReview() {
                   ]}
                 >
                   <View style={[styles.clip, won && styles.clipWon]}>
-                    {won ? (
-                      <View style={[styles.badge, { backgroundColor: colors.winnerSoft }]} testID="winner-badge">
-                        <Ionicons name="trophy" size={16} color={colors.winnerInk} />
-                        <Text style={[styles.badgeText, { color: colors.winnerInk }]}>
-                          {day === today ? 'Leading today' : `Winner · ${dayLabel(day)}`}
-                        </Text>
-                      </View>
-                    ) : null}
+                    {won ? <WinnerBadge label={day === today ? 'Leading today' : `Winner · ${dayLabel(day)}`} /> : null}
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Play ${mine ? 'your' : `${m.name}’s`} reaction to ${e.title}, ${durationLabel(e.video_duration_ms)}`}
@@ -399,28 +443,7 @@ export default function KonbiniReview() {
                             </Pressable>
                           </>
                         ) : (
-                          <Pressable
-                            testID="upvote"
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: voted }}
-                            aria-pressed={voted}
-                            accessibilityLabel={
-                              voted ? `Remove your upvote, ${plural(n, 'upvote')}` : `Upvote, ${plural(n, 'upvote')}`
-                            }
-                            onPress={() => toggleVote(e)}
-                            style={({ pressed }) => [
-                              styles.vote,
-                              {
-                                borderColor: voted ? colors.accent : colors.border,
-                                backgroundColor: voted ? colors.accent : pressed ? colors.accentSoft : colors.card,
-                              },
-                            ]}
-                          >
-                            <Ionicons name="arrow-up" size={18} color={voted ? colors.onAccent : colors.highlight} />
-                            <Text style={[styles.voteText, { color: voted ? colors.onAccent : colors.highlight }]}>
-                              {n}
-                            </Text>
-                          </Pressable>
+                          <VoteButton count={n} voted={voted} onToggle={() => toggleVote(e)} />
                         )}
                       </View>
                     </View>
@@ -490,19 +513,16 @@ const styles = StyleSheet.create({
   card: { borderRadius: 22, boxShadow: shadow.card },
   clip: { borderRadius: 22, overflow: 'hidden' },
   clipWon: { borderRadius: 19 },
-  badge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 1,
+  note: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    gap: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    boxShadow: shadow.card,
   },
-  badgeText: { fontFamily: fontFamily.bodySemiBold, fontSize: 14 },
   photo: { width: '100%' },
   playWrap: {
     position: 'absolute',

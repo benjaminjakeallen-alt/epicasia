@@ -225,11 +225,68 @@ test('trip leaderboard: placings in every game become trip points', async ({ pag
     'Godzilla Rampage 1st · Shinkansen Dash 2nd · Lost in Translation 3rd',
   );
   await expect(page.getByTestId('podium')).toBeVisible();
-  await page.screenshot({ path: 'test-results/trip-leaderboard.png' });
+  // trip awards, from the same rows: Sarah's 2 finds, Tom's 3 upvotes given, one daily win each
+  const award = (title: string) => page.getByTestId('award').filter({ hasText: title });
+  await expect(award('Eagle eye')).toContainText('Sarah Lee');
+  await expect(award('Most generous')).toContainText('Tom Park');
+  await expect(award('Most generous')).toContainText('3 upvotes given');
+  await expect(award('Crowd favourite')).toContainText('Sarah Lee & Tom Park');
+  // every day's winner, newest first
+  const days = page.getByTestId('day-win');
+  await expect(days).toHaveCount(2);
+  await expect(days.nth(0)).toContainText('Sarah Lee');
+  await expect(days.nth(0)).toContainText('Slip carefully');
+  await expect(days.nth(1)).toContainText('Jun 7');
+  await expect(days.nth(1)).toContainText('Tom Park');
+  await page.screenshot({ path: 'test-results/trip-leaderboard.png', fullPage: true });
 });
 
 test('trip leaderboard is empty until someone plays', async ({ page }) => {
   await signInWithFakeBackend(page, { profiles: DATA.profiles, game_entries: [], game_votes: [], game_scores: [] });
   await open(page, '/games/leaderboard');
   await expect(page.getByTestId('trip-board-empty')).toBeVisible();
+});
+
+test('the wall: new upvotes since you last looked, the day’s hunt, a city filter, and a nudge to post', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  // last time you looked your find had no upvotes; it has one now
+  await page.addInitScript(() => {
+    if (window.top === window && sessionStorage.getItem('seeded') === null) {
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('epicasia.games.lost_in_translation.seenUpvotes', '0');
+    }
+  });
+  await open(page, '/games/lost-in-translation');
+  await expect(page.getByTestId('new-upvotes')).toContainText('1 new upvote on your finds since you last looked');
+  await expect(page.getByTestId('daily-hunt')).toContainText('Today’s hunt:');
+  await expect(page.getByTestId('post-nudge')).toHaveCount(0); // (you've posted today)
+  // the city filter: two cities among the finds
+  await page.getByTestId('city-chips').getByRole('button', { name: 'Shanghai' }).click();
+  await expect(page.getByTestId('find')).toHaveCount(2);
+  await page.getByTestId('city-chips').getByRole('button', { name: 'All' }).click();
+  await expect(page.getByTestId('find')).toHaveCount(4);
+  // looked now: no banner next time
+  await open(page, '/games/lost-in-translation');
+  await expect(page.getByTestId('find')).toHaveCount(4);
+  await expect(page.getByTestId('new-upvotes')).toHaveCount(0);
+
+  // nothing from you today: a nudge to post, which opens the form
+  await page.evaluate(() => localStorage.removeItem('epicasia.games.lost_in_translation.seenUpvotes'));
+  await signInWithFakeBackend(page, { ...DATA, game_entries: DATA.game_entries.filter((e) => e.id !== 'e-mine') });
+  await open(page, '/games/lost-in-translation');
+  await page.getByTestId('post-nudge').click();
+  await expect(page.getByTestId('pick-photo')).toBeVisible();
+});
+
+test('the hub marks games you haven’t opened yet as NEW', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games');
+  await expect(page.getByTestId('new-lost_in_translation')).toBeVisible();
+  await expect(page.getByTestId('new-godzilla_rampage')).toBeVisible();
+  await page.getByTestId('games-play').click(); // (Lost in Translation is first)
+  await expect(page.getByTestId('lit-add')).toBeVisible();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByTestId('games-play')).toBeVisible();
+  await expect(page.getByTestId('new-lost_in_translation')).toHaveCount(0);
+  await expect(page.getByTestId('new-godzilla_rampage')).toBeVisible();
 });

@@ -10,7 +10,7 @@ import { DocsSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
 import { personColor } from '../../../lib/chatFormat';
-import { fetchTripStandings, ordinal, PLACE_POINTS, type TripStanding } from '../../../lib/leaderboard';
+import { fetchTripBoard, ordinal, PLACE_POINTS, type TripBoard, type TripStanding } from '../../../lib/leaderboard';
 import { shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
@@ -18,7 +18,11 @@ import { useTheme } from '../../../theme/useTheme';
 // The trip leaderboard across every game: each game ranks its players and
 // the placing earns trip points (src/lib/leaderboard.ts). The top three
 // stand on a podium; everyone is listed below with how they placed in each
-// game.
+// game. Below: the trip awards (fun titles from the games' rows) and each
+// day's winners in the photo games (src/lib/awards.ts).
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayLabel = (day: string) => `${MONTHS[Number(day.slice(5, 7)) - 1]} ${Number(day.slice(8, 10))}`;
 
 export default function TripLeaderboard() {
   const insets = useSafeAreaInsets();
@@ -26,14 +30,15 @@ export default function TripLeaderboard() {
   const router = useRouter();
   const { session } = useAuth();
   const me = session?.user.id;
-  const [rows, setRows] = useState<TripStanding[] | null>(null);
+  const [board, setBoard] = useState<TripBoard | null>(null);
+  const rows = board?.standings ?? null;
   const [error, setError] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
-      fetchTripStandings()
-        .then((r) => {
-          setRows(r);
+      fetchTripBoard()
+        .then((b) => {
+          setBoard(b);
           setError(null);
         })
         .catch(() => setError('Could not load the leaderboard.'));
@@ -47,6 +52,8 @@ export default function TripLeaderboard() {
         (rows ?? []).findIndex((r) => r.userId === id),
       ),
     );
+  const nameOf = (id: string) => (id === me ? 'You' : (board?.people.get(id)?.name ?? 'Someone'));
+  const names = (ids: string[]) => ids.map(nameOf).join(' & ');
   const podium = (rows ?? []).filter((r) => r.rank <= 3).slice(0, 3);
   // Podium order on screen: 2nd, 1st, 3rd.
   const stage = [podium[1], podium[0], podium[2]].filter(Boolean) as TripStanding[];
@@ -63,7 +70,12 @@ export default function TripLeaderboard() {
       </View>
       <OfflineNotice />
 
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}>
+      {/* (focusable: a keyboard can scroll it — nothing inside is a control) */}
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
+        focusable
+        accessibilityLabel="Leaderboard"
+      >
         {error ? <Text style={[type.body, { color: colors.danger }]}>{error}</Text> : null}
         {!rows ? (
           error ? null : (
@@ -158,6 +170,70 @@ export default function TripLeaderboard() {
           </>
         )}
 
+        {board && board.awards.length ? (
+          <>
+            <Text style={[styles.section, { color: colors.ink }]} accessibilityRole="header">
+              Trip awards
+            </Text>
+            <View style={styles.awards} testID="awards">
+              {board.awards.map((a) => (
+                <View
+                  key={a.key}
+                  testID="award"
+                  style={[styles.award, { backgroundColor: colors.card }]}
+                  accessible
+                  accessibilityLabel={`${a.title}: ${names(a.userIds)}, ${a.detail}`}
+                >
+                  <View style={[styles.awardIcon, { backgroundColor: colors.winnerSoft }]}>
+                    <Ionicons name={a.icon} size={20} color={colors.winnerInk} />
+                  </View>
+                  <Text style={[styles.awardTitle, { color: colors.winnerInk }]}>{a.title}</Text>
+                  <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={2}>
+                    {names(a.userIds)}
+                  </Text>
+                  <Text style={[type.caption, { color: colors.inkSecondary }]}>{a.detail}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
+        {board && board.days.length ? (
+          <>
+            <Text style={[styles.section, { color: colors.ink }]} accessibilityRole="header">
+              Daily winners
+            </Text>
+            <View style={[styles.board, { backgroundColor: colors.card }]} testID="daily-winners">
+              {board.days.map((d, i) => (
+                <View
+                  key={`${d.day}-${d.game}`}
+                  testID="day-win"
+                  style={[
+                    styles.row,
+                    i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
+                  ]}
+                  accessible
+                  accessibilityLabel={`${dayLabel(d.day)}, ${d.title}: ${nameOf(d.userId)}${d.label ? `, ${d.label}` : ''}`}
+                >
+                  <View style={[styles.dayChip, { backgroundColor: colors.winnerSoft }]}>
+                    <Text style={[styles.dayText, { color: colors.winnerInk }]}>{dayLabel(d.day)}</Text>
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={[type.cardTitle, { color: colors.ink }]} numberOfLines={1}>
+                      {nameOf(d.userId)}
+                    </Text>
+                    <Text style={[type.caption, { color: colors.inkSecondary }]} numberOfLines={1}>
+                      {d.title}
+                      {d.label ? ` · ${d.label}` : ''}
+                    </Text>
+                  </View>
+                  <Ionicons name="trophy" size={18} color={colors.winner} />
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
+
         <Text style={[type.caption, styles.how, { color: colors.inkSecondary }]}>
           Each game ranks its players. 1st place earns {PLACE_POINTS[0]} trip points, 2nd {PLACE_POINTS[1]}, 3rd{' '}
           {PLACE_POINTS[2]}, then {PLACE_POINTS.slice(3).join(', ')}, and 1 for anyone else who played. Ties share
@@ -204,4 +280,18 @@ const styles = StyleSheet.create({
   pointsCol: { alignItems: 'flex-end' },
   points: { fontFamily: fontFamily.display, fontSize: 24 },
   how: { paddingHorizontal: 4 },
+  section: { fontFamily: fontFamily.display, fontSize: 22, marginTop: 8, paddingHorizontal: 4 },
+  awards: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  award: { flexGrow: 1, flexBasis: '45%', borderRadius: 20, padding: 14, gap: 4, boxShadow: shadow.card },
+  awardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  awardTitle: { fontFamily: fontFamily.bodySemiBold, fontSize: 14 },
+  dayChip: { minWidth: 58, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 12, alignItems: 'center' },
+  dayText: { fontFamily: fontFamily.bodySemiBold, fontSize: 14 },
 });

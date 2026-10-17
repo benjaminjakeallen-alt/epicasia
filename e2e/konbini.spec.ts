@@ -137,6 +137,8 @@ test('posting a review uploads the video, its poster and thumbnail to games — 
 
   await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_entries').length, { timeout: 15_000 }).toBe(1);
   const row = backend.inserts.find((i) => i.table === 'game_entries')!.body;
+  // (the draft kept while typing is gone once it's posted)
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.konbini.draft'))).toBeNull();
   const base = `${USER_ID}/${row.id}`;
   expect(row).toMatchObject({
     game: 'konbini_review',
@@ -166,4 +168,17 @@ test('deleting your review removes it, its votes and all three files', async ({ 
   await expect.poll(() => backend.removals).toEqual([
     { bucket: 'games', paths: [`${USER_ID}/k-mine.jpg`, `${USER_ID}/k-mine.thumb.jpg`, `${USER_ID}/k-mine.webm`] },
   ]);
+});
+
+test('a review you started is kept as a draft until you post it', async ({ page }) => {
+  await signInWithFakeBackend(page, { ...DATA, game_entries: [], game_votes: [] });
+  await open(page, '/games/konbini/new');
+  await page.getByTestId('snack-name').fill('Melon Pan');
+  await page.getByTestId('rate-3').click();
+  await page.getByLabel('Your verdict (optional)').fill('Crunchy');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.konbini.draft'))).toContain('Melon Pan');
+  await open(page, '/games/konbini/new');
+  await expect(page.getByTestId('snack-name')).toHaveValue('Melon Pan');
+  await expect(page.getByLabel('Your verdict (optional)')).toHaveValue('Crunchy');
+  await expect(page.getByText('It’s fine')).toBeVisible(); // (3 stars)
 });
