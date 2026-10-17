@@ -178,6 +178,48 @@ export function makeCrow() {
   g.rotation.y = 0; // beak toward +z (toward the runner)
   return g;
 }
+/** A grey heron (the Rice Fields' crow): white and grey, a long neck tucked in, a yellow bill.
+ *  Same size and wings as the crow, so it plays the same (slide under it). */
+export function makeHeron() {
+  const g = new THREE.Group(), b = new VoxBuilder();
+  b.add(5, 6, 10, (x, y, z) => {
+    const cx = Math.abs(x - 2);
+    if (z < 2) return cx < 1 && y >= 1 && y <= 2 ? 0x8e99a4 : null; // tail
+    if (z >= 8) return cx === 0 && y >= 3 && y <= 4 ? (z === 9 ? 0xf2c14e : 0xe8a33d) : null; // the bill
+    if (z >= 6) return cx === 0 && y >= 2 && y <= 4 ? (y === 4 && z === 7 ? 0x1b1d22 : 0xffffff) : null; // the neck and a black crest
+    if (y > 3 || cx > 1 + (z > 2 && z < 6 ? 0.5 : 0)) return null;
+    return y === 3 ? 0xdee2e6 : hash3(x, y, z) < 0.3 ? 0xadb5bd : 0xced4da;
+  }, { size: 0.13, offset: [-0.33, -0.26, -0.6] });
+  g.add(mesh(b.geometry()));
+  const wing = () => {
+    const w = new VoxBuilder();
+    w.add(8, 1, 5, (x, y, z) => (z > 4 - x * 0.5 ? null : x > 5 ? 0x495057 : 0xadb5bd), { size: 0.13, offset: [0, 0, -0.33] });
+    return mesh(w.geometry());
+  };
+  const wl = wing(), wr = wing();
+  wr.rotation.y = Math.PI;
+  wl.position.set(0.13, 0.1, 0); wr.position.set(-0.13, 0.1, 0);
+  const pl = new THREE.Group(), pr = new THREE.Group();
+  pl.add(wl); pr.add(wr);
+  g.add(pl, pr);
+  g.userData.wings = [pl, pr];
+  return g;
+}
+/** Kyoto's gantry: a vermilion torii-style beam over all three trains with paper lanterns
+ *  standing along it (the beam is lo..hi above the roofs, like the signal gantry). */
+export function makeLanternArch(roof, lo, hi, span) {
+  const g = new THREE.Group(), b = new VoxBuilder(), glow = new VoxBuilder();
+  const red = (x, y, z) => (hash3(x, y, z) < 0.12 ? 0xb8321f : 0xd9412b);
+  [-span, span].forEach((x) => b.add(3, Math.round((roof + hi + 0.6) / 0.25), 3, red, { size: 0.25, offset: [x - 0.37, 0, -0.37] }));
+  const n = Math.round((span * 2 + 1.4) / 0.25), rows = Math.round((hi - lo) / 0.25);
+  b.add(n, rows, 2, (x, y) => (y === rows - 1 ? 0x1b1d22 : red(x, y, 0)), { size: 0.25, offset: [-span - 0.7, roof + lo, -0.25] });
+  b.add(n + 4, 2, 3, () => 0x1b1d22, { size: 0.25, offset: [-span - 1.2, roof + hi + 0.5, -0.37] }); // the dark top beam
+  [-4.2, -1.7, 1.7, 4.2].forEach((x) => { // lanterns on the beam, glowing
+    glow.add(4, 5, 4, (xx, y) => (y === 0 || y === 4 ? 0x2b2b2b : (xx + y) % 2 ? 0xffd8a8 : 0xffa94d), { size: 0.15, offset: [x - 0.3, roof + hi, -0.3] });
+  });
+  g.add(mesh(b.geometry()), new THREE.Mesh(glow.geometry(), GLOW));
+  return g;
+}
 /** A signal gantry over all three trains; the bar is lo..hi above the roofs. */
 export function makeGantry(roof, lo, hi, span) {
   const g = new THREE.Group(), b = new VoxBuilder(), glow = new VoxBuilder();

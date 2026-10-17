@@ -7,7 +7,8 @@
 //            Am–F–C–G (8 bars of hook, then 8 bars of a plucked "train" arpeggio). It follows
 //            the train: a little quicker as the first lap speeds up, then every time you pass
 //            Kyoto it jumps up a gear — 8 bpm faster and a key higher (the old pop key change).
-//            Underground (the sewer) it's muffled, as if heard through the street.
+//            Underground (the sewer) it's muffled, as if heard through the street; in a tunnel
+//            a little muffled too. Every 16 bars ends with a 4-bar bridge (F–G–Em–Am).
 //   effects  soft and short, under the music.
 
 import { setup, audio, ctx, buses, tone, noise, pluck, lead, drum, mtof, sequencer, duck, muffled, isMuted, isMusicOn, setMuted, setMusic, setQuiet } from '../shared/synth.js';
@@ -32,6 +33,8 @@ export const SFX = {
   locked: () => { tone(260, 0.1, { type: 'triangle', vol: 0.025 }); tone(196, 0.16, { type: 'triangle', vol: 0.025, delay: 0.09 }); },
   star: () => noise(0.08, { vol: 0.025, type: 'bandpass', freq: 4500, sweepTo: 7000, q: 2 }),
   thunk: () => { tone(300, 0.08, { vol: 0.03, slideTo: 140 }); noise(0.06, { vol: 0.025, freq: 1500 }); },
+  mult: () => [880, 1108.7, 1318.5].forEach((f, i) => tone(f, 0.25, { type: 'triangle', vol: 0.016, delay: i * 0.05 })),
+  pass: () => { noise(1.1, { vol: 0.06, type: 'bandpass', freq: 400, sweepTo: 1600, q: 0.7 }); noise(0.9, { vol: 0.03, type: 'lowpass', freq: 300, delay: 0.25 }); }, // a train going the other way
   wag: () => tone(700, 0.08, { type: 'triangle', vol: 0.015, slideTo: 500 }), // (the tanuki tail)
   // Mei: a sparkly little run up for the charm, a bubble pop for each thing it clears
   charm: () => [1318.5, 1568, 1975.5, 2637].forEach((f, i) => tone(f, 0.35, { vol: 0.016, delay: i * 0.045 })),
@@ -54,7 +57,15 @@ const HOOK = [
   [[0, 76, 2], [2, 74, 2], [4, 72, 4], [8, 74, 2], [10, 76, 2], [12, 79, 4]],
   [[0, 79, 4], [4, 77, 2], [6, 76, 2], [8, 74, 8]],
 ];
-const ARP = [0, 1, 2, 3, 2, 1, 2, 3]; // the "train" arpeggio, through the chord and an octave up
+const ARP = [0, 1, 2, 3, 2, 1, 2, 3];
+// the bridge: 4 bars over F – G – Em – Am, a call-and-answer that lifts back into the hook
+const BRIDGE_CHORDS = [[41, 57, 60, 65], [43, 55, 59, 62], [40, 55, 59, 64], [45, 57, 60, 64]];
+const BRIDGE = [
+  [[0, 72, 3], [3, 74, 3], [6, 77, 2], [8, 76, 4], [12, 72, 4]],
+  [[0, 74, 3], [3, 76, 3], [6, 79, 2], [8, 77, 4], [12, 74, 4]],
+  [[0, 76, 2], [2, 79, 2], [4, 83, 4], [8, 81, 2], [10, 79, 2], [12, 76, 4]],
+  [[0, 81, 6], [6, 79, 2], [8, 76, 4], [12, 74, 2], [14, 72, 2]],
+]; // the "train" arpeggio, through the chord and an octave up
 const song = { lap: 0, speed: 15 };
 /** Beats a minute: 124 → 132 through the first lap as the train speeds up, then 8 more each lap. */
 export function bpmFor(lap, speed) {
@@ -62,7 +73,7 @@ export function bpmFor(lap, speed) {
 }
 function playStep(step, t, sx) {
   const tr = Math.min(5, song.lap); // a key higher each lap (up to five)
-  const s = step % 16, bar = Math.floor(step / 16), chord = CHORDS[bar % 4], phrase = bar % 16;
+  const s = step % 16, bar = Math.floor(step / 16), phrase = bar % 16, bridge = phrase >= 12, chord = bridge ? BRIDGE_CHORDS[phrase - 12] : CHORDS[bar % 4];
   // drums
   if (s % 4 === 0) drum.kick(t, 0.48);
   if (s === 4 || s === 12) drum.clap(t, 0.13);
@@ -75,6 +86,8 @@ function playStep(step, t, sx) {
   if (s % 4 === 2) for (let k = 1; k < 4; k++) pluck(mtof(chord[k] + tr), t, 0.035, buses().music, 0.25);
   if (phrase < 8) { // the hook
     for (const [at, m, len] of HOOK[phrase]) if (at === s) lead(mtof(m + tr), t, len * sx * 0.92, 0.075, { type: 'square', detune: 7, cutoff: 2400, vibrato: 0.004, breath: 0 });
+  } else if (bridge) {
+    for (const [at, m, len] of BRIDGE[phrase - 12]) if (at === s) lead(mtof(m + tr), t, len * sx * 0.92, 0.07, { type: 'triangle', detune: 5, cutoff: 3000, vibrato: 0.006, breath: 0 });
   } else if (s % 2 === 0) pluck(mtof(chord[1 + (ARP[s / 2] % 3)] + tr + (ARP[s / 2] === 3 ? 12 : 12)), t, 0.05); // the arpeggio
 }
 const seq = sequencer({ step: playStep, bpm: () => bpmFor(song.lap, song.speed) });

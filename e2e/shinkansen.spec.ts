@@ -752,10 +752,10 @@ test('skills: Emily’s endless slide, Nicole’s boba magnet and crow ducking, 
   expect((await skills(f)).mode).toBe('run');
   await changeHero(page, f);
 
-  // Jake: the 30th onigiri brings the skateboard — he ploughs through a pantograph and rolls over a gap.
+  // Jake: the 40th onigiri brings the skateboard — he ploughs through a pantograph and rolls over a gap.
   await start(page, f, 5);
   await debug(f, 'calm');
-  await debug(f, 'boardCount', 29);
+  await debug(f, 'boardCount', 39);
   await debug(f, 'spawn', 'onigiri', 1, 30);
   await expect.poll(async () => (await skills(f)).boards, fast).toBe(1);
   expect((await skills(f)).boardCount).toBe(0);
@@ -825,4 +825,80 @@ test('every time you pass Kyoto the trains go faster, and so does the song (a ke
   expect((await at()).music.on).toBe(false);
   await fr.locator('#pmusic').click();
   expect((await at()).music.on).toBe(true);
+});
+
+test('missions, the multiplier, a lucky cat resetting it, your best gate, and herons and lantern arches on the way', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await signInWithFakeBackend(page, DATA);
+  await page.addInitScript(() => { if (window.top === window) localStorage.setItem('epicasia.shinkansen.bestDist', '400'); });
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.best)).toBe(400); // this phone's furthest, from the app
+  await start(page, f, 1); // (Bennett: Chris's pickaxe would smash the fairing below)
+  // three different missions every run
+  const ids = (await f.evaluate(() => (window as any).__dash.missions)).map((m: { id: string }) => m.id);
+  expect(new Set(ids).size).toBe(3);
+  await debug(f, 'calm');
+  await debug(f, 'missions', ['mult', 'neko', 'jumps']);
+
+  // ×2: an onigiri is worth 50
+  await debug(f, 'mult', 2);
+  let before = (await st(f)).score;
+  await debug(f, 'spawn', 'onigiri', 1, 8);
+  await expect.poll(async () => (await st(f)).coins).toBe(1);
+  expect((await st(f)).score - before).toBeGreaterThanOrEqual(50);
+  // 750 m without a knock: up a step — and past your best, the gold gate
+  expect(await f.evaluate(() => (window as any).__dash.bestPassed)).toBe(false);
+  await debug(f, 'setDist', 760);
+  await debug(f, 'calm');
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.mult)).toBe(3);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.bestPassed)).toBe(true);
+  // a mission done: +500
+  before = (await st(f)).score;
+  await debug(f, 'mult', 4);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.missions.find((m: { id: string }) => m.id === 'mult').done)).toBe(true);
+  expect((await st(f)).score - before).toBeGreaterThanOrEqual(500);
+  // a lucky cat (and its mission), then a fairing: the cat saves you and the multiplier starts again
+  await debug(f, 'spawn', 'neko', 1, 8);
+  await expect.poll(async () => (await st(f)).shield).toBe(true);
+  expect((await f.evaluate(() => (window as any).__dash.missions)).filter((m: { done: boolean }) => m.done).map((m: { id: string }) => m.id).sort()).toEqual(['mult', 'neko']);
+  await debug(f, 'spawn', 'hump', 1, 10);
+  await expect.poll(async () => (await st(f)).shield).toBe(false);
+  expect(await f.evaluate(() => (window as any).__dash.mult)).toBe(1);
+  expect((await st(f)).mode).toBe('run');
+
+  // in the rice fields the crows are herons; in Kyoto the gantries are lantern arches
+  await debug(f, 'setDist', 1300);
+  await debug(f, 'calm');
+  await debug(f, 'spawn', 'crow', 0, 40);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.shown('heron').length)).toBeGreaterThan(0);
+  expect(await f.evaluate(() => (window as any).__dash.shown('crow').length)).toBe(0);
+  await debug(f, 'setDist', 4300);
+  await debug(f, 'calm');
+  await debug(f, 'spawn', 'gantry', 0, 40);
+  await expect.poll(() => f.evaluate(() => (window as any).__dash.shown('lantern').length)).toBeGreaterThan(0);
+
+  // the run's distance goes back to the app as this phone's best
+  await debug(f, 'gameOver', 5000);
+  await expect.poll(() => page.evaluate(() => Number(localStorage.getItem('epicasia.shinkansen.bestDist')))).toBeGreaterThanOrEqual(4300);
+  expect(errors).toEqual([]);
+});
+
+test('the first time: the countdown waits on a how-to-play card until you move', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await page.addInitScript(() => { if (window.top === window) localStorage.removeItem('epicasia.shinkansen.tips'); });
+  await open(page, '/games/shinkansen');
+  await page.getByTestId('dash-play').click();
+  const f = await game(page);
+  expect(await f.evaluate(() => (window as any).__dash.tips)).toBe(true);
+  await tapFront(page, f, 0);
+  await expect.poll(async () => (await st(f)).mode).toBe('ready');
+  await page.waitForTimeout(3500); // (a countdown is 2.4 s)
+  expect((await st(f)).mode).toBe('ready');
+  await page.keyboard.press('ArrowUp');
+  await expect.poll(async () => (await st(f)).mode).toBe('run');
+  expect(await f.evaluate(() => (window as any).__dash.tips)).toBe(false);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.shinkansen.tips'))).toBe('1');
 });

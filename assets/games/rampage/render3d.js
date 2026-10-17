@@ -547,6 +547,22 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
     // hazards
     Object.values(pools).forEach((pool) => pool.forEach((m) => { m.userData.used = false; }));
+    // the matcha cup, bobbing where it waits
+    const mt = S.matcha;
+    if (mt && !mt.taken && mode !== 'boss') {
+      const m = take('matcha');
+      m.position.set(wx(mt.x), wy(mt.y - 4 + Math.sin(t * 3) * 1.2), Z_PLAYER);
+      m.rotation.set(0.15, t * 1.6, 0); m.scale.setScalar(1.45);
+    }
+    // Kaiju Showdown's fire vents: a grate, and a column of flame when it blasts
+    S.vents.forEach((v) => {
+      const g = take('vent'); g.position.set(wx(v.x), wy(v.y) - 0.4, Z_PLAYER); g.rotation.set(0, 0, 0);
+      if (v.st !== 'off') {
+        const f = take('flame'), on = v.st === 'on';
+        const k = on ? 1 + Math.sin(t * 30) * 0.06 : 0.12 + Math.abs(Math.sin(t * 18)) * 0.08;
+        f.position.set(wx(v.x), wy(v.y), Z_PLAYER); f.scale.set(on ? 1 : 0.6, k, on ? 1 : 0.6); f.rotation.set(0, t * 4, 0);
+      }
+    });
     let wi = 0;
     S.hz.forEach((h) => {
       if (h.kind === 'drop' && h.warn > 0) {
@@ -559,11 +575,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         warnMat.opacity = 0.15 + 0.15 * (Math.floor(h.warn * 10) % 2);
         return;
       }
-      const look = h.kind === 'drop' ? game.theme().drop : h.kind === 'fire' ? 'fire' : h.look || 'barrel';
+      const look = h.kind === 'drop' ? game.theme().drop : h.kind === 'fire' ? 'fire' : h.kind === 'wave' ? 'wave' : h.look || 'barrel';
       const m = take(look);
       const z = h.st === 'ladder' ? Z_PLAYER - 0.5 : 2;
       if (h.kind === 'drop') { m.position.set(wx(h.x), wy(h.y), 2); m.rotation.set(t * 3, t * 2, 0); }
       else if (h.kind === 'fire') { m.position.set(wx(h.x), wy(h.y), 2); m.scale.set(1, 1 + Math.sin(t * 14 + h.x) * 0.08, 1); m.rotation.y = h.dir > 0 ? 0.6 : -0.6; }
+      else if (h.kind === 'wave') { m.position.set(wx(h.x), wy(h.y), Z_PLAYER); m.rotation.set(0, h.dir > 0 ? 0 : Math.PI, 0); m.scale.set(1.5, 1.5 + Math.sin(t * 20) * 0.12, 1.5); }
       else if (look === 'cart') { m.position.set(wx(h.x), wy(h.y) + Math.abs(Math.sin(t * 20)) * 0.6, z); m.rotation.set(0, 0, 0); }
       else {
         m.position.set(wx(h.x), wy(h.y) + 5, z);
@@ -822,7 +839,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (drawGL) glAge = 0;
     if (drawGL || !renderer) sync(elapsed);
     if (drawGL) {
-      const sh = S.shakeT > 0 ? 1.6 : 0;
+      const sh = S.shakeT > 0 ? (S.shakeAmp || 1.6) * Math.min(1, S.shakeT * 6) : 0;
       const ct = camTarget(), k = 1 - Math.exp(-elapsed * 2.2);
       cam.x += (ct.x - cam.x) * k; cam.y += (ct.y - cam.y) * k; cam.zoom += (ct.zoom - cam.zoom) * k;
       placeCamera(cam.x + (Math.random() * 2 - 1) * sh, cam.y + (Math.random() * 2 - 1) * sh * 0.7, cam.zoom);

@@ -36,6 +36,31 @@ export async function localBest(game: ArcadeGame): Promise<number> {
   }
 }
 
+/** This phone's furthest run (Shinkansen Dash's gold "your best" gate), in metres. */
+export async function bestDistance(game: ArcadeGame): Promise<number> {
+  try {
+    return Number(await AsyncStorage.getItem(`epicasia.${ARCADE[game].slug}.bestDist`)) || 0;
+  } catch {
+    return 0;
+  }
+}
+export async function saveBestDistance(game: ArcadeGame, dist: unknown): Promise<void> {
+  const d = Math.round(Number(dist));
+  if (!Number.isFinite(d) || d <= 0 || d > 10_000_000) return;
+  if (d > (await bestDistance(game))) await AsyncStorage.setItem(`epicasia.${ARCADE[game].slug}.bestDist`, String(d)).catch(() => {});
+}
+/** Has this phone seen a game's first-time tips? */
+export async function tipsSeen(game: ArcadeGame): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(`epicasia.${ARCADE[game].slug}.tips`)) === '1';
+  } catch {
+    return true;
+  }
+}
+export async function markTipsSeen(game: ArcadeGame): Promise<void> {
+  await AsyncStorage.setItem(`epicasia.${ARCADE[game].slug}.tips`, '1').catch(() => {});
+}
+
 /** Whether this phone has found Rampage's secret barrel ("Girl Power" mode). */
 export async function girlPowerUnlocked(): Promise<boolean> {
   try {

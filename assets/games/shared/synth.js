@@ -44,8 +44,8 @@ export function setQuiet(on) { quiet = on; }
 const silent = () => !AC || muted || quiet;
 /** Quieter under the pause menu. */
 export function duck(on) { if (musicDuck) musicDuck.gain.setTargetAtTime(on ? 0.3 : 1, AC.currentTime, 0.15); }
-/** Muffle the music (as if through a wall), or not. */
-export function muffled(on) { if (muffle) muffle.frequency.setTargetAtTime(on ? 650 : 20000, AC.currentTime, 0.2); }
+/** Muffle the music (as if through a wall — `freq` is how much), or not. */
+export function muffled(on, freq = 650) { if (muffle) muffle.frequency.setTargetAtTime(on ? freq : 20000, AC.currentTime, 0.2); }
 
 // ---- building blocks ------------------------------------------------------------------------
 export const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);

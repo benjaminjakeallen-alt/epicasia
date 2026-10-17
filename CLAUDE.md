@@ -514,6 +514,27 @@ Tower behind) — then they loop harder (`1.15^round`).
   page release everything (`releaseAll`), and against the side wall the
   hero stands instead of walking on the spot. Tested in `rampage.spec.ts`
   ("the joystick never sticks").
+- **Polish pass (review, Oct 17 2026 — "fix all these things, especially graphical
+  improvements"):** **sound** moved to the shared synth (`rampage/sound.js`): a song per
+  level — L1 E-minor arcade rock, L2 a G-major country shuffle with a banjo lead, L3 a
+  sleigh-ride with bells, L4 driving D-minor, L5 synthwave — and its own celebration for the
+  finale; a touch faster each round; soft effects; a MUSIC switch in the pause menu.
+  **Juice:** dust puffs on landing, a 60 ms freeze-frame and a ring of sparks on a smash,
+  screen shake scaled per event (`S.shakeAmp` — stomps, roars, fire, a death), sparks off
+  mine carts' wheels. **Combo** (`comboHit`): smashes and jump-overs within `COMBO_TIME`
+  2.2 s multiply their points ×2…×5 ("COMBO ×3" on the HUD). **Matcha** — a second
+  power-up, one per level (`LEVELS[i].matcha`): a cup of green tea that slows everything to
+  half for `SLOW_TIME` 6 s (barrels, drops, fire, Godzilla's timers), with a green wash and a
+  badge. **Kaiju Showdown's fire vents** (`LEVELS[3].vents`): three grates that smoke for 1 s
+  then blast a 24 px column of flame for 0.9 s on a 3.4 s cycle, offset so there's always a
+  gap ("TOO HOT!"). **The bonus round** (mode `boss`, between rounds — `nextRound()` →
+  `startBoss()` → `nextRoundGo()`): 20 s on the floor of Tokyo Tower jumping glowing blue
+  atomic shockwaves (from Godzilla's side, then both) and atomic drops; survive → +3000; a hit
+  only ends the bonus. **Continue:** game over offers "CONTINUE · LEVEL n" (score from zero)
+  and shows "REACHED LEVEL n · ROUND r". **First-time tips** (every arcade game): the app
+  passes `INIT.tips` until the game posts `tips-seen` (`tipsSeen`/`markTipsSeen` in
+  arcade.ts, `epicasia.<slug>.tips`; the fake backend marks them seen, one spec clears it);
+  Rampage shows a HOW TO PLAY card on the first level card for up to 9 s.
 - `window.__rampage` exposes mode/score/lives/level/hero/hi/player/gl and
   `screenPoint(x, y)` (logical → client px) and `menu` for tests; in
   development `__rampage.debug` adds giveTool, rescue, die, gameOver(score),
@@ -742,13 +763,13 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   pickaxe shows in his hand mid-swing) and a miner's lamp (tunnels half as
   dark for him, a beam ahead, onigiri in tunnels ×2). **Bennett** — poncho
   glide: swipe up and keep the finger down (or hold ↑) and the fall is
-  capped at `GLIDE_V` 1.7 m/s, arms spread. **Emily** — endless slide:
+  capped at `GLIDE_V` 1.2 m/s, arms spread. **Emily** — endless slide:
   swipe down and hold (or hold ↓) and the slide never runs out. **Miles** —
   a double jump on every jump, no spring (the spring still works for the
   guitar). **Nicole** — boba magnet (onigiri, boba, lucky cats and springs
   on her train or the next, at any height, come to her; not the guitar)
-  and she ducks crows on her own. **Jake** — every 30 onigiri
-  (`BOARD_EVERY`, HUD "ONIGIRI n/30") a manhole-cover skateboard for 15 s
+  and she ducks crows on her own. **Jake** — every 40 onigiri
+  (`BOARD_EVERY`, HUD "ONIGIRI n/40") a manhole-cover skateboard for 10 s
   (`BOARD_TIME`): invincible, ploughs through anything, rolls over gaps
   (and never runs out over one), a surfer's stance, a sparkle trail.
   **Liam** — ninja stars (below). Holds are tracked by `held(dir)` (the
@@ -869,6 +890,27 @@ curve, C with floating onigiri; prompts in `tools/menu-icons/README.md`).
   bubble pop for each thing Mei's charm clears). Measured in Chromium: song
   peaks ~0.19, effects 0.02–0.17. Pause menu: SOUND and MUSIC switches.
   **Not heard on a phone yet.**
+- **Polish (review, Oct 17 2026):** **missions** — three random goals a run
+  (`MISSIONS`: jumps, slides, hops, onigiri, reach Fuji/Kyoto, score 5,000,
+  a lucky cat, reach ×4), listed on the countdown, +500 each; a **multiplier**
+  ×1–5, up a step every 750 m without a knock (`MULT_EVERY`), multiplying
+  everything picked up or smashed (not distance), reset when a lucky cat saves
+  you (HUD pill beside the score); **your best** — the app keeps this phone's
+  furthest run (`epicasia.shinkansen.bestDist`, the game posts `{type:'best'}`)
+  and a gold gate stands across the tracks there ("NEW BEST!", from 250 m);
+  a **first-time how-to-play card** holds the countdown until you move (shared
+  with Rampage/Tug of Wall: `INIT.tips`, `tips-seen`, `epicasia.<slug>.tips`;
+  the fake backend marks them seen, specs that test them clear it). Looks:
+  **trains going the other way** on an outer track on the left (`OUTER_X`,
+  with a whoosh), **weather by lap** (rain on round 2, snow on 3, sakura
+  petals after and at Fuji; none in tunnels), real **heart** particles for
+  Mei, **herons** instead of crows in the rice fields and **lantern arches**
+  instead of gantries in Kyoto (same boxes, so the play is the same), FOV
+  widening up to +12° at top speed. The song gains a 4-bar bridge every 16
+  bars and is muffled a little in tunnels. Balance: Jake's board every 40
+  onigiri for 10 s, Bennett's glide slower (1.2 m/s). The heron is built per
+  copy like the crow (`instance()` — copies drop `userData`, where the wings
+  are). Tests: "missions, the multiplier…" and "the first time…".
 - **Scores:** `game_scores` with game `shinkansen_dash`
   (`0020_shinkansen_dash.sql`); `level` = furthest stage (1–5), `round` =
   laps. Board line "as Emily · reached Mount Fuji" / "· round 2".

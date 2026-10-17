@@ -70,6 +70,26 @@ export function createHud(canvas, game, view, project) {
     if (S.mode === 'play' || S.mode === 'intro' || S.mode === 'dying') {
       text('BONUS ' + S.bonus, W - 6, HUD + (p && p.tool > 0 ? 13 : 7), 6, '#ffe066', { align: 'right', lineWidth: 1.8 });
     }
+    // the combo, while it lasts
+    if (S.combo > 1 && S.comboT > 0 && S.mode === 'play') {
+      const k = Math.min(5, S.combo), pulse = 1 + Math.max(0, S.comboT - 1.9) * 1.2;
+      ctx.save(); ctx.translate(8, HUD + (p && p.tool > 0 ? 13 : 7)); ctx.scale(pulse, pulse);
+      text('COMBO ×' + k, 0, 0, 7, k >= 4 ? '#ff8cc6' : '#ffe066', { align: 'left', lineWidth: 2 });
+      ctx.restore();
+    }
+    // matcha slow-mo: a green wash at the edges and a badge
+    if (S.slowT > 0 && S.mode === 'play') {
+      const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.75);
+      g.addColorStop(0, 'rgba(105,219,124,0)'); g.addColorStop(1, 'rgba(105,219,124,' + (S.slowT < 1.5 && Math.floor(S.t * 8) % 2 ? 0.05 : 0.22) + ')');
+      ctx.fillStyle = g; ctx.fillRect(-view.fx / view.s, HUD, W + (2 * view.fx) / view.s, H - HUD);
+      round(W / 2 - 40, HUD + 16, 80, 11, 5.5, 'rgba(47,158,68,0.92)', 'rgba(20,12,40,0.9)', 0.8);
+      text('MATCHA SLOW-MO ' + Math.ceil(S.slowT) + 's', W / 2, HUD + 21.7, 5.5, '#ffffff', { stroke: false });
+    }
+    // the bonus round's clock
+    if (S.mode === 'boss' && S.boss && !S.boss.over) {
+      round(W / 2 - 34, HUD + 4, 68, 16, 8, 'rgba(25,113,194,0.9)', 'rgba(20,12,40,0.9)', 1);
+      text('BONUS · ' + Math.max(0, Math.ceil(S.boss.t)) + 's', W / 2, HUD + 12.3, 8, '#ffffff', { stroke: false });
+    }
   }
 
   function messages() {
@@ -128,6 +148,20 @@ export function createHud(canvas, game, view, project) {
     text('LEVEL ' + (S.level + 1), W / 2, 82, 18, '#ffffff', { depth: 2, depthColor: '#c2255c', lineWidth: 5 });
     text(game.theme().name, W / 2, 101, 8, '#ffe066', { lineWidth: 2.4 });
     if (Math.floor(S.t * 3) % 2) text('TAP OR JUMP TO GO', W / 2, 113, 5.5, '#e9ecef', { lineWidth: 1.6 });
+    if (S.tips) tips();
+  }
+  // The first time you play: how it works, on a card under the level title.
+  function tips() {
+    const lines = [['JOYSTICK', 'walk · climb ladders', '#a5d8ff'], ['JUMP', 'hop barrels · chain a COMBO', '#ffe066'],
+      ['POWER-UP', 'grab it, SWING to smash', '#ffa94d'], ['MATCHA', 'green tea = slow-mo', '#8ce99a'],
+      ['TOP', 'rescue ' + game.partnerName(S.hero) + '!', '#ff8cc6']];
+    round(14, 134, W - 28, 16 + lines.length * 15, 10, 'rgba(20,12,40,0.86)', 'rgba(255,255,255,0.4)', 1);
+    text('HOW TO PLAY', W / 2, 144, 7, '#ffffff', { stroke: false });
+    lines.forEach(([k, v, col], i) => {
+      const y = 158 + i * 15;
+      text(k, 22, y, 6, col, { align: 'left', stroke: false });
+      text(v, 66, y, 5.5, '#e9ecef', { align: 'left', stroke: false });
+    });
   }
   function tally() { band(194, 34); text('BONUS ' + S.bonus, W / 2, 211, 13, '#ffe066', { depth: 1.5, lineWidth: 3.4 }); }
   function win() {
@@ -143,6 +177,7 @@ export function createHud(canvas, game, view, project) {
     text(game.HEROES[S.hero].name + ' AND ' + game.partnerName(S.hero), W / 2, 106, 9, '#ffb3d1', { lineWidth: 2.6 });
     text('NEED YOU!', W / 2, 121, 15, '#ff8cc6', { depth: 1.5, lineWidth: 4 });
     text('SCORE ' + S.score, W / 2, 146, 8, '#ffffff', { lineWidth: 2.2 });
+    text('REACHED LEVEL ' + (S.level + 1) + ' · ROUND ' + (S.round + 1), W / 2, 174, 6, '#a5d8ff', { lineWidth: 1.8 });
     if (S.score >= S.hi && S.score > 0) text('NEW HIGH SCORE!', W / 2, 160, 8, '#ffe066', { lineWidth: 2.2 });
   }
 

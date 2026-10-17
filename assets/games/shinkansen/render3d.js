@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine, makePickaxe } from '../rampage/models.js';
 import {
-  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeShuriken, makeBoard, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
+  GLOW, makeCar, makeNose, makeHump, makePanto, makeCrow, makeHeron, makeLanternArch, makeShuriken, makeBoard, makeGantry, makeOnigiri, makeNeko, makeBoba, makeSpring, makeGuitar, makeManhole,
   makeTunnelRing, makePortal, makeBuilding, makeTree, makePaddy, makeFarmhouse, makeTeaRow, makePagoda, makeTorii, makeBackdrop
 } from './models.js';
 import { createHud } from './hud.js';
@@ -127,6 +127,29 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const bed = new THREE.Mesh(new THREE.PlaneGeometry(BED_W, 900), new THREE.MeshLambertMaterial({ map: bedTex }));
   bed.rotation.x = -Math.PI / 2; bed.position.set(0, 0.01, -300); bed.receiveShadow = true;
   scene.add(ground, bed);
+  // an outer track on the left, where a train going the other way whooshes past now and then
+  // (review, Oct 17 2026: "passing trains going the other way"); the scenery on that side
+  // stands further out (placeScenery)
+  const OUTER_X = -9.6;
+  const outerTex = canvasTex(160, 77, (c, w, h) => {
+    c.fillStyle = '#8d857a'; c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 900; i++) { const v = 95 + Math.floor(trnd() * 80); c.fillStyle = `rgb(${v + 8},${v + 2},${v - 6})`; c.fillRect(trnd() * w, trnd() * h, 1.5 + trnd() * 2, 1.5 + trnd() * 2); }
+    for (let k = 0; k < 4; k++) { const y = (k / 4) * h + 2; c.fillStyle = '#5d4a3a'; c.fillRect(w * 0.15, y, w * 0.7, h / 4 * 0.42); }
+    [0.355, 0.645].forEach((r) => { c.fillStyle = '#4a4e55'; c.fillRect(w * r - 2.5, 0, 5, h); c.fillStyle = '#c9ced6'; c.fillRect(w * r - 1, 0, 2, h); });
+  }, 1, 900 / BED_TILE);
+  const outerBed = new THREE.Mesh(new THREE.PlaneGeometry(5, 900), new THREE.MeshLambertMaterial({ map: outerTex }));
+  outerBed.rotation.x = -Math.PI / 2; outerBed.position.set(OUTER_X, 0.012, -300); outerBed.receiveShadow = true;
+  scene.add(outerBed);
+  const oncoming = { zf: null, cars: 8, next: 9 };
+  // your best distance: a glowing gold gate over the line (the HUD tags it YOUR BEST)
+  const bestGate = new THREE.Group();
+  {
+    const gold = new THREE.MeshBasicMaterial({ color: 0xffd43b, fog: false }), white = new THREE.MeshBasicMaterial({ color: 0xfff3bf, fog: false });
+    [-6.2, 6.2].forEach((x) => { const post = new THREE.Mesh(new THREE.BoxGeometry(0.35, ROOF + 5.2, 0.35), gold); post.position.set(x, (ROOF + 5.2) / 2, 0); bestGate.add(post); });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(12.8, 0.4, 0.4), gold); beam.position.y = ROOF + 5; bestGate.add(beam);
+    const ribbon = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.12, 0.05), white); ribbon.position.y = ROOF + 4.6; bestGate.add(ribbon);
+    bestGate.visible = false; scene.add(bestGate);
+  } // zf: the front of the train going the other way
 
   // ---- sun & clouds ---------------------------------------------------------------------
   function spriteTex(draw) {
@@ -191,7 +214,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     return c;
   }
   function instance(kind, make) {
-    if (kind === 'crow' || kind === 'manhole') return make(); // (a bird's wings and a manhole's steam are animated one by one)
+    if (kind === 'crow' || kind === 'heron' || kind === 'manhole') return make(); // (a bird's wings and a manhole's steam are animated one by one)
     return copyTree(protos[kind] || (protos[kind] = make()));
   }
   function take(kind, make) {
@@ -246,7 +269,23 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   partMesh.frustumCulled = false;
   partMesh.setColorAt(0, new THREE.Color(0xffffff)); // (per-particle colour from the start, so warm-up compiles the right shader)
   scene.add(partMesh);
-  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), SC = new THREE.Vector3(), C = new THREE.Color();
+  // hearts (Mei's charm): a real heart shape, not a cube
+  const heartShape = new THREE.Shape();
+  heartShape.moveTo(0, -0.5); heartShape.bezierCurveTo(-0.9, 0.1, -0.55, 0.85, 0, 0.35); heartShape.bezierCurveTo(0.55, 0.85, 0.9, 0.1, 0, -0.5);
+  const heartMesh = new THREE.InstancedMesh(new THREE.ExtrudeGeometry(heartShape, { depth: 0.18, bevelEnabled: false }), new THREE.MeshBasicMaterial({ fog: false }), 80);
+  heartMesh.frustumCulled = false;
+  heartMesh.setColorAt(0, new THREE.Color(0xff8fc7));
+  scene.add(heartMesh);
+  // weather on later laps (review, Oct 17 2026): rain on round 2, snow on round 3, then sakura
+  // petals; petals blow past Mount Fuji on any lap. Drawn round the camera, gone in tunnels.
+  const WX_N = 160;
+  const wxMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ fog: false, transparent: true, opacity: 0.75, depthWrite: false }), WX_N);
+  wxMesh.frustumCulled = false;
+  wxMesh.setColorAt(0, new THREE.Color(0xffffff));
+  scene.add(wxMesh);
+  const wx = [];
+  for (let i = 0; i < WX_N; i++) wx.push({ x: (trnd() - 0.5) * 26, y: trnd() * 14, z: -70 + trnd() * 78, s: trnd() });
+  const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), SC = new THREE.Vector3(), C = new THREE.Color();
 
   // ---- sky -----------------------------------------------------------------------------
   const skyCanvas = document.createElement('canvas');
@@ -300,8 +339,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     m.rotation.set(0, rotY || 0, 0);
     scen.push({ d: d, x: x, m: m });
   }
-  function placeScenery(kind, d, sx) {
+  function placeScenery(kind, d, sx0) {
     const v = Math.floor(sr() * 6);
+    const sx = sx0 < 0 ? -1.42 : 1; // (left: clear of the outer track)
     if (kind === 'tokyo') {
       put('bld' + v, () => makeBuilding(v + 1), d, sx * (11 + sr() * 8));
       if (sr() < 0.6) put('bld' + ((v + 3) % 6), () => makeBuilding(((v + 3) % 6) + 1), d + 4, sx * (25 + sr() * 14));
@@ -573,9 +613,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       switch (o.type) {
         case 'hump': m = take('hump', makeHump); m.position.set(x, base, z(o.d)); break;
         case 'panto': m = take('panto', makePanto); m.position.set(x, base, z(o.d)); break;
-        case 'gantry': m = take('gantry', () => makeGantry(ROOF, def.lo, def.hi, 5.6)); m.position.set(0, 0, z(o.d)); break;
+        case 'gantry': // in Kyoto, a vermilion beam with lanterns on it
+          m = stageAt(o.d) === 'kyoto' ? take('lantern', () => makeLanternArch(ROOF, def.lo, def.hi, 5.6)) : take('gantry', () => makeGantry(ROOF, def.lo, def.hi, 5.6));
+          m.position.set(0, 0, z(o.d)); break;
         case 'crow':
-          m = take('crow', makeCrow); m.position.set(x, base + 1.35 + Math.sin(t * 6 + o.d) * 0.08, z(o.d));
+          m = stageAt(o.d) === 'country' ? take('heron', makeHeron) : take('crow', makeCrow); m.position.set(x, base + 1.35 + Math.sin(t * 6 + o.d) * 0.08, z(o.d));
           m.userData.wings[0].rotation.z = Math.sin(t * 18 + o.d) * 0.7;
           m.userData.wings[1].rotation.z = -Math.sin(t * 18 + o.d) * 0.7;
           m.rotation.set(0, 0, 0);
@@ -621,8 +663,16 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     }
 
     // particles
-    let n = 0;
+    let n = 0, nh = 0;
     S.parts.forEach((q) => {
+      if (q.heart) {
+        if (nh >= 80) return;
+        const s = q.s * 1.6 * Math.min(1, q.t * 3);
+        E.set(0, (q.spin || 0) + t * 3, Math.sin(t * 5 + q.x) * 0.3); Q.setFromEuler(E); P.set(q.x, q.y, q.z); SC.set(s, s, s);
+        M4.compose(P, Q, SC);
+        heartMesh.setMatrixAt(nh, M4); heartMesh.setColorAt(nh, C.set(q.col)); nh++;
+        return;
+      }
       if (n >= 200) return;
       const s = q.s * Math.min(1, q.t * 3);
       Q.identity(); P.set(q.x, q.y, q.z); SC.set(s, s, s);
@@ -632,6 +682,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     partMesh.count = n;
     partMesh.instanceMatrix.needsUpdate = true;
     if (partMesh.instanceColor) partMesh.instanceColor.needsUpdate = true;
+    heartMesh.count = nh;
+    heartMesh.instanceMatrix.needsUpdate = true;
+    if (heartMesh.instanceColor) heartMesh.instanceColor.needsUpdate = true;
+    drawOncoming(dt, z);
+    const bestAhead = S.best - S.dist;
+    bestGate.visible = S.mode === 'run' && S.best >= game.BEST_MIN && !S.bestPassed && bestAhead > -5 && bestAhead < AHEAD;
+    if (bestGate.visible) bestGate.position.set(0, 0, -bestAhead);
+    drawWeather(dt, kind);
     frameEnd();
 
     // the ground and track run past; clouds drift; speed lines at speed
@@ -646,13 +704,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     });
     sunGlow.visible = cur.dark < 0.5;
     const fast = S.mode === 'run' && !lowPower ? Math.max(0, Math.min(1, (S.speed - 19) / 14)) : 0;
-    speedMat.opacity += (fast * 0.42 - speedMat.opacity) * Math.min(1, dt * 3);
+    const faster = S.mode === 'run' ? Math.max(0, Math.min(1, (S.speed - 33) / 17)) : 0; // (round 2 on: 33 → 50 m/s)
+    speedMat.opacity += (fast * 0.42 + faster * 0.3 - speedMat.opacity) * Math.min(1, dt * 3);
     speedMesh.visible = speedMat.opacity > 0.01;
     if (speedMesh.visible) {
       streaks.forEach((q, i) => {
-        q.z += S.speed * 2.1 * dt;
+        q.z += S.speed * (2.1 + faster) * dt;
         if (q.z > 8) q.z -= 70;
-        Q.identity(); P.set(q.x + (S.p ? S.p.x * 0.5 : 0), q.y, q.z); SC.set(1, 1, q.len * (0.6 + fast));
+        Q.identity(); P.set(q.x + (S.p ? S.p.x * 0.5 : 0), q.y, q.z); SC.set(1 + faster, 1 + faster, q.len * (0.6 + fast + faster * 1.5));
         M4.compose(P, Q, SC);
         speedMesh.setMatrixAt(i, M4);
       });
@@ -665,6 +724,54 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     sun.position.set(px - 10, 32, 14); sun.target.position.set(px, 0, -8);
   }
 
+  /** A train going the other way on the outer track: comes out of the distance and whooshes past. */
+  function drawOncoming(dt) {
+    const run = S.mode === 'run' || S.mode === 'crash';
+    if (oncoming.zf === null) {
+      if (!run || game.inTunnel(S.dist + 150)) return;
+      oncoming.next -= dt;
+      if (oncoming.next > 0) return;
+      oncoming.zf = -(AHEAD + 40); oncoming.cars = 6 + Math.floor(sr() * 5); oncoming.passed = false;
+    }
+    oncoming.zf += (S.speed + 42) * dt;
+    const back = oncoming.zf - NOSE * 2 - oncoming.cars * CAR;
+    if (back > 30) { oncoming.zf = null; oncoming.next = 10 + sr() * 16; return; }
+    if (!oncoming.passed && oncoming.zf > -6) { oncoming.passed = true; if (game.passBy) game.passBy(); }
+    const front = take('nose', () => glossy(makeNose(NOSE, noseHeight)));
+    front.position.set(OUTER_X, 0, oncoming.zf - NOSE); front.rotation.y = Math.PI;
+    for (let k = 0; k < oncoming.cars; k++) {
+      const zc = oncoming.zf - NOSE - k * CAR;
+      if (zc - CAR > 20 || zc < -AHEAD - 60) continue;
+      take('car', () => new THREE.Mesh(carGeo.geometry, TRAIN)).position.set(OUTER_X, 0, zc);
+    }
+    const tail = take('nose', () => glossy(makeNose(NOSE, noseHeight)));
+    tail.position.set(OUTER_X, 0, back + NOSE); tail.rotation.y = 0;
+  }
+  /** Rain, snow or petals round the camera, by lap (and petals at Mount Fuji). */
+  function drawWeather(dt, kind) {
+    const live = S.mode === 'run' || S.mode === 'ready' || S.mode === 'crash';
+    const w = !live || cur.dark > 0.5 ? null : S.lap === 1 ? 'rain' : S.lap === 2 ? 'snow' : S.lap >= 3 || kind === 'fuji' ? 'petals' : null;
+    if (!w) { wxMesh.count = 0; return; }
+    const fall = w === 'rain' ? 22 : w === 'snow' ? 2.2 : 1.4, rush = S.speed * (w === 'rain' ? 0.9 : 1);
+    const n = w === 'petals' && kind !== 'fuji' && S.lap < 3 ? 50 : WX_N;
+    for (let i = 0; i < n; i++) {
+      const q = wx[i];
+      q.y -= fall * dt; q.z += rush * dt;
+      if (w !== 'rain') q.x += Math.sin(S.t * 1.3 + i) * dt * (w === 'snow' ? 0.6 : 1.4);
+      if (q.y < 0 || q.z > 8) { q.y = 6 + Math.random() * 10; q.z = -70 + Math.random() * 20; q.x = (Math.random() - 0.5) * 26; }
+      if (w === 'rain') { Q.identity(); SC.set(0.04, 0.9, 0.04 + Math.min(1.6, S.speed * 0.03)); }
+      else if (w === 'snow') { Q.identity(); SC.set(0.08, 0.08, 0.08); }
+      else { E.set(S.t * 3 + i, S.t * 2 + i, 0); Q.setFromEuler(E); SC.set(0.16, 0.02, 0.12); }
+      P.set(q.x + (S.p ? S.p.x : 0), q.y, q.z);
+      M4.compose(P, Q, SC);
+      wxMesh.setMatrixAt(i, M4); wxMesh.setColorAt(i, C.setHex(w === 'rain' ? 0xa9c8e8 : w === 'snow' ? 0xffffff : i % 3 ? 0xffc9de : 0xffe3ee));
+    }
+    wxMesh.count = n;
+    wxMesh.material.opacity = w === 'rain' ? 0.7 : 0.9;
+    wxMesh.instanceMatrix.needsUpdate = true;
+    if (wxMesh.instanceColor) wxMesh.instanceColor.needsUpdate = true;
+  }
+
   // ---- warm-up ------------------------------------------------------------------------------------
   // On the select screen, before anyone plays: build every model, backdrop and
   // stage's scenery once and compile their shaders, so the first time a stage,
@@ -672,7 +779,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function prewarm() {
     STAGES.forEach((st) => { backdrop(st.key).visible = true; for (let i = 0; i < 30; i++) placeScenery(st.key, -1000, i % 2 ? 1 : -1); });
     take('hump', makeHump); take('panto', makePanto); take('crow', makeCrow); take('star', makeShuriken); take('onigiri', makeOnigiri); take('neko', makeNeko); take('boba', makeBoba); take('spring', makeSpring); take('guitar', makeGuitar);
-    take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6));
+    take('gantry', () => makeGantry(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6)); take('lantern', () => makeLanternArch(ROOF, OBS.gantry.lo, OBS.gantry.hi, 5.6)); take('heron', makeHeron);
+    heartMesh.count = 1; wxMesh.count = 1; bestGate.visible = true;
     take('nose', () => glossy(makeNose(NOSE, noseHeight))); take('manhole', makeManhole);
     take('carEnd', () => new THREE.Mesh(carEndGeo.geometry, TRAIN));
     take('ring', () => makeTunnelRing(10, ROOF)); take('portal', () => makePortal(ROOF));
@@ -688,6 +796,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       culled.forEach((o) => { o.frustumCulled = true; });
     }
     STAGES.forEach((st) => { backdrops[st.key].visible = false; });
+    bestGate.visible = false;
     scen.forEach((q) => { q.m.userData.keep = false; q.m.visible = false; });
     scen = [];
   }
@@ -721,7 +830,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const roll = S.mode === 'select' ? 0 : tilt * 0.12;
       camera.up.set(Math.sin(roll), Math.cos(roll), 0);
       camera.lookAt(cam.look);
-      const fovTarget = baseFov + (S.mode === 'select' ? 0 : Math.max(0, Math.min(1, (S.speed - 15) / 21)) * 8);
+      const fovTarget = baseFov + (S.mode === 'select' ? 0 : Math.max(0, Math.min(1, (S.speed - 15) / 35)) * 12);
       if (Math.abs(camera.fov - fovTarget) > 0.01) { camera.fov += (fovTarget - camera.fov) * (1 - Math.exp(-elapsed * 2)); camera.updateProjectionMatrix(); }
     }
     if (drawGL) renderer.render(scene, camera);

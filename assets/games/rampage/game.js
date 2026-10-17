@@ -14,6 +14,7 @@
 // window.RAMPAGE_INIT = { highScore, debug } and listens for messages:
 // ready, score, haptic, exit.
 import { createRenderer } from './render3d.js';
+import { SFX, audio, music, musicState, duck, isMuted, isMusicOn, setMuted, setMusic, FINALE } from './sound.js';
 
 let INIT = window.RAMPAGE_INIT || {};
 
@@ -65,20 +66,25 @@ let G = [
 // Ladders [lower girder, x, broken?]; the ledge ladder (5 → 6 at x 118) is always there.
 let LEVELS = [
   { ladders: [[0, 150], [0, 60, 1], [1, 30], [1, 100], [2, 160], [2, 80, 1], [3, 28], [3, 110], [4, 136], [4, 70, 1]],
-    holes: [], tools: [[2, 120]], icy: [], throwEvery: 3.1, speed: 40, ladderChance: 0.22, cartChance: 0, dropEvery: 0, fire: 0 },
+    holes: [], tools: [[2, 120]], matcha: [3, 60], icy: [], throwEvery: 3.1, speed: 40, ladderChance: 0.22, cartChance: 0, dropEvery: 0, fire: 0 },
   { ladders: [[0, 40], [0, 140, 1], [1, 150], [1, 90, 1], [2, 30], [2, 120], [3, 160], [3, 60, 1], [4, 100]],
-    holes: [[2, 96, 106], [4, 40, 50]], tools: [[1, 100], [3, 120]], icy: [], throwEvery: 2.6, speed: 46, ladderChance: 0.28, cartChance: 0.35, dropEvery: 5.5, fire: 0 },
+    holes: [[2, 96, 106], [4, 40, 50]], tools: [[1, 100], [3, 120]], matcha: [2, 70], icy: [], throwEvery: 2.6, speed: 46, ladderChance: 0.28, cartChance: 0.35, dropEvery: 5.5, fire: 0 },
   { ladders: [[0, 100], [0, 30, 1], [1, 160], [2, 60], [2, 130, 1], [3, 150], [4, 96], [4, 120, 1]],
-    holes: [[3, 90, 100]], tools: [[1, 40], [4, 90]], icy: [1, 3], throwEvery: 2.3, speed: 50, ladderChance: 0.33, cartChance: 0.3, dropEvery: 4.6, fire: 0 },
+    holes: [[3, 90, 100]], tools: [[1, 40], [4, 90]], matcha: [3, 40], icy: [1, 3], throwEvery: 2.3, speed: 50, ladderChance: 0.33, cartChance: 0.3, dropEvery: 4.6, fire: 0 },
   { ladders: [[0, 160], [1, 20], [1, 120, 1], [2, 170], [3, 30], [3, 90, 1], [4, 140]],
-    holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], icy: [], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 },
+    holes: [[1, 70, 80], [2, 140, 150], [4, 100, 110]], tools: [[2, 60], [3, 140]], matcha: [1, 40], icy: [],
+    // Kaiju Showdown's own hazard: fire vents that blast in turn
+    vents: [[1, 110, 0], [3, 60, 1.6], [2, 100, 0.8]], throwEvery: 1.9, speed: 56, ladderChance: 0.38, cartChance: 0.3, dropEvery: 3.8, fire: 2 },
   // Level 5, the finale — much harder: one ladder up per girder at the far
   // end (a full zig-zag every floor), gaps to jump, an icy girder, a single
   // power-up, faster barrels thrown in pairs, more drops and atomic fire.
   { ladders: [[0, 170], [0, 90, 1], [1, 22], [1, 130, 1], [2, 170], [2, 100, 1], [3, 24], [3, 120, 1], [4, 140], [4, 80, 1]],
-    holes: [[1, 60, 72], [2, 110, 120], [3, 80, 92], [4, 60, 70]], tools: [[2, 60]], icy: [2], throwEvery: 1.5, speed: 62, ladderChance: 0.45, cartChance: 0.35, dropEvery: 3.2, fire: 3, double: 0.4, final: true }
+    holes: [[1, 60, 72], [2, 110, 120], [3, 80, 92], [4, 60, 70]], tools: [[2, 60]], matcha: [3, 150], icy: [2], throwEvery: 1.5, speed: 62, ladderChance: 0.45, cartChance: 0.35, dropEvery: 3.2, fire: 3, double: 0.4, final: true }
 ];
 
+// Juice (review, Oct 17 2026): a combo for smashes and jump-overs inside COMBO_TIME, a short
+// freeze-frame on a smash, MATCHA (a second power-up: everything slows to half for SLOW_TIME).
+const COMBO_TIME = 2.2, SLOW_TIME = 6, SLOW = 0.5;
 let WALK = 56, CLIMB = 52, JUMPV = 128, GRAV = 470, FALL_DEATH = 26, TOOL_TIME = 10;
 let GZ_X = 4, GZ_W = 50; // Godzilla stands on girder 5 from x 4 to 54
 
@@ -90,7 +96,8 @@ let S = {
   player: null, hz: [], tools: [], parts: [], pops: [], msgs: [], snow: [],
   gz: { state: 'idle', t: 0, throwT: 2, dropT: 4, roarT: 6, mood: 0, shake: 0, firstThrow: true },
   holes: [], ladders: [], shakeT: 0, paused: false, sentScore: false,
-  girlPower: !!INIT.girlPower, secret: null, finale: false, fallT: 0, landed: false, danceT: 0, rockets: [], rocketT: 0
+  girlPower: !!INIT.girlPower, secret: null, finale: false, fallT: 0, landed: false, danceT: 0, rockets: [], rocketT: 0,
+  combo: 0, comboT: 0, freeze: 0, slowT: 0, matcha: null, vents: [], boss: null, best: { level: 0, round: 0 }, tips: !!INIT.tips, shakeAmp: 1.6
 };
 try { if (localStorage.getItem('rampage.girlPower') === '1') S.girlPower = true; } catch { /* storage off (sandboxed) */ }
 
@@ -112,72 +119,6 @@ function surf(gi, x) {
 }
 function downhill(gi) { let g = G[gi]; return g.yR > g.yL ? 1 : -1; }
 
-// ---- sound (Web Audio, synthesized) -----------------------------------------------
-let AC = null, muted = false, master = null;
-try { muted = localStorage.getItem('rampage.muted') === '1'; } catch { /* storage off */ }
-function audio() {
-  if (!AC) {
-    try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.connect(AC.destination); } catch { AC = null; }
-  }
-  if (AC && AC.state === 'suspended') AC.resume();
-  if (master) master.gain.value = muted ? 0 : 1;
-  return AC;
-}
-function tone(f, d, type, vol, slideTo, delay) {
-  let a = audio(); if (!a || muted) return;
-  let t0 = a.currentTime + (delay || 0);
-  let o = a.createOscillator(), g = a.createGain();
-  o.type = type || 'square'; o.frequency.setValueAtTime(f, t0);
-  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t0 + d);
-  g.gain.setValueAtTime(vol || 0.05, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + d + 0.02);
-}
-function noise(d, vol, freq, delay) {
-  let a = audio(); if (!a || muted) return;
-  let t0 = a.currentTime + (delay || 0), n = Math.floor(a.sampleRate * d);
-  let buf = a.createBuffer(1, n, a.sampleRate), ch = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n);
-  let src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
-  f.type = 'lowpass'; f.frequency.value = freq || 800; g.gain.value = vol || 0.12;
-  src.buffer = buf; src.connect(f); f.connect(g); g.connect(master); src.start(t0);
-}
-let SFX = {
-  jump: function () { tone(420, 0.14, 'square', 0.045, 820); },
-  over: function () { tone(880, 0.06, 'square', 0.04); tone(1320, 0.08, 'square', 0.04, 0, 0.06); },
-  smash: function () { noise(0.22, 0.16, 1400); tone(140, 0.18, 'sawtooth', 0.06, 50); },
-  pick: function () { [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.1, 'square', 0.045, 0, i * 0.07); }); },
-  die: function () { tone(660, 0.9, 'square', 0.05, 80); },
-  roar: function () { noise(0.9, 0.18, 380); tone(95, 0.9, 'sawtooth', 0.07, 55); },
-  stomp: function () { tone(70, 0.2, 'sine', 0.22, 40); noise(0.12, 0.08, 300); },
-  swing: function () { noise(0.12, 0.06, 2500); },
-  climb: function () { tone(330, 0.03, 'triangle', 0.025); },
-  tick: function () { tone(1200, 0.03, 'square', 0.025); },
-  oneup: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, 0.09, 'square', 0.045, 0, i * 0.08); }); },
-  rescue: function () { [523, 659, 784, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.16, 'square', 0.05, 0, i * 0.14); }); },
-  over2: function () { [392, 330, 262, 196].forEach(function (f, i) { tone(f, 0.28, 'triangle', 0.06, 0, i * 0.26); }); },
-  whoosh: function () { tone(500, 1.4, 'sawtooth', 0.05, 60); },
-  boom: function () { noise(1.2, 0.3, 260); tone(60, 1, 'sine', 0.3, 28); },
-  launch: function () { tone(500, 0.45, 'sine', 0.02, 1500); },
-  bang: function () { noise(0.5, 0.16, 1800); tone(180, 0.25, 'triangle', 0.05, 60); },
-  secret: function () { [523, 784, 1047, 1319, 1568, 2093].forEach(function (f, i) { tone(f, 0.12, 'square', 0.045, 0, i * 0.07); }); }
-};
-// A tiny chiptune loop per level while playing (bass + blips).
-let MUSIC = [
-  [55, 0, 55, 65, 73, 0, 65, 55], [49, 0, 49, 58, 49, 0, 44, 0], [65, 82, 98, 82, 73, 87, 110, 87], [55, 55, 82, 55, 52, 52, 78, 52],
-  [55, 82, 110, 82, 58, 87, 116, 87]
-];
-let musicT = 0, musicStep = 0;
-function music(dt) {
-  if (S.mode !== 'play' || muted) return;
-  musicT -= dt;
-  if (musicT <= 0) {
-    musicT += 0.17 / Math.min(1.25, 0.95 + S.level * 0.08);
-    let f = MUSIC[S.level][musicStep % 8];
-    if (f) tone(f * 2, 0.13, 'triangle', 0.05);
-    if (musicStep % 4 === 2) tone(f ? f * 6 : 440, 0.04, 'square', 0.015);
-    musicStep++;
-  }
-}
 function haptic(kind) { post({ type: 'haptic', kind: kind }); }
 
 // ---- messages, popups, particles ------------------------------------------------------
@@ -188,6 +129,22 @@ function burst(x, y, cols, n) {
     let a = Math.random() * Math.PI * 2, v = 30 + Math.random() * 80;
     S.parts.push({ x: x, y: y, z: 0, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, vz: (Math.random() * 2 - 1) * 50, t: 0.6 + Math.random() * 0.5, col: cols[i % cols.length], spin: Math.random() * 10, s: 1 + Math.random() * 1.6 });
   }
+}
+/** Smashes and jump-overs in quick succession build a combo: points × the combo (up to ×5). */
+function comboHit(base, x, y) {
+  S.combo = S.comboT > 0 ? S.combo + 1 : 1; S.comboT = COMBO_TIME;
+  const k = Math.min(5, S.combo);
+  addScore(base * k, x, y);
+  if (k > 1) { pop('COMBO ×' + k, x, y - 9, '#ffe066'); SFX.combo(k); }
+}
+function dust(x, y, n, col) { // little puffs kicked up on landing
+  for (let i = 0; i < (n || 6); i++) {
+    const a = i % 2 ? Math.PI * 0.08 : Math.PI * 0.92, v = 18 + Math.random() * 22;
+    S.parts.push({ x: x + (Math.random() - 0.5) * 6, y: y - 1, z: (Math.random() - 0.5) * 6, vx: Math.cos(a) * v, vy: -8 - Math.random() * 10, vz: (Math.random() - 0.5) * 10, t: 0.35 + Math.random() * 0.2, col: col || '#d8d2c4', spin: 0, s: 1.4 + Math.random(), g: 0.15, drag: 3 });
+  }
+}
+function sparkRing(x, y, col) { // a bright ring on a smash
+  for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; S.parts.push({ x: x, y: y, z: 2, vx: Math.cos(a) * 70, vy: Math.sin(a) * 70, vz: 0, t: 0.28, col: col || '#fff3bf', spin: 0, s: 1.2, g: 0, drag: 6, glow: 1 }); }
 }
 function addScore(n, x, y) {
   if (HEROES[S.hero].girl) n = Math.round(n * GIRL_BONUS);
@@ -211,6 +168,9 @@ function resetRun() {
   S.player = { x: 30, y: surf(0, 30), vx: 0, vy: 0, st: 'ground', g: 0, face: 1, lad: null, anim: 0, tool: 0, swing: 0, cd: 0, fallFrom: 0, maxG: 0, dead: 0, jbuf: 0, coyote: 0 };
   S.hz = []; S.parts = []; S.pops = [];
   S.tools = L.tools.map(function (t) { return { g: t[0], x: t[1], y: surf(t[0], t[1]), taken: false }; });
+  S.matcha = L.matcha ? { g: L.matcha[0], x: L.matcha[1], y: surf(L.matcha[0], L.matcha[1]), taken: false } : null;
+  S.vents = (L.vents || []).map(function (v) { return { g: v[0], x: v[1], y: surf(v[0], v[1]), phase: v[2], st: 'off' }; });
+  S.combo = 0; S.comboT = 0; S.slowT = 0; S.freeze = 0;
   let gz = S.gz; gz.state = 'idle'; gz.t = 0; gz.throwT = 1.6; gz.dropT = L.dropEvery || 99; gz.roarT = 7; gz.mood = 0; gz.firstThrow = true;
   S.bonus = 5000 + S.level * 500 + (L.final ? 2500 : 0); S.bonusT = 0;
   // The secret barrel stands where you start, until Girl Power is found.
@@ -223,7 +183,15 @@ function startLevel() {
   say(partnerName(S.hero) + ' NEEDS YOU!', 2.2, '#ff8cc6');
   gzSet('roar', 1.1); SFX.roar(); haptic('heavy');
 }
-function setMode(m) { S.mode = m; S.modeT = 0; document.getElementById('over').classList.toggle('show', m === 'gameover'); R.modeChanged(m); }
+function setMode(m) {
+  S.mode = m; S.modeT = 0;
+  document.getElementById('over').classList.toggle('show', m === 'gameover');
+  // continue from the level you reached (score from zero)
+  const cont = document.getElementById('cont');
+  cont.style.display = m === 'gameover' && (S.level > 0 || S.round > 0) ? '' : 'none';
+  cont.textContent = 'CONTINUE · LEVEL ' + (S.level + 1);
+  R.modeChanged(m);
+}
 
 // ---- input ---------------------------------------------------------------------------
 let held = { L: 0, R: 0, U: 0, D: 0, J: 0, A: 0 }, edge = { J: 0, A: 0, U: 0, D: 0, L: 0, R: 0 };
@@ -311,20 +279,26 @@ window.addEventListener('blur', releaseAll);
 // is never one accidental tap next to the d-pad.
 const pauseEl = document.getElementById('pause');
 function setMenu(on) {
-  S.menu = on; pauseEl.classList.toggle('show', on);
+  S.menu = on; pauseEl.classList.toggle('show', on); duck(on);
   if (on) { stickSet({}); document.getElementById('resume').focus(); }
 }
 document.getElementById('pausebtn').addEventListener('click', function () { setMenu(true); });
 document.getElementById('resume').addEventListener('click', function () { setMenu(false); });
-document.getElementById('psound').addEventListener('click', toggleMute);
+document.getElementById('psound').addEventListener('click', function () { setMuted(!isMuted()); syncMute(); });
+document.getElementById('pmusic').addEventListener('click', function () { setMusic(!isMusicOn()); syncMute(); });
 document.getElementById('exit').addEventListener('click', function () { sendScore('quit'); post({ type: 'exit' }); });
 function syncMute() {
-  document.getElementById('psound').textContent = muted ? 'SOUND: OFF' : 'SOUND: ON';
-  if (master) master.gain.value = muted ? 0 : 1;
+  document.getElementById('psound').textContent = isMuted() ? 'SOUND: OFF' : 'SOUND: ON';
+  document.getElementById('pmusic').textContent = isMusicOn() ? 'MUSIC: ON' : 'MUSIC: OFF';
 }
-function toggleMute() { muted = !muted; try { localStorage.setItem('rampage.muted', muted ? '1' : '0'); } catch { /* ok */ } audio(); syncMute(); }
 syncMute();
 document.getElementById('again').addEventListener('click', function () { newGame(S.hero); });
+document.getElementById('cont').addEventListener('click', function () { continueGame(); });
+function continueGame() {
+  const lv = S.level, rd = S.round;
+  S.score = 0; S.lives = 3; S.extraGiven = false; S.sentScore = false; S.level = lv; S.round = rd;
+  startLevel(); say('CONTINUE!', 1.4, '#69db7c');
+}
 document.getElementById('change').addEventListener('click', toSelect);
 hudCanvas.addEventListener('pointerdown', function (e) {
   audio();
@@ -332,7 +306,7 @@ hudCanvas.addEventListener('pointerdown', function (e) {
   if (S.mode === 'select') {
     const h = heroAt(x, y);
     if (h) startWith(h);
-  } else if (S.mode === 'intro') setMode('play');
+  } else if (S.mode === 'intro') goPlay();
   else if (S.mode === 'win' && S.modeT > 1.5) nextRound();
 });
 // Which hero card is at a point on the select screen: two wide cards, or a
@@ -347,9 +321,11 @@ function menuConfirm() {
   audio();
   if (S.mode === 'select') startWith(roster()[S.sel] || 'chris');
   else if (S.mode === 'gameover') newGame(S.hero);
-  else if (S.mode === 'intro') setMode('play');
+  else if (S.mode === 'intro') goPlay();
   else if (S.mode === 'win' && S.modeT > 1.5) nextRound();
 }
+/** From the level card into play (the tips, if showing, have been seen). */
+function goPlay() { if (S.tips) { S.tips = false; post({ type: 'tips-seen' }); } setMode('play'); }
 function startWith(h) { S.sel = Math.max(0, roster().indexOf(h)); newGame(h); }
 function newGame(h) {
   S.hero = h; S.level = 0; S.round = 0; S.score = 0; S.lives = 3; S.extraGiven = false; S.sentScore = false;
@@ -379,8 +355,9 @@ function updateGodzilla(dt) {
     return;
   }
   if (S.mode !== 'play') return;
-  gz.throwT -= dt * (gz.mood > 0.7 ? 1.25 : 1) * hard();
-  gz.dropT -= dt * hard();
+  const slow = S.slowT > 0 ? SLOW : 1;
+  gz.throwT -= dt * (gz.mood > 0.7 ? 1.25 : 1) * hard() * slow;
+  gz.dropT -= dt * hard() * slow;
   gz.roarT -= dt;
   if (gz.throwT <= 0) {
     gz.throwT = L.throwEvery * (0.75 + Math.random() * 0.5);
@@ -389,13 +366,13 @@ function updateGodzilla(dt) {
   }
   if (L.dropEvery && gz.dropT <= 0) {
     gz.dropT = L.dropEvery * (0.8 + Math.random() * 0.4);
-    gzSet('stomp', 0.7); SFX.stomp(); haptic('light');
+    gzSet('stomp', 0.7); SFX.stomp(); haptic('light'); S.shakeT = 0.3; S.shakeAmp = 2.4;
     let dx = Math.max(64, Math.min(184, (p ? p.x : 120) + (Math.random() * 48 - 24)));
     S.hz.push({ kind: 'drop', x: dx, y: HUD + 4, vy: 0, warn: 0.9, r: 5, jumped: true });
     return;
   }
   if (gz.roarT <= 0) {
-    gz.roarT = 8 + Math.random() * 6; gzSet('roar', 1); SFX.roar();
+    gz.roarT = 8 + Math.random() * 6; gzSet('roar', 1); SFX.roar(); S.shakeT = 0.5; S.shakeAmp = 1.2;
     if (gz.mood > 0.6) say('GODZILLA IS ANGRY!', 1.3, '#ff6b6b');
   }
 }
@@ -448,7 +425,7 @@ function updatePlayer(dt) {
   if (p.swing > 0) p.swing -= dt;
   if (p.tool > 0) {
     p.tool -= dt;
-    if (p.tool <= 0) { p.tool = 0; tone(300, 0.3, 'square', 0.04, 120); }
+    if (p.tool <= 0) { p.tool = 0; SFX.toolEnd(); }
   }
   if (edge.A && p.tool > 0 && p.cd <= 0) {
     p.swing = 0.28; p.cd = 0.38; SFX.swing();
@@ -486,6 +463,7 @@ function updatePlayer(dt) {
         let s = surf(gi, p.x);
         if (prev <= s + 0.5 && p.y >= s) {
           if (p.y - p.fallFrom > FALL_DEATH) { p.y = s; die('fall'); return; }
+          if (p.y - p.fallFrom > 4) { dust(p.x, s); SFX.land(); }
           p.y = s; p.st = 'ground'; p.g = gi; p.vy = 0;
           reached(gi);
           if (p.jbuf > 0 && S.mode === 'play') jump(p); // pressed just before landing
@@ -519,6 +497,13 @@ function updatePlayer(dt) {
       gzSet('shocked', 1.2); burst(t.x, t.y - 8, ['#ffd43b', '#ffffff', '#ffa94d'], 18);
     }
   }
+  // matcha: the world slows to half for a while
+  const mt = S.matcha;
+  if (mt && !mt.taken && Math.abs(mt.x - p.x) < 8 && Math.abs(mt.y - p.y) < 10) {
+    mt.taken = true; S.slowT = SLOW_TIME; addScore(200, mt.x, mt.y - 16);
+    say('MATCHA SLOW-MO!', 1.6, '#8ce99a'); SFX.matcha(); haptic('success');
+    burst(mt.x, mt.y - 8, ['#8ce99a', '#ffffff', '#2f9e44'], 18);
+  }
   // Swinging: smash what's in reach (ahead and overhead).
   if (p.swing > 0.05 && p.tool > 0) {
     // Heather's hair whip spins all the way round (both sides, shorter reach).
@@ -530,8 +515,9 @@ function updatePlayer(dt) {
       let h = S.hz[j];
       if (h.x + h.r > x0 && h.x - h.r < x1 && h.y > p.y - 30 && h.y - h.r < p.y + 2 && !(h.kind === 'drop' && h.warn > 0)) {
         S.hz.splice(j, 1);
-        addScore(h.kind === 'fire' ? 500 : 300, h.x, h.y - 10);
-        burst(h.x, h.y, smashColors(h), 16); SFX.smash(); haptic('light'); S.shakeT = 0.1;
+        comboHit(h.kind === 'fire' ? 500 : 300, h.x, h.y - 10);
+        burst(h.x, h.y, smashColors(h), 26); sparkRing(h.x, h.y - 4); SFX.smash(); haptic('light');
+        S.shakeT = 0.14; S.shakeAmp = 1.6; S.freeze = 0.06;
         if (Math.random() < 0.35) say('KAIJU KABOOM!', 1, '#ffd43b');
         if (S.gz.state === 'idle') gzSet('shocked', 0.5);
       }
@@ -570,7 +556,8 @@ function die(why) {
   let p = S.player; if (S.mode !== 'play') return;
   p.dead = 1.3; setMode('dying');
   SFX.die(); haptic('error'); gzSet('laugh', 1.4);
-  say(why === 'fall' ? 'OUCH!' : why === 'stomp' ? 'STOMPED!' : 'WATCH OUT!', 1.2, '#ff6b6b');
+  say(why === 'fall' ? 'OUCH!' : why === 'stomp' ? 'STOMPED!' : why === 'fire' ? 'TOO HOT!' : 'WATCH OUT!', 1.2, '#ff6b6b');
+  S.shakeT = 0.25; S.shakeAmp = 2;
 }
 function rescue() {
   setMode('rescue');
@@ -629,18 +616,20 @@ const FIREWORK = ['#ff4fd8', '#4dd8ff', '#ffe066', '#69db7c', '#ff6b6b', '#b197f
 
 // ---- hazards ----------------------------------------------------------------------------
 function updateHazards(dt) {
-  let L = lvl(), p = S.player, sp = L.speed * hard();
+  const slow = S.slowT > 0 ? SLOW : 1;
+  let L = lvl(), p = S.player, sp = L.speed * hard() * slow;
   for (let i = S.hz.length - 1; i >= 0; i--) {
     let h = S.hz[i];
     if (h.kind === 'drop') {
       if (h.warn > 0) { h.warn -= dt; continue; }
-      h.vy = Math.min(150, h.vy + GRAV * 0.5 * dt); h.y += h.vy * dt;
+      h.vy = Math.min(150 * slow, h.vy + GRAV * 0.5 * slow * dt); h.y += h.vy * dt;
       if (h.y > H + 10) { S.hz.splice(i, 1); continue; }
     } else if (h.kind === 'fire') {
-      updateFire(h, dt);
+      updateFire(h, dt * slow);
     } else if (h.st === 'roll') {
       let prevX = h.x;
       h.x += h.dir * sp * h.fast * dt; h.spin += h.dir * dt * 10;
+      if (h.kind === 'cart' && Math.random() < dt * 22) S.parts.push({ x: h.x - h.dir * 6, y: h.y - 1, z: 3, vx: -h.dir * (20 + Math.random() * 30), vy: -20 - Math.random() * 30, vz: (Math.random() - 0.5) * 20, t: 0.25, col: Math.random() < 0.5 ? '#ffd43b' : '#ff922b', spin: 0, s: 0.7, g: 1, glow: 1 }); // sparks off the rails
       if (h.kind === 'barrel') {
         for (let k = 0; k < S.ladders.length; k++) {
           let l = S.ladders[k];
@@ -659,11 +648,11 @@ function updateHazards(dt) {
         } else { h.st = 'fall'; h.vy = 0; }
       }
     } else if (h.st === 'ladder') {
-      h.y += 58 * dt;
+      h.y += 58 * slow * dt;
       if (h.y >= h.lad.bottom) { h.y = h.lad.bottom; h.g = h.lad.lo; h.st = 'roll'; h.dir = downhill(h.g); }
     } else if (h.st === 'fall') {
       let py = h.y;
-      h.vy += GRAV * dt; h.y += h.vy * dt; h.x += h.dir * sp * 0.35 * dt;
+      h.vy += GRAV * slow * slow * dt; h.y += h.vy * dt; h.x += h.dir * sp * 0.35 * dt;
       if (h.vy > 0) {
         for (let gi = h.g - 1; gi >= 0; gi--) {
           if (!solidAt(gi, h.x)) continue;
@@ -687,7 +676,7 @@ function updateHazards(dt) {
       if (!(h.kind === 'drop' && h.warn > 0) && (h.x - nx) * (h.x - nx) + (cy - ny) * (cy - ny) < hitR * hitR) { die('hit'); return; }
       // jumped over it
       if (p.st === 'air' && !h.jumped && Math.abs(h.x - p.x) < 6 && cy > p.y && cy - p.y < 28) {
-        h.jumped = true; addScore(100, p.x, p.y - 20); SFX.over();
+        h.jumped = true; comboHit(100, p.x, p.y - 20); SFX.over();
       }
     }
   }
@@ -718,10 +707,87 @@ function updateFire(h, dt) {
   }
 }
 
+// ---- fire vents (Kaiju Showdown) -------------------------------------------------------------
+// Each vent smokes for VENT_WARN, then blasts flame for VENT_ON, on a VENT_CYCLE loop (offset
+// per vent), so there's always a gap to run through.
+const VENT_CYCLE = 3.4, VENT_WARN = 1.0, VENT_ON = 0.9, VENT_H = 24;
+function updateVents(dt) {
+  const p = S.player;
+  S.vents.forEach(function (v) {
+    const k = ((S.t + v.phase) % VENT_CYCLE);
+    const st = k < VENT_CYCLE - VENT_WARN - VENT_ON ? 'off' : k < VENT_CYCLE - VENT_ON ? 'warn' : 'on';
+    if (st === 'on' && v.st !== 'on') { SFX.vent(); S.shakeT = Math.max(S.shakeT, 0.1); }
+    v.st = st;
+    if (st === 'warn' && Math.random() < dt * 14) S.parts.push({ x: v.x + (Math.random() - 0.5) * 6, y: v.y - 2, z: 0, vx: 0, vy: -20, vz: 0, t: 0.6, col: '#868e96', spin: 0, s: 1.6, g: -0.05 });
+    if (st === 'on') {
+      if (Math.random() < dt * 30) S.parts.push({ x: v.x + (Math.random() - 0.5) * 8, y: v.y - Math.random() * VENT_H, z: 2, vx: (Math.random() - 0.5) * 20, vy: -40, vz: 0, t: 0.3, col: Math.random() < 0.5 ? '#ffa94d' : '#ffe066', spin: 0, s: 1.2, g: -0.2, glow: 1 });
+      if (S.mode === 'play' && p && p.g === v.g && Math.abs(p.x - v.x) < 6 && p.y > v.y - VENT_H) die('fire');
+    }
+  });
+}
+
+// ---- the bonus round between rounds: dodge Godzilla's atomic shockwaves -----------------------
+// After all five levels, before the next round: 20 s on the floor while blue shockwaves race
+// along it (from his side, then from both) and atomic drops fall. Jump them. Survive → +3000.
+// A hit only ends the bonus (no life lost).
+const BOSS_TIME = 20;
+function startBoss() {
+  if (S.level !== LEVELS.length - 1) { S.level = LEVELS.length - 1; buildLevel(); }
+  S.finale = false; S.fallT = 0; S.landed = false; S.danceT = 0; S.rockets = [];
+  resetRun();
+  S.secret = null;
+  const p = S.player; p.x = 96; p.y = surf(0, 96);
+  S.boss = { t: BOSS_TIME, next: 1.6, n: 0, over: false, hitT: 0 };
+  setMode('boss'); gzSet('roar', 1.2); SFX.roar(); S.shakeT = 0.5; S.shakeAmp = 1.4;
+  say('BONUS ROUND!', 2, '#74c0fc'); say('JUMP THE ATOMIC WAVES!', 2.4, '#ffffff');
+}
+function updateBoss(dt) {
+  const B = S.boss, p = S.player;
+  updateGodzilla(dt);
+  if (B.over) { if (S.modeT > 2.6) { S.boss = null; nextRoundGo(); } return; }
+  if (S.modeT < 1.2) return; // (a beat to read it)
+  updatePlayer(dt);
+  if (p.st === 'climb') { p.st = 'ground'; p.g = 0; p.y = surf(0, p.x); } // (no ladders in the bonus)
+  B.t -= dt; B.next -= dt;
+  const sp = 92 * (1 + 0.12 * S.round);
+  if (B.next <= 0) {
+    B.n++;
+    const fromRight = B.t < 12 && B.n % 2 === 0;
+    S.hz.push({ kind: 'wave', x: fromRight ? W + 4 : -4, y: surf(0, 10), g: 0, dir: fromRight ? -1 : 1, st: 'roll', r: 5, jumped: false });
+    if (B.n % 3 === 0) S.hz.push({ kind: 'drop', x: Math.max(16, Math.min(W - 16, p.x + (Math.random() * 40 - 20))), y: HUD + 4, vy: 0, warn: 0.9, r: 5, jumped: true });
+    B.next = Math.max(0.8, 1.5 - (BOSS_TIME - B.t) * 0.03);
+    gzSet('roar', 0.5); SFX.beam();
+  }
+  for (let i = S.hz.length - 1; i >= 0; i--) {
+    const h = S.hz[i];
+    if (h.kind === 'wave') {
+      h.x += h.dir * sp * dt; h.y = surf(0, Math.max(0, Math.min(W, h.x)));
+      if (Math.random() < dt * 20) S.parts.push({ x: h.x, y: h.y - 2 - Math.random() * 6, z: 2, vx: -h.dir * 30, vy: -20, vz: 0, t: 0.3, col: Math.random() < 0.5 ? '#74c0fc' : '#e7f5ff', spin: 0, s: 1, g: 0, glow: 1 });
+      if (h.x < -10 || h.x > W + 10) { S.hz.splice(i, 1); continue; }
+    } else if (h.kind === 'drop') {
+      if (h.warn > 0) { h.warn -= dt; continue; }
+      h.vy = Math.min(150, h.vy + GRAV * 0.5 * dt); h.y += h.vy * dt;
+      if (h.y > H + 10) { S.hz.splice(i, 1); continue; }
+    }
+    const cy = h.kind === 'drop' ? h.y : h.y - h.r;
+    if (!(h.kind === 'drop' && h.warn > 0) && Math.abs(h.x - p.x) < h.r + 3 && cy > p.y - 15 && cy - h.r < p.y) {
+      B.over = true; S.modeT = 0; S.hz = []; SFX.die(); haptic('error'); S.shakeT = 0.3; S.shakeAmp = 2;
+      say('BONUS OVER', 1.8, '#ff8787'); return;
+    }
+    if (h.kind === 'wave' && p.st === 'air' && !h.jumped && Math.abs(h.x - p.x) < 6) { h.jumped = true; comboHit(100, p.x, p.y - 20); SFX.over(); }
+  }
+  if (B.t <= 0) {
+    B.over = true; S.modeT = 0; S.hz = [];
+    addScore(3000, p.x, p.y - 24); SFX.rescue(); haptic('success'); burst(p.x, p.y - 10, ['#74c0fc', '#ffe066', '#ffffff'], 30);
+    say('BONUS CLEARED! +3000', 2.2, '#ffe066');
+  }
+}
+
 // ---- main update -----------------------------------------------------------------------
 function update(dt) {
-  S.t += dt; S.modeT += dt;
   if (S.shakeT > 0) S.shakeT -= dt;
+  if (S.freeze > 0) { S.freeze -= dt; return; } // a smash: the world holds still for a beat
+  S.t += dt; S.modeT += dt;
   for (let i = S.msgs.length - 1; i >= 0; i--) { S.msgs[i].t -= dt; if (S.msgs[i].t <= 0) S.msgs.splice(i, 1); }
   for (let j = S.pops.length - 1; j >= 0; j--) { let pp = S.pops[j]; pp.t -= dt; pp.y -= 18 * dt; if (pp.t <= 0) S.pops.splice(j, 1); }
   for (let k = S.parts.length - 1; k >= 0; k--) {
@@ -736,9 +802,15 @@ function update(dt) {
     } else { if (edge.U || edge.L) S.sel = 0; if (edge.D || edge.R) S.sel = 1; }
     if (edge.J) startWith(roster()[S.sel] || 'chris');
   }
-  else if (S.mode === 'intro') { updateGodzilla(dt); if (S.modeT > 2.4 || edge.J) { setMode('play'); say('GO!', 0.8, '#69db7c'); } }
+  else if (S.mode === 'intro') {
+    updateGodzilla(dt);
+    // first time ever: the tips card stays up longer (tap or JUMP still goes straight away)
+    if (S.modeT > (S.tips ? 9 : 2.4) || edge.J) { goPlay(); say('GO!', 0.8, '#69db7c'); }
+  } else if (S.mode === 'boss') updateBoss(dt);
   else if (S.mode === 'play') {
-    updateGodzilla(dt); updatePlayer(dt); if (S.mode === 'play') updateHazards(dt); music(dt); updateSecret(dt);
+    updateGodzilla(dt); updatePlayer(dt); if (S.mode === 'play') updateHazards(dt); if (S.mode === 'play') updateVents(dt); updateSecret(dt);
+    if (S.comboT > 0 && (S.comboT -= dt) <= 0) S.combo = 0;
+    if (S.slowT > 0) S.slowT -= dt;
     S.bonusT += dt; if (S.bonusT >= 2) { S.bonusT -= 2; S.bonus = Math.max(0, S.bonus - 100); }
   } else if (S.mode === 'dying') {
     updateGodzilla(dt); S.player.dead -= dt;
@@ -768,7 +840,8 @@ function updateSecret(dt) {
   sb.glint -= dt;
   if (sb.glint <= 0) { sb.glint = 3 + Math.random() * 3; S.parts.push({ x: sb.x + 3, y: sb.y - 9, z: 2, vx: 0, vy: 0, vz: 0, t: 0.5, col: '#ffffff', spin: 0, s: 1.1, g: 0, glow: 1 }); }
 }
-function nextRound() { S.round++; S.level = 0; startLevel(); say('ROUND ' + (S.round + 1) + '!', 1.6, '#ffd43b'); }
+function nextRound() { startBoss(); }
+function nextRoundGo() { S.round++; S.level = 0; startLevel(); say('ROUND ' + (S.round + 1) + '!', 1.6, '#ffd43b'); }
 
 function updateWeather(dt) {
   let T = theme();
@@ -797,6 +870,9 @@ let last = 0, acc = 0, STEP = 1 / 60;
 function frame(ts) {
   let dt = Math.min(0.25, last ? (ts - last) / 1000 : STEP); last = ts;
   if (!S.paused && !S.menu) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
+  // the song for the level (the finale's own once Godzilla falls), a touch quicker each round
+  const fin = S.finale && (S.mode === 'rescue' || S.mode === 'tally' || S.mode === 'win');
+  music(fin || S.mode === 'intro' || S.mode === 'play' || S.mode === 'dying' || S.mode === 'boss', fin ? FINALE : S.level, S.round, S.gz.mood > 0.6);
   R.render(dt);
   let atk = document.getElementById('atk');
   let ready = S.player && S.player.tool > 0 && S.mode === 'play';
@@ -810,7 +886,7 @@ window.__rampage = {
   get mode() { return S.mode; }, get score() { return S.score; }, get lives() { return S.lives; }, get level() { return S.level + 1; },
   get hero() { return S.hero; }, get hi() { return S.hi; },
   get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, vx: S.player.vx, tool: S.player.tool }; },
-  get hazards() { return S.hz.length; },
+  get hazards() { return S.hz.length; }, get combo() { return S.combo; }, get slow() { return S.slowT > 0; }, get boss() { return S.boss && { t: S.boss.t, over: S.boss.over }; }, get vents() { return S.vents.map(function (v) { return v.st; }); }, get music() { return musicState(); }, get tips() { return S.tips; },
   get menu() { return !!S.menu; },
   get girlPower() { return S.girlPower; }, get finale() { return S.finale; }, get landed() { return S.landed; }, get fallT() { return S.fallT; }, get gzState() { return S.gz.state; },
   get secret() { return S.secret && { x: S.secret.x, broken: S.secret.broken }; },
@@ -830,7 +906,10 @@ if (INIT.debug) {
     setGodzilla: function (st, dur) { gzSet(st, dur || 2); },
     place: function (x, g) { const p = S.player; p.x = x; p.g = g; p.y = surf(g, x); p.st = 'ground'; p.vx = 0; },
     finaleAt: function (t) { S.fallT = t; S.landed = t >= FALL_LAND; S.paused = true; }, // freeze the finale (screenshots)
-    calm: function () { S.gz.throwT = 999; S.gz.dropT = 999; S.gz.roarT = 999; S.hz.length = 0; }
+    calm: function () { S.gz.throwT = 999; S.gz.dropT = 999; S.gz.roarT = 999; S.hz.length = 0; S.vents.length = 0; },
+    matchaHere: function () { const p = S.player; S.matcha = { g: p.g, x: p.x + 10, y: surf(p.g, p.x + 10), taken: false }; },
+    boss: function () { startBoss(); },
+    bossT: function (t) { if (S.boss) S.boss.t = t; }
   };
 }
 

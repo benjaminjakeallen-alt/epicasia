@@ -818,9 +818,33 @@ export function makeHazard(look) {
       }
       return y > 11 ? 0xe7f5ff : y > 5 ? 0x74c0fc : 0x1971c2;
     }, V, [7, 0, 6], 0.06));
+    case 'matcha': return mesh(vox(18, 16, 18, (x, y, z) => { // a cup of matcha with a whisk of foam
+      const d = Math.hypot(x - 8.5, z - 8.5);
+      if (d > 8.4 - (y < 2 ? 1.5 : 0)) return null;
+      if (y >= 13) return d < 7.2 ? (y === 15 ? null : hash3(x, y, z) < 0.25 ? 0xd3f9d8 : 0x69db7c) : 0xf1ece0;
+      if (d < 6.8 && y > 2) return null; // hollow
+      return y === 6 || y === 7 ? 0x2f9e44 : hash3(x, y, z) < 0.06 ? 0xd8cfbb : 0xf1ece0;
+    }, V, [9, 0, 9]));
+    case 'vent': return mesh(vox(24, 4, 14, (x, y, z) => { // an iron grate with a glow below
+      if (y === 3) return x % 4 === 0 || z % 4 === 0 ? 0x343a40 : null;
+      return y === 0 ? 0x212529 : x % 4 === 2 && z % 4 === 2 ? 0xff922b : 0x495057;
+    }, V, [12, 0, 7]));
+    case 'flame': return mesh(vox(16, 50, 12, (x, y, z) => { // a column of fire
+      const w = 7.5 * (1 - y / 60) + (hash3(x >> 1, y >> 1, z) - 0.5) * 3, d = Math.hypot(x - 7.5, (z - 5.5) * 1.3);
+      if (d > w) return null;
+      const core = d < w * 0.45;
+      return y > 38 ? (core ? 0xffec99 : 0xff922b) : core ? 0xfff3bf : hash3(x, y, z) < 0.3 ? 0xffd43b : 0xff6b00;
+    }, V, [8, 0, 6]));
+    case 'wave': return mesh(vox(14, 22, 10, (x, y, z) => { // an atomic shockwave: a crest of blue light
+      const r = Math.hypot(x - 2, y), band = r > 10 && r < 20;
+      if (!band || x < 2) return null;
+      return r > 17 ? 0xe7f5ff : r > 13 ? 0x74c0fc : 0x339af0;
+    }, V, [7, 0, 5]), WAVE_MAT); // (unlit: it glows)
     default: return mesh(barrelGeo(0xb5651d, 0x6b3a10));
   }
 }
+
+const WAVE_MAT = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
 
 /** Little cube for debris, snow and embers (instanced by the renderer). */
 export const DEBRIS = new THREE.BoxGeometry(1, 1, 1);

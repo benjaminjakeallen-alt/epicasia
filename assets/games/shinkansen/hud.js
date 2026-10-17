@@ -45,6 +45,10 @@ export function createHud(canvas, game, view, toScreen) {
     round(8 * u, top, right - 8 * u, 50 * u, 16 * u, 'rgba(12,20,44,0.5)');
     text('SCORE', 20 * u, top + 13 * u, 9, '#a5d8ff', { align: 'left', stroke: false });
     text(pad6(S.score), 20 * u, top + 32 * u, 20, '#ffffff', { align: 'left', lw: 3 });
+    if (S.mult > 1) { // the multiplier
+      round(104 * u, top + 22 * u, 34 * u, 20 * u, 10 * u, '#2f9e44', INK, 1.5);
+      text('×' + S.mult, 121 * u, top + 32.5 * u, 12, '#ffffff', { stroke: false });
+    }
     onigiri(right - 70 * u, top + 22 * u, 8 * u);
     text(String(S.coins), right - 58 * u, top + 23 * u, 16, '#ffffff', { align: 'left', lw: 3 });
     text(Math.floor(S.dist) + ' m', right - 14 * u, top + 40 * u, 9, '#ffe066', { align: 'right', lw: 2 });
@@ -70,8 +74,8 @@ export function createHud(canvas, game, view, toScreen) {
     if (S.hero === 'chris') badges.push(S.t >= S.smashReady ? ['PICKAXE READY', 'rgba(222,226,230,0.94)', '#212529'] : ['PICKAXE ' + Math.ceil(S.smashReady - S.t) + 's', 'rgba(134,142,150,0.85)', '#ffffff']);
     if (S.hero === 'mei') badges.push(S.charmT > 0 ? ['♥ KAWAII ♥', 'rgba(255,143,199,0.96)', '#4a0a2a'] : S.t >= S.charmReady ? ['CHARM READY · TAP', 'rgba(255,214,236,0.95)', '#4a0a2a'] : ['CHARM ' + Math.ceil(S.charmReady - S.t) + 's', 'rgba(134,142,150,0.85)', '#ffffff']);
     if (S.boardT > 0) badges.push(['SKATEBOARD ' + Math.ceil(S.boardT) + 's', 'rgba(255,212,59,0.95)', '#3b2a00']);
-    else if (S.hero === 'jake' && S.boardCount > 0) badges.push(['ONIGIRI ' + S.boardCount + '/30', 'rgba(255,255,255,0.88)', '#212529']);
-    badges.forEach(([label, bg, ink], i) => {
+    else if (S.hero === 'jake' && S.boardCount > 0) badges.push(['ONIGIRI ' + S.boardCount + '/40', 'rgba(255,255,255,0.88)', '#212529']);
+    if (S.mode !== 'ready') badges.forEach(([label, bg, ink], i) => { // (not over the missions card)
       ctx.font = `900 ${10 * u}px ${FONT}`;
       const bw = ctx.measureText(label).width + 24 * u, by = top + (96 + i * 27) * u;
       round(W / 2 - bw / 2, by, bw, 22 * u, 11 * u, bg, INK, 1.5);
@@ -132,6 +136,9 @@ export function createHud(canvas, game, view, toScreen) {
       ctx.beginPath(); ctx.arc(W / 2 + (d - (n - 1) / 2) * 14 * u, dy, (d === S.sel ? 4.5 : 3) * u, 0, Math.PI * 2);
       ctx.fillStyle = d === S.sel ? '#ffd43b' : game.locked(game.ROSTER[d]) ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.8)'; ctx.fill();
     }
+    // how many secrets are still out there (never who, or how)
+    const left = game.ROSTER.filter(game.locked).length;
+    if (left) text(left + (left === 1 ? ' SECRET TRAVELER LEFT' : ' SECRET TRAVELERS LEFT'), W / 2, dy + 18 * u, 10, 'rgba(255,255,255,0.75)', { lw: 2.5 });
     if (S.hint) {
       const hy = view.ch - 140 * u;
       ctx.font = `900 ${12 * u}px ${FONT}`;
@@ -153,11 +160,33 @@ export function createHud(canvas, game, view, toScreen) {
       text(String(n), 0, 0, 80, '#ffffff', { depth: 4, depthColor: '#1f4fb5', lw: 12 });
       ctx.restore();
     }
-    const y = view.ch - 150 * u, W = view.cw;
-    round(24 * u, y, W - 48 * u, 98 * u, 20 * u, 'rgba(12,20,44,0.62)');
-    text('SWIPE  ◀ ▶  HOP TRAINS', W / 2, y + 22 * u, 14, '#ffffff', { stroke: false });
-    text('SWIPE  ▲  JUMP', W / 2, y + 48 * u, 14, '#ffe066', { stroke: false });
-    text('SWIPE  ▼  SLIDE', W / 2, y + 74 * u, 14, '#a5d8ff', { stroke: false });
+    const W = view.cw;
+    // this run's three missions
+    const my = 92 * u;
+    round(24 * u, my, W - 48 * u, 26 * u + S.missions.length * 20 * u, 16 * u, 'rgba(12,20,44,0.62)');
+    text('MISSIONS · +500 EACH', W / 2, my + 14 * u, 10, '#8ce99a', { stroke: false });
+    S.missions.forEach((q, i) => text((q.done ? '✓ ' : '• ') + q.m.txt, W / 2, my + 34 * u + i * 20 * u, 12, q.done ? '#8ce99a' : '#ffffff', { stroke: false }));
+    // how to play (more of it the very first time, and the countdown waits for a tap)
+    const lines = [['SWIPE  ◀ ▶  HOP TRAINS', '#ffffff'], ['SWIPE  ▲  JUMP', '#ffe066'], ['SWIPE  ▼  SLIDE', '#a5d8ff']];
+    if (S.tips) lines.push(['ONIGIRI = POINTS · LUCKY CAT = A 2ND CHANCE', '#ffd8a8'], ['NO KNOCKS = A BIGGER MULTIPLIER', '#8ce99a'], ['GET OFF BEFORE YOUR TRAIN ENDS!', '#ff8787']);
+    const h = 20 * u + lines.length * 26 * u, y = view.ch - 52 * u - h;
+    round(24 * u, y, W - 48 * u, h, 20 * u, 'rgba(12,20,44,0.62)');
+    lines.forEach(([txt, col], i) => {
+      ctx.font = `900 ${14 * u}px ${FONT}`;
+      const fit = Math.min(1, (W - 70 * u) / ctx.measureText(txt).width);
+      text(txt, W / 2, y + 22 * u + i * 26 * u, 14 * fit, col, { stroke: false });
+    });
+    if (S.tips && Math.floor(S.t * 2.5) % 2) text('TAP TO GO', W / 2, view.ch - 30 * u, 14, '#ffffff', { lw: 3.5 });
+  }
+  /** A tag on your best distance, while it's ahead. */
+  function bestTag() {
+    if (!(S.best >= game.BEST_MIN) || S.bestPassed || S.mode !== 'run') return;
+    const ahead = S.best - S.dist;
+    if (ahead > 160 || ahead < 0) return;
+    const q = toScreen(0, ROOF + 5.4, -ahead);
+    if (q.behind) return;
+    round(q.x - 46 * u, q.y - 12 * u, 92 * u, 24 * u, 12 * u, '#ffd43b', INK, 1.5);
+    text('YOUR BEST', q.x, q.y + 0.5 * u, 11, '#3b2a00', { stroke: false });
   }
 
   function gameOver() {
@@ -185,6 +214,7 @@ export function createHud(canvas, game, view, toScreen) {
       if (S.mode === 'gameover') { gameOver(); return; }
       if (S.mode === 'sewer' && S.sewer) { drawSewer(ctx, view, u, S.sewer, S, text, round, noGL); messages(); return; }
       topBar();
+      bestTag();
       if (S.mode === 'ready') ready();
       messages();
     }

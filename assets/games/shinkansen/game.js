@@ -45,10 +45,28 @@ const HEROES = {
   mei: { name: 'MEI', skill: 'KAWAII CHARM', hint: 'TAP TO CHARM · HEARTS CLEAR THE WAY' }
 };
 const skill = (h) => S.hero === h && !S.simulating;
-const SMASH_EVERY = 8, GLIDE_V = 1.7, BOARD_EVERY = 30, BOARD_TIME = 15;
+// (balanced Oct 17 2026: Jake's board was far stronger than Bennett's glide — the board now
+// comes every 40 onigiri for 10 s, the glide falls slower)
+const SMASH_EVERY = 8, GLIDE_V = 1.2, BOARD_EVERY = 40, BOARD_TIME = 10;
 // Mei's kawaii charm (user, Oct 15 2026): tap the screen (or C) → a peace-sign pose and a burst of
 // hearts; for CHARM_TIME anything on her roof she'd run into pops into hearts. Back after CHARM_EVERY.
 const CHARM_TIME = 2.5, CHARM_EVERY = 12, CHARM_PTS = 20;
+// Missions (review, Oct 17 2026): three short goals a run, shown before it starts; each done is
+// +MISSION_PTS. A multiplier (×1…×5) grows every MULT_EVERY metres you run without a knock and
+// multiplies everything you pick up or smash (not the distance); a lucky cat saving you resets it.
+const MISSION_PTS = 500, MULT_EVERY = 750;
+const MISSIONS = [
+  { id: 'jumps', txt: 'JUMP 15 TIMES', goal: 15, at: () => S.jumps },
+  { id: 'slides', txt: 'SLIDE 10 TIMES', goal: 10, at: () => S.slides },
+  { id: 'hops', txt: 'HOP TRAINS 25 TIMES', goal: 25, at: () => S.hops },
+  { id: 'onigiri', txt: 'GRAB 30 ONIGIRI', goal: 30, at: () => S.coins },
+  { id: 'fuji', txt: 'REACH MOUNT FUJI', goal: 2000, at: () => S.dist },
+  { id: 'kyoto', txt: 'REACH KYOTO', goal: 4000, at: () => S.dist },
+  { id: 'score', txt: 'SCORE 5,000', goal: 5000, at: () => S.score },
+  { id: 'neko', txt: 'GRAB A LUCKY CAT', goal: 1, at: () => S.nekos },
+  { id: 'mult', txt: 'REACH ×4', goal: 4, at: () => S.mult },
+];
+const BEST_MIN = 250; // (a "your best" gate only once there's a best worth chasing)
 const ROSTER = ['chris', 'bennett', 'emily', 'miles', 'nicole', 'jake', 'liam', 'mei'];
 // Chris and Bennett (who replaced Shea here, user Oct 11 2026) play from the start, and Mei (Oct 14 2026).
 // Secret travellers (user, Oct 11 2026): reach Mount Fuji in a run to
@@ -115,6 +133,7 @@ const S = {
   mode: 'select', // select | ready | run | crash | gameover
   sel: 0, hero: 'chris', t: 0, modeT: 0,
   dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, hi: Math.max(0, INIT.highScore | 0),
+  best: Math.max(0, +INIT.bestDist || 0), tips: !!INIT.tips, tipsT: 0, mult: 1, multD: 0, missions: [], hops: 0, nekos: 0,
   stage: 0, lap: 0, maxStage: 0,
   p: null, obs: [], gaps: [], tunnels: [], msgs: [], pops: [], parts: [], stars: [], throws: 0, kills: 0, throwT: -9,
   nextRow: 0, nextGap: 0, nextTunnel: 0, shield: false, invuln: 0, calm: false,
@@ -383,6 +402,15 @@ function fairnessProblems() {
 }
 
 // ---- messages & particles --------------------------------------------------------------
+/** Points for something picked up or smashed: × the multiplier. */
+function pts(n) { return n * S.mult; }
+/** A burst of real hearts (Mei's charm). */
+function hearts(x, y, z, n, spd) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, v = (spd || 3) * (0.5 + Math.random());
+    S.parts.push({ x: x, y: y, z: z, vx: Math.cos(a) * v, vy: 1.5 + Math.random() * v, vz: Math.sin(a) * v * 0.6, t: 0.7 + Math.random() * 0.5, col: ['#ff8fc7', '#ff5fa2', '#ffd6ec'][i % 3], s: 0.16 + Math.random() * 0.1, heart: true, spin: Math.random() * 6 });
+  }
+}
 function say(txt, dur, col, big) { S.msgs.push({ txt: txt, t: dur || 1.4, d: dur || 1.4, col: col || '#ffd43b', big: !!big }); }
 function burst(x, y, z, cols, n, spd) {
   for (let i = 0; i < (n || 14); i++) {
@@ -405,8 +433,12 @@ function newRun(hero) {
     dist: 0, speed: 0, score: 0, coins: 0, bobas: 0, guitars: 0, doubles: 0, spring: false, guitarDue: 0, stage: 0, lap: 0, maxStage: 0, obs: [], gaps: [], tunnels: [], parts: [], pops: [],
     nextRow: 60, nextGap: 260, nextTunnel: 380, jumps: 0, slides: 0, shield: false, invuln: 0, sentScore: false, calm: false,
     sewer: null, sludge: false, nextManhole: MANHOLES[0], sewers: 0, stars: [], throws: 0, kills: 0, throwT: -9,
-    smashReady: 0, smashT: -9, smashes: 0, charmReady: 0, charmT: 0, charmAt: -9, charms: 0, charmed: 0, glides: 0, magnets: 0, autoSlides: 0, boardCount: 0, boardT: 0, boards: 0
+    hops: 0, nekos: 0, mult: 1, multD: 0, missions: [], bestPassed: false, smashReady: 0, smashT: -9, smashes: 0, charmReady: 0, charmT: 0, charmAt: -9, charms: 0, charmed: 0, glides: 0, magnets: 0, autoSlides: 0, boardCount: 0, boardT: 0, boards: 0
   });
+  { // three missions, different each run
+    const pool = MISSIONS.slice(); S.missions = [];
+    for (let k = 0; k < 3; k++) { const i = Math.floor(Math.random() * pool.length); S.missions.push({ m: pool[i], done: false }); pool.splice(i, 1); }
+  }
   S.p = { lane: 1, from: 1, x: LANES[1], laneT: 1, y: ROOF, vy: 0, air: false, slideT: 0, jbuf: 0, dive: false, anim: 0, crash: null, doubled: false, gliding: false };
   S.msgs = [];
   setMode('ready');
@@ -416,12 +448,13 @@ function sendScore(outcome) {
   if (S.sentScore || S.score <= 0) return;
   S.sentScore = true;
   post({ type: 'score', score: S.score, level: S.maxStage + 1, round: S.lap + 1, hero: S.hero, outcome: outcome });
+  if (S.dist > S.best) { S.best = Math.round(S.dist); post({ type: 'best', dist: S.best }); }
 }
 function crash(why) {
   if (S.mode !== 'run') return;
   if (S.invuln > 0 || S.boardT > 0) return;
   if (S.shield && why !== 'fall') {
-    S.shield = false; S.invuln = 1.2;
+    S.shield = false; S.invuln = 1.2; S.mult = 1; S.multD = S.dist;
     say('LUCKY CAT SAVED YOU!', 1.6, '#ffe066');
     SFX.shield(); haptic('success');
     burst(S.p.x, S.p.y + 1, 0, ['#ffffff', '#ffe066', '#ff8787'], 24, 5);
@@ -449,11 +482,12 @@ function act(dir) {
   if (S.mode === 'gameover') { if (dir === 'go') newRun(S.hero); return; }
   if (S.mode === 'sewer') return; // the sewer has its own pad (below)
   if (S.mode !== 'run' && S.mode !== 'ready') return;
+  if (S.mode === 'ready') S.tipsT = 99; // (a move skips the how-to-play card)
   const p = S.p;
   if (dir === 'L' || dir === 'R') {
     const to = Math.max(0, Math.min(2, p.lane + (dir === 'L' ? -1 : 1)));
     if (to === p.lane) { SFX.hop(); return; }
-    p.from = p.x; p.lane = to; p.laneT = 0; SFX.hop();
+    p.from = p.x; p.lane = to; p.laneT = 0; SFX.hop(); S.hops++;
   } else if (dir === 'U') {
     if (!p.air) jump(p);
     else if (skill('miles') && !p.doubled && p.y > (roofAt(p.lane, S.dist) || ROOF) + 0.3) { p.doubled = true; doubleJump(p, true); }
@@ -517,7 +551,7 @@ function touchEnd(e) {
     if (i === S.sel) pickHero(ROSTER[i]);
     else if (i >= 0) { turnTo(i); SFX.hop(); haptic('light'); }
     else act(x < window.innerWidth / 2 ? 'L' : 'R');
-  } else if (S.mode === 'ready') S.modeT = Math.max(S.modeT, 2.4);
+  } else if (S.mode === 'ready') { S.tipsT = 99; S.modeT = Math.max(S.modeT, 2.4); }
   else if (S.mode === 'run') charm();
 }
 /** Mei's kawaii charm: a tap while she runs. */
@@ -526,7 +560,7 @@ function charm() {
   if (S.t < S.charmReady) { say('CHARM IN ' + Math.ceil(S.charmReady - S.t) + 's', 0.8, '#ffc9e3'); return; }
   S.charmT = CHARM_TIME; S.charmReady = S.t + CHARM_EVERY; S.charmAt = S.t; S.charms++;
   say('KAWAII!', 1.1, '#ff8fc7', true); SFX.charm(); haptic('success');
-  burst(S.p.x, S.p.y + 1.3, 0, ['#ff8fc7', '#ffd6ec', '#ffffff', '#ff5fa2'], 26, 4);
+  hearts(S.p.x, S.p.y + 1.3, 0, 22, 4);
 }
 stage.addEventListener('pointerup', touchEnd);
 stage.addEventListener('pointercancel', function () { touch = null; });
@@ -638,7 +672,7 @@ function updateRunner(dt) {
   if (skill('chris') && S.t >= S.smashReady) { // Chris's pickaxe smashes a fairing in his way
     const hump = S.obs.find(function (o) { const a = o.d - S.dist; return o.type === 'hump' && !o.gone && !o.hit && o.lane === p.lane && a > 0.2 && a < S.speed * 0.12 + 2.2; });
     if (hump) {
-      hump.gone = true; S.smashReady = S.t + SMASH_EVERY; S.smashT = S.t; S.smashes++; S.score += COIN;
+      hump.gone = true; S.smashReady = S.t + SMASH_EVERY; S.smashT = S.t; S.smashes++; S.score += pts(COIN);
       const y = (roofAt(hump.lane, hump.d) || ROOF) + 0.4, from = S.parts.length;
       burst(LANES[hump.lane], y, S.dist - hump.d, ['#c9ced6', '#8e98a3', '#5c636d', '#ffffff'], 18, 4);
       for (let k = from; k < S.parts.length; k++) S.parts[k].vz += S.speed;
@@ -655,7 +689,7 @@ function updateRunner(dt) {
   if (S.invuln > 0) S.invuln -= dt;
   if (S.charmT > 0) { // (hearts trail off her while it lasts)
     S.charmT -= dt;
-    if (Math.floor(S.t * 10) !== Math.floor((S.t - dt) * 10)) S.parts.push({ x: p.x + (Math.random() - 0.5) * 0.8, y: p.y + 0.8 + Math.random() * 1.2, z: 0, vx: (Math.random() - 0.5) * 0.8, vy: 1.4, vz: 2, t: 0.7, col: Math.random() < 0.5 ? '#ff8fc7' : '#ffd6ec', s: 0.14 });
+    if (Math.floor(S.t * 10) !== Math.floor((S.t - dt) * 10)) S.parts.push({ x: p.x + (Math.random() - 0.5) * 0.8, y: p.y + 0.8 + Math.random() * 1.2, z: 0, vx: (Math.random() - 0.5) * 0.8, vy: 1.4, vz: 2, t: 0.7, col: Math.random() < 0.5 ? '#ff8fc7' : '#ffd6ec', s: 0.14, heart: true });
   }
   p.anim += dt * (6 + S.speed * 0.25);
 
@@ -695,14 +729,14 @@ function updateRunner(dt) {
     if (!magnet && (p.y + h <= lo || p.y >= hi)) continue;
     if (magnet && (o.lane !== lane || p.y + h <= lo || p.y >= hi)) S.magnets++;
     if (!def.pickup && S.charmT > 0) { // Mei's charm: it pops into hearts
-      o.gone = true; S.score += CHARM_PTS; S.charmed++;
-      burst(LANES[o.lane], lo + 0.5, S.dist - o.d, ['#ff8fc7', '#ffd6ec', '#ffffff', '#ff5fa2'], 18, 4);
-      S.pops.push({ txt: '+' + CHARM_PTS + ' ♥', t: 0.8, x: o.lane, y: lo + 0.8, d: o.d });
+      o.gone = true; S.score += pts(CHARM_PTS); S.charmed++;
+      hearts(LANES[o.lane], lo + 0.5, S.dist - o.d, 12, 4);
+      S.pops.push({ txt: '+' + pts(CHARM_PTS) + ' ♥', t: 0.8, x: o.lane, y: lo + 0.8, d: o.d });
       SFX.pop();
       continue;
     }
     if (!def.pickup && S.boardT > 0) { // the skateboard ploughs through
-      o.gone = true; S.score += COIN;
+      o.gone = true; S.score += pts(COIN);
       burst(LANES[o.lane], lo + 0.4, S.dist - o.d, ['#c9ced6', '#ffd43b', '#ffffff'], 14, 4);
       SFX.thunk();
       continue;
@@ -711,23 +745,23 @@ function updateRunner(dt) {
       o.gone = true; o.gotT = S.t; // (drawn flying off for a moment)
       burst(LANES[o.lane], lo + 0.5, 0, o.type === 'onigiri' ? ['#ffffff', '#ffe066', '#b2f2bb'] : ['#ffe066', '#ff8787', '#ffffff'], 10, 3);
       if (o.type === 'onigiri') {
-        const pts = COIN * (skill('chris') && inTunnel(S.dist) ? 2 : 1); // Chris's miner's lamp: double in tunnels
-        S.coins++; S.score += pts; SFX.coin(); S.pops.push({ txt: '+' + pts, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d });
-        if (skill('jake') && S.boardT <= 0 && ++S.boardCount >= BOARD_EVERY) { // Jake: every 30, the manhole skateboard
+        const got = pts(COIN * (skill('chris') && inTunnel(S.dist) ? 2 : 1)); // Chris's miner's lamp: double in tunnels
+        S.coins++; S.score += got; SFX.coin(); S.pops.push({ txt: '+' + got, t: 0.7, x: o.lane, y: lo + 0.8, d: o.d });
+        if (skill('jake') && S.boardT <= 0 && ++S.boardCount >= BOARD_EVERY) { // Jake: every BOARD_EVERY, the manhole skateboard
           S.boardCount = 0; S.boardT = BOARD_TIME; S.boards++;
           say('MANHOLE SKATEBOARD!', 1.8, '#ffd43b', true); SFX.neko(); haptic('success');
         }
       }
       else if (o.type === 'boba') {
-        S.score += BOBA; S.bobas++; SFX.neko(); S.pops.push({ txt: '+' + BOBA, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
+        S.score += pts(BOBA); S.bobas++; SFX.neko(); S.pops.push({ txt: '+' + pts(BOBA), t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
         if (locked('nicole')) unlockHero('nicole'); else say('BOBA!', 1.2, '#ffc9a3');
       } else if (o.type === 'spring') {
         S.spring = true; S.guitarDue = S.dist + GUITAR_AFTER; SFX.spring(); haptic('success'); say('SPRING! DOUBLE JUMP', 1.6, '#8ce99a');
       } else if (o.type === 'guitar') {
-        S.score += GUITAR; S.guitars++; SFX.chime(); S.pops.push({ txt: '+' + GUITAR, t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
+        S.score += pts(GUITAR); S.guitars++; SFX.chime(); S.pops.push({ txt: '+' + pts(GUITAR), t: 0.9, x: o.lane, y: lo + 0.8, d: o.d });
         burst(LANES[o.lane], lo + 0.5, 0, ['#ffd43b', '#fff3bf', '#ffffff'], 24, 5);
         if (locked('miles')) unlockHero('miles'); else say('GOLDEN GUITAR!', 1.4, '#ffd43b');
-      } else { S.shield = true; S.score += NEKO; SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
+      } else { S.shield = true; S.nekos++; S.score += pts(NEKO); SFX.neko(); haptic('success'); say('LUCKY CAT!', 1.4, '#ffe066'); }
       continue;
     }
     o.hit = true;
@@ -759,8 +793,8 @@ function ninjaStars(dt) {
     if ((st.t += dt) < STAR_TIME) continue;
     S.stars.splice(i, 1);
     const o = st.o, y = (roofAt(o.lane, o.d) || ROOF) + 1.35, z = S.dist - o.d;
-    o.gone = true; o.killT = S.t; S.kills++; S.score += CROW_KILL;
-    S.pops.push({ txt: '+' + CROW_KILL, t: 0.8, x: o.lane, y: y + 0.5, d: o.d });
+    o.gone = true; o.killT = S.t; S.kills++; S.score += pts(CROW_KILL);
+    S.pops.push({ txt: '+' + pts(CROW_KILL), t: 0.8, x: o.lane, y: y + 0.5, d: o.d });
     const from = S.parts.length;
     burst(LANES[o.lane], y, z, ['#15171c', '#2c313a', '#ffffff'], 14, 3);
     for (let k = from; k < S.parts.length; k++) S.parts[k].vz += S.speed; // the feathers come past with the train
@@ -852,6 +886,12 @@ function update(dt) {
     if (Math.floor(k / 0.8) !== Math.floor((k - dt) / 0.8) && k < 2.4) SFX.count(false);
     S.speed = Math.min(speedFor(0), S.speed + dt * 12);
     S.dist += S.speed * dt * 0.4;
+    // the first time ever: the countdown waits on the how-to-play card (a tap or a swipe goes on)
+    if (S.tips && !S.simulating && k >= 2.3) {
+      S.tipsT += dt;
+      if (S.tipsT < 9) { S.modeT = 2.3; spawnAhead(); return; }
+      S.tips = false; post({ type: 'tips-seen' });
+    }
     if (k >= 2.4) { setMode('run'); SFX.count(true); say('GO!', 0.8, '#69db7c', true); if (!S.simulating && HEROES[S.hero].hint) say(HEROES[S.hero].hint, 2.6, '#ffe066'); }
     spawnAhead();
   } else if (S.mode === 'run') {
@@ -860,6 +900,14 @@ function update(dt) {
     S.dist += S.speed * dt;
     S.score += Math.floor(S.dist) - Math.floor(before);
     ROSTER.forEach(function (h) { if (UNLOCK[h] && UNLOCK[h].at && locked(h) && S.dist >= UNLOCK[h].at) unlockHero(h); });
+    if (S.mult < 5 && S.dist - S.multD >= MULT_EVERY) { S.mult++; S.multD = S.dist; say('×' + S.mult + ' MULTIPLIER!', 1.2, '#8ce99a'); SFX.mult(); }
+    S.missions.forEach(function (q) {
+      if (!q.done && q.m.at() >= q.m.goal) { q.done = true; S.score += MISSION_PTS; say('MISSION DONE: ' + q.m.txt, 1.8, '#ffe066'); SFX.chime(); haptic('success'); }
+    });
+    if (!S.bestPassed && S.best >= BEST_MIN && S.dist >= S.best && !S.simulating) {
+      S.bestPassed = true; say('NEW BEST!', 1.8, '#ffe066', true); SFX.lap(); haptic('success');
+      burst(S.p.x, S.p.y + 2, 0, ['#ffe066', '#ffffff', '#ffa94d'], 30, 6);
+    }
     scoreUnlocks();
     if (S.score > S.hi) S.hi = S.score;
     spawnAhead();
@@ -889,7 +937,8 @@ function update(dt) {
 // ---- renderer, loop & hooks ---------------------------------------------------------------
 const R = createRenderer({
   glCanvas: document.getElementById('gl'), hudCanvas: document.getElementById('hud'), stage: stage,
-  game: { S: S, UNLOCK: UNLOCK, locked: locked, LANES: LANES, ROOF: ROOF, noseHeight: noseHeight, NOSE: NOSE, CAR: CAR, LANE_OFF: LANE_OFF, STAGES: STAGES, STAGE_LEN: STAGE_LEN, HEROES: HEROES, ROSTER: ROSTER, OBS: OBS, roofAt: roofAt, inTunnel: inTunnel, SLIDE_TIME: SLIDE_TIME }
+  game: { S: S, UNLOCK: UNLOCK, locked: locked, LANES: LANES, ROOF: ROOF, noseHeight: noseHeight, NOSE: NOSE, CAR: CAR, LANE_OFF: LANE_OFF, STAGES: STAGES, STAGE_LEN: STAGE_LEN, HEROES: HEROES, ROSTER: ROSTER, OBS: OBS, roofAt: roofAt, inTunnel: inTunnel, SLIDE_TIME: SLIDE_TIME, BEST_MIN: BEST_MIN,
+    passBy: function () { SFX.pass(); } }
 });
 window.addEventListener('resize', function () { R.layout(); });
 let last = 0;
@@ -902,7 +951,7 @@ function frame(ts) {
   // screens where every other frame had no step at all.)
   if (!S.paused && !S.menu) { let left = dt; while (left > 1e-6) { const h = Math.min(STEP, left); update(h); left -= h; } }
   // the song plays through a run (muffled down in the sewer), a beat quicker every lap
-  music(S.mode === 'run' || S.mode === 'sewer' || S.mode === 'ready', S.runId, S.lap, S.speed); muffled(S.mode === 'sewer');
+  music(S.mode === 'run' || S.mode === 'sewer' || S.mode === 'ready', S.runId, S.lap, S.speed); muffled(S.mode === 'sewer' || (S.mode === 'run' && inTunnel(S.dist)), S.mode === 'sewer' ? 650 : 1800);
   R.render(dt);
   requestAnimationFrame(frame);
 }
@@ -916,7 +965,7 @@ window.__dash = {
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },
   get y() { return S.p ? S.p.y - ROOF : null; }, get air() { return !!(S.p && S.p.air); }, get sliding() { return !!(S.p && S.p.slideT > 0); },
-  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get music() { return musicState(); }, get charm() { return { ready: S.t >= S.charmReady, on: S.charmT > 0, charms: S.charms, charmed: S.charmed }; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
+  get gl() { return R.hasGL; }, get sel() { return S.sel; }, get ringSettled() { return R.ringSettled(); }, get locked() { return ROSTER.filter(locked); }, get hint() { return S.hint && S.hint.txt; }, get jumps() { return S.jumps; }, get bobas() { return S.bobas; }, get guitars() { return S.guitars; }, get doubles() { return S.doubles; }, get spring() { return S.spring; }, get skills() { return { smashes: S.smashes, glides: +S.glides.toFixed(2), magnets: S.magnets, autoSlides: S.autoSlides, boardCount: S.boardCount, boardT: +S.boardT.toFixed(2), boards: S.boards, doubles: S.doubles, gliding: !!(S.p && S.p.gliding) }; }, get throws() { return S.throws; }, get mult() { return S.mult; }, get missions() { return S.missions.map(function (q) { return { id: q.m.id, done: q.done }; }); }, get best() { return S.best; }, get bestPassed() { return S.bestPassed; }, get tips() { return S.tips; }, get music() { return musicState(); }, get charm() { return { ready: S.t >= S.charmReady, on: S.charmT > 0, charms: S.charms, charmed: S.charmed }; }, get kills() { return S.kills; }, get sludge() { return S.sludge; }, get sewers() { return S.sewers; },
   get sewer() { const w = S.sewer && S.sewer.s; return w ? { bricks: w.bricks, suit: w.suit, wags: w.wags, hurt: w.hurtT > 0, feathers: w.feathers.filter(function (f) { return !f.got; }).map(function (f) { return featherAt(f, w.t); }), x: +w.x.toFixed(2), y: +w.y.toFixed(2), vx: +w.vx.toFixed(2), peak: +w.peak.toFixed(2), ground: w.ground, face: w.face, skid: w.skid, coins: w.got, stomps: w.stomps, done: w.done !== null, dead: w.dead !== null, steps: w.steps } : null; },
   sewerRoute: function () { return routeExists(); }, sewerReplay: function (plan) { return sewerReplay(plan); }, get slides() { return S.slides; }, get invuln() { return S.invuln > 0; },
   fairnessProblems: fairnessProblems,
@@ -932,6 +981,9 @@ if (INIT.debug) {
     gap: function (lane, ahead) { const g0 = gridUp(lane, S.dist + ahead); S.gaps.push({ lane: lane, g0: g0, g1: g0 + CAR * 2 }); return g0 - S.dist; },
     lane: function (l) { const p = S.p; p.lane = l; p.x = LANES[l]; p.laneT = 1; },
     score: function (n) { S.score = n; }, // (tests: jump to a score)
+    mult: function (n) { S.mult = n; },
+    best: function (d) { S.best = d; S.bestPassed = false; },
+    missions: function (ids) { S.missions = ids.map(function (id) { return { m: MISSIONS.find(function (m) { return m.id === id; }), done: false }; }); },
     setDist: function (d) { S.dist = d; S.nextRow = d + 60; S.obs.length = 0; },
     shield: function () { S.shield = true; },
     spring: function () { S.spring = true; },

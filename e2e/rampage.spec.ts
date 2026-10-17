@@ -373,3 +373,78 @@ test('level 5 finale: Godzilla falls off the tower, fireworks, then the dance', 
   await expect.poll(async () => (await state(f)).mode, { timeout: 60000 }).toBe('win');
   expect(errors).toEqual([]);
 });
+
+test('juice and extras: combos, matcha slow-mo, level 4 fire vents, the bonus round, continue, music', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  const R = <T,>(fn: string) => f.evaluate(`(() => { const r = window.__rampage; return ${fn}; })()`) as Promise<T>;
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  // the level's song is playing
+  await expect.poll(() => R<boolean>('r.music.on')).toBe(true);
+
+  // two smashes in quick succession: a combo
+  await R('(r.debug.calm(), r.debug.giveTool(), 0)');
+  for (const n of [1, 2]) {
+    await R('(r.debug.spawnBarrelAt(r.player.x + 12), 0)');
+    await page.keyboard.press('x');
+    await expect.poll(() => R<number>('r.combo'), { timeout: 10_000, intervals: [50] }).toBe(n);
+  }
+
+  // matcha: everything slows down for a while
+  await R('(r.debug.matchaHere(), 0)');
+  await page.keyboard.down('ArrowRight');
+  await expect.poll(() => R<boolean>('r.slow'), { timeout: 10_000 }).toBe(true);
+  await page.keyboard.up('ArrowRight');
+
+  // Kaiju Showdown has fire vents that blast in turn
+  await R('(r.debug.setLevel(4), 0)');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => R<string[]>('r.vents'), { timeout: 10_000 }).toHaveLength(3);
+  await expect.poll(async () => (await R<string[]>('r.vents')).includes('on'), { timeout: 15_000 }).toBe(true);
+
+  // the bonus round between rounds: survive it for +3000, then round 2
+  const before = (await state(f)).score;
+  await R('(r.debug.boss(), 0)');
+  await expect.poll(async () => (await state(f)).mode).toBe('boss');
+  await R('(r.debug.bossT(0.3), 0)');
+  await expect.poll(() => R<boolean>('r.boss && r.boss.over'), { timeout: 15_000 }).toBe(true);
+  expect((await state(f)).score).toBeGreaterThanOrEqual(before + 3000);
+  await expect.poll(async () => (await state(f)).mode, { timeout: 15_000 }).toBe('intro');
+  expect((await state(f)).level).toBe(1);
+
+  // game over on level 3 → CONTINUE starts level 3 again, score from zero
+  await R('(r.debug.setLevel(3), 0)');
+  await page.keyboard.press('Enter');
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  await R('(r.debug.gameOver(900), 0)');
+  await expect.poll(async () => (await state(f)).mode, { timeout: 20_000 }).toBe('gameover');
+  const cont = gameUi(page).getByRole('button', { name: 'CONTINUE · LEVEL 3' });
+  await expect(cont).toBeVisible();
+  await cont.click();
+  await expect.poll(async () => (await state(f)).mode).toBe('intro');
+  expect((await state(f)).level).toBe(3);
+  expect((await state(f)).score).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('the first time: a how-to-play card on the first level, then never again', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await page.addInitScript(() => { if (window.top === window) localStorage.removeItem('epicasia.rampage.tips'); });
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  expect(await f.evaluate(() => (window as any).__rampage.tips)).toBe(true);
+  await page.keyboard.press('Enter'); // pick the hero: the level card shows the tips
+  await expect.poll(async () => (await state(f)).mode).toBe('intro');
+  expect(await f.evaluate(() => (window as any).__rampage.tips)).toBe(true);
+  await page.keyboard.press('Enter'); // go
+  await expect.poll(async () => (await state(f)).mode).toBe('play');
+  expect(await f.evaluate(() => (window as any).__rampage.tips)).toBe(false);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.rampage.tips'))).toBe('1');
+});
