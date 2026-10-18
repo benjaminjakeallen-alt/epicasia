@@ -68,6 +68,10 @@ test('tug of wall: every stretch is winnable by a gang of bots (1–4 of them)',
   // GRAB on solid ground reels in the teammate hanging below you; without it they stay hanging
   expect(await chain(f, (c) => c.reelTest(true))).toMatchObject({ onTop: true });
   expect(await chain(f, (c) => c.reelTest(false))).toMatchObject({ onTop: false });
+  // someone out over a gap isn't flown across it to whoever holds them: they drop, swing in and are reeled up the face
+  const fl = await chain(f, (c) => c.floatTest());
+  expect(fl.lowest).toBeLessThan(-2);
+  expect(fl.onTop).toBe(true);
 });
 
 test('tug of wall: practise with bots, clear all four stretches, the run is saved', async ({ page }) => {

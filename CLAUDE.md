@@ -1241,6 +1241,20 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   - Re-proved: 128/128 bot gangs, 12/12 person-led, the rope never inside
     anything. Headless: hanging alone hangs still, and a held GRAB brings
     them up smoothly in ~1.7 s with one grab (bots too).
+  - *No floating across gaps* (user, Oct 18 2026, Lantern Night: "after
+    riding down the zip line we floated across a gap to the wall"). The
+    reel could start with the holder across a gap, and then held the
+    dangler level with them and flew them across. Now a haul only starts
+    with the dangler about under the holder (< 1.5 m across) or near the
+    face of the holder's own ledge (`faceToward()`, ≤ `FACE_GAP` 1.6 m
+    off, a face whose top is about the holder's height). Otherwise they
+    drop and swing in under the edge first. `__chain.floatTest()` checks
+    this (it drops below −2 m, then stands); the old code held them at −1.
+    The bots needed one fix for it: a bot that climbed the rope onto the
+    middle of some stairs used to aim back at the node at the stairs'
+    foot, which pulled away from the gang, and everyone waited for ever.
+    `laterLeg()` now moves it on to the leg it's standing on.
+    Re-proved: 128/128, 12/12, the rope never inside anything.
 
   **Looks:** each rope glows warm
   and throbs when pulled tight; a traveller hauling leans back hand over hand;

@@ -43,7 +43,7 @@ const CRUMBLE_HEAVY = 0.3, CRUMBLE_STAND = 2.5, CRUMBLE_BACK = 3;
 const ZIP_SPEED = 10, BARREL_R = 0.45, KNOCK = 0.45, REACH = 3.2;
 // reeling in (review, Oct 17 2026): dangling below a teammate who's dug in with GRAB on solid
 // ground, you're hauled up the rope at REEL m/s, drawn in toward them
-const REEL = 3.2, REEL_IN_V = 1.6;
+const REEL = 3.2, REEL_IN_V = 1.6, FACE_GAP = 1.6;
 const FREE_FALL = 1; // s with nobody supported before the rope stops holding anyone (longer than a jump)
 
 // ---- the level's moving parts at time t ------------------------------------------------------
@@ -240,15 +240,21 @@ export function stepSim(sim, inputs) {
     // it; out from under it first, then the reel can take you. Under stone, you slide out toward them)
     const overhead = solids.some((s) => s.mover && p.x > s.x0 - R && p.x < s.x1 + R && p.z > s.z0 - R && p.z < s.z1 + R && s.y0 > p.y + PH - 0.3 && s.y0 < p.y + PH + 3);
     if (!ground && anchored && p.knockT <= 0 && !overhead) {
-      // (once it's begun, a haul carries on right up to them, however close)
-      const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5 && (wasReeled || Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2));
+      // (once it's begun, a haul carries on right up to them, however close. It's for hauling someone up the
+      // wall face under you, so it starts only with them against the face of the ledge you're on: it used to
+      // lift a dangler level with whoever held them and fly them across open air to them — user, Oct 18 2026,
+      // on Lantern Night: "we floated across a gap to the wall")
+      const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5
+        && (wasReeled || (Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2 && faceToward(p, q, solids))));
       if (up) {
         const dx = up.x - p.x, dz = up.z - p.z, d = Math.hypot(dx, dz) || 1;
         p.reeled = true; p.hung = true; // (from here it's a steady haul, not a kick each time the rope pulls tight)
         // up to just over the lip and held there, smoothly (no bobbing), while drawn in — it only ever lifts
         // (never slows a jump); once there's
         // ground right under your feet, let go and you step down onto it
-        const floor = groundBelow(sim, p.x, p.z, p.y + 0.05);
+        // (under their feet or under the half of them toward whoever holds them: pinned against the holder at the
+        // lip by the push apart, they'd hover there for ever with their middle just out over the drop)
+        const floor = Math.max(groundBelow(sim, p.x, p.z, p.y + 0.05), groundBelow(sim, p.x + (dx / d) * R * 0.6, p.z + (dz / d) * R * 0.6, p.y + 0.05));
         const over = p.y - floor <= 0.3;
         if (!over) p.vy = Math.max(p.vy, Math.max(-1, Math.min(REEL, (up.y + 0.2 - p.y) * 8)));
         // drawn in toward them at a steady pace (set, not built up: pressed against a wall face the push
@@ -327,6 +333,18 @@ function approach2(p, tx, tz, by) {
 function carry(p, g, dt) { if (g.vx || g.vy || g.vz) { p.x += (g.vx || 0) * dt; p.y += (g.vy || 0) * dt; p.z += (g.vz || 0) * dt; } }
 function touchingWall(p, solids) {
   for (const s of solids) if (!s.oneWay && p.x + R + 0.1 > s.x0 && p.x - R - 0.1 < s.x1 && p.z + R + 0.1 > s.z0 && p.z - R - 0.1 < s.z1 && p.y + PH - 0.1 > s.y0 && p.y + 0.1 < s.y1) return true;
+  return false;
+}
+
+/** Is p hanging about under q, or up against (or near) a face on its side toward q that goes up to about where q stands (the ledge q holds on from)? */
+function faceToward(p, q, solids) {
+  const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
+  if (d < 1.5) return true; // (hanging about straight under them: the haul is a lift, not a flight across)
+  // (a face up to FACE_GAP m away still counts — swung in under a ledge, they're a short swing from it — but not one across a gap)
+  for (let k = R + 0.25; k <= R + FACE_GAP; k += 0.3) {
+    const cx = p.x + (dx / d) * k, cz = p.z + (dz / d) * k;
+    for (const s of solids) if (!s.oneWay && cx > s.x0 && cx < s.x1 && cz > s.z0 && cz < s.z1 && s.y1 > p.y + 0.1 && s.y0 < p.y + PH - 0.1 && s.y1 < q.y + 0.6) return true;
+  }
   return false;
 }
 
@@ -450,6 +468,18 @@ function rideZip(p, dt) {
 // hops on and off moving things when the landing is right, jumps barrels,
 // digs in for gusts, hauls up a teammate hanging off an edge, climbs the
 // chain when dangling, and rides the zip line.
+/** The end of a leg after the next one that p stands partway along (within 2 m of it, at its height), or -1. */
+function laterLeg(L, p) {
+  for (let j = p.ni + 1; j < L.route.length - 1; j++) {
+    const a = L.route[j].p, b = L.route[j + 1].p, ux = b[0] - a[0], uz = b[2] - a[2], len2 = ux * ux + uz * uz;
+    if (len2 < 1) continue;
+    const u = ((p.x - a[0]) * ux + (p.z - a[2]) * uz) / len2;
+    if (u < 0.15 || u > 1) continue;
+    const y = a[1] + (b[1] - a[1]) * u;
+    if (Math.abs(p.y - y) < 0.6 && Math.hypot(a[0] + ux * u - p.x, a[2] + uz * u - p.z) < 2) return j + 1;
+  }
+  return -1;
+}
 function nearestNode(L, p) {
   let best = 0, bd = Infinity;
   L.route.forEach((n, k) => { const d = Math.hypot(n.p[0] - p.x, (n.p[1] - p.y) * 2, n.p[2] - p.z); if (d < bd) { bd = d; best = k; } });
@@ -529,6 +559,11 @@ export function botInput(sim, i) {
     const k = nearestNode(L, p);
     const legLow = Math.min(L.route[p.ni].p[1], L.route[Math.max(0, p.ni - 1)].p[1]);
     if (k > p.ni || (k < p.ni && (offLeg(L, p) > 2.8 || p.y < legLow - 0.5))) p.ni = k;
+    // (standing partway along a later leg — up some stairs, after climbing the rope from a fall — on to
+    // its end: the nearest node was the one at the stairs' foot behind us, and walking back to it pulled
+    // away from the gang, who waited for us — for ever)
+    const j = laterLeg(L, p);
+    if (j > p.ni) p.ni = j;
   }
   while (p.ni < L.route.length - 1) {
     const n = L.route[p.ni];

@@ -697,6 +697,16 @@ window.__chain = {
     for (let k = 0; k < 210; k++) stepSim(sim, [{ grab: !!grab }, {}]);
     return { hanging: +(b.y - sp.y).toFixed(2), standing: +a.x.toFixed(2), onTop: !!b.ground && b.y > sp.y - 0.3 };
   },
+  // off the end of something out over a gap (user, Oct 18 2026, Lantern Night: "after riding down the zip line we floated
+  // across a gap to the wall"): one digs in at the first island's edge, the other is 4.5 m out over the air beyond it. They
+  // must drop and swing in under the edge, then be reeled up its face — not be held up level and flown across to it
+  floatTest: () => {
+    const sim = createSim(0, [{ hero: 'chris' }, { hero: 'jake' }]), sp = sim.level.spawn, [a, b] = sim.players;
+    Object.assign(a, { x: sp.x + 2, y: sp.y, z: sp.z }); Object.assign(b, { x: sp.x + 6.5, y: sp.y - 1, z: sp.z });
+    let lowest = 0;
+    for (let k = 0; k < 240; k++) { stepSim(sim, [{ grab: true }, {}]); lowest = Math.min(lowest, b.y - sp.y); }
+    return { lowest: +lowest.toFixed(2), onTop: !!b.ground && b.y > sp.y - 0.3 };
+  },
   // three people online, headless (user, Oct 17 2026: "when we all fell we all whipped in a circle and we
   // never reset"): a host and two phones as they really run — the host moves its own traveller and places
   // the others where their phones last said (repD steps ago); each phone moves only its own and places the
