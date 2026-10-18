@@ -78,12 +78,17 @@ const inBox = (b, x, y, z) => x > b.x0 && x < b.x1 && y > b.y0 && y < b.y1 && z 
 
 /** Every box something can stand on or bump into at time t. */
 function solidsAt(sim, t) {
+  // (the same moment asked for again — each bot asks, then the step itself — gets the same list: building
+  // it afresh for each made enough garbage for collection pauses of ~50 ms; never changed by a caller)
+  const key = t + '|' + sim.crumble.map((c) => (c.gone ? 1 : 0)).join('');
+  if (sim.solidsKey === key) return sim.solidsMemo;
   const L = sim.level, out = [];
   for (const s of L.solids) out.push(s);
   // (everything is solid all round — you can't walk into the side of a lantern or a stone, or jump up through it)
   L.crumbles.forEach((c, i) => { if (!sim.crumble[i].gone) out.push({ ...c, crumble: i, id: 'c' + i }); });
   L.movers.forEach((m, k) => out.push({ ...moverBox(m, t), kind: m.kind, mover: true, id: 'm' + k }));
   for (const b of L.bouncers) out.push({ ...b, bounce: b.power || 17 });
+  sim.solidsKey = key; sim.solidsMemo = out;
   return out;
 }
 const hit = (x, y, z, s, h = PH) => x + R > s.x0 && x - R < s.x1 && z + R > s.z0 && z - R < s.z1 && y + h > s.y0 && y < s.y1;
@@ -598,6 +603,17 @@ export function botInput(sim, i) {
   return out;
 }
 
+/** The level's fixed boxes by 1 m square of the ground (indices into L.solids, in order), built once. */
+function levelGrid(L) {
+  if (L.grid) return L.grid;
+  const grid = new Map();
+  L.solids.forEach((q, i) => {
+    for (let cx = Math.floor(q.x0); cx <= Math.floor(q.x1); cx++) for (let cz = Math.floor(q.z0); cz <= Math.floor(q.z1); cz++) {
+      const k = cx * 4096 + cz; (grid.get(k) || grid.set(k, []).get(k)).push(i);
+    }
+  });
+  return (L.grid = grid);
+}
 /** Flies a jump toward the node through the level as it will be, at a few
  *  speeds; the steering that lands nearest the node on safe footing, or null. */
 function landing(sim, p, node, slack = 0) {
@@ -605,6 +621,20 @@ function landing(sim, p, node, slack = 0) {
   const [dx, dz] = flat(node.p[0] - p.x, node.p[2] - p.z);
   const before = Math.hypot(node.p[0] - p.x, node.p[2] - p.z);
   let best = null, bestScore = Infinity;
+  // (the boxes near each point of the flight from a grid of the level's fixed ones, in solidsAt's order —
+  // the first box landed on is the one — and each step's moving ones worked out once for all seven tries:
+  // planning used to go through every box in the level 700 times, tens of ms a jump, a stutter whenever
+  // a bot planned one)
+  const L = sim.level, grid = levelGrid(L), movers = [];
+  const crumbles = []; L.crumbles.forEach((c, i) => { if (!sim.crumble[i].gone) crumbles.push({ ...c, crumble: i, id: 'c' + i }); });
+  const bounce = L.bouncers.map((b) => ({ ...b, bounce: b.power || 17 }));
+  const near = (f, x, z) => {
+    const out = [], seen = new Set();
+    for (let cx = Math.floor(x - 0.31); cx <= Math.floor(x + 0.31); cx++) for (let cz = Math.floor(z - 0.31); cz <= Math.floor(z + 0.31); cz++) for (const i of grid.get(cx * 4096 + cz) || []) seen.add(i);
+    for (const i of [...seen].sort((u, v) => u - v)) out.push(L.solids[i]);
+    const ms = movers[f] || (movers[f] = L.movers.map((m, k) => ({ ...moverBox(m, sim.t + f * STEP), kind: m.kind, mover: true, id: 'm' + k })));
+    return out.concat(crumbles, ms, bounce);
+  };
   for (const k of [0.2, 0.3, 0.4, 0.5, 0.65, 0.8, 1]) {
     const sp = RUN * Math.min(1, k * 1.3), wx = dx * sp, wz = dz * sp;
     let vx = p.vx, vz = p.vz;
@@ -612,11 +642,10 @@ function landing(sim, p, node, slack = 0) {
     vx += g ? g.vx : 0; vz += g ? g.vz : 0;
     let x = p.x, y = p.y, z = p.z, vy = JUMP + (g ? Math.max(0, g.vy) : 0);
     for (let f = 1; f <= 100; f++) {
-      const t = sim.t + f * STEP;
       const ddx = wx - vx, ddz = wz - vz, dd = Math.hypot(ddx, ddz), by = AIR_ACC * STEP;
       if (dd <= by) { vx = wx; vz = wz; } else { vx += (ddx / dd) * by; vz += (ddz / dd) * by; }
       vy -= gravity(vy, true) * STEP; x += vx * STEP; y += vy * STEP; z += vz * STEP;
-      const all = solidsAt(sim, t);
+      const all = near(f, x, z);
       // flying into something on the way (the carousel's drum, a battlement): not this one
       if (all.some((q) => x + R > q.x0 && x - R < q.x1 && z + R > q.z0 && z - R < q.z1 && y + PH > q.y0 && y < q.y1 - 0.5)) break;
       if (vy > 0) continue;

@@ -4,6 +4,7 @@
 // frame. The camera frames the playfield exactly; scenery fills any extra
 // screen around it. hud.js draws text, HUD and buttons-on-canvas over this.
 import * as THREE from 'three';
+import { adaptiveQuality } from '../shared/adaptive.js';
 import { mesh, makeHero, makeHeroine, makeWife, makeGodzilla, makeHazard, makePickaxe, makeCandyCane, makeBook, makeBrush, makeCrown, makeHeart, DEBRIS, shade } from './models.js';
 import { VoxBuilder, hash3 } from './voxel.js';
 import { createHud } from './hud.js';
@@ -30,6 +31,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const wy = (y) => H / 2 - y;
 
   let renderer = null;
+  // (a phone that can't keep up draws at a lower resolution — see shared/adaptive.js)
+  const quality = adaptiveQuality(() => layout());
   try {
     renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true;
@@ -60,7 +63,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.35;
   scene.add(hemi, sun, sun.target);
-  const lamps = [];
+  // The mine's lamps. They're always in the scene, just switched off on the other levels: adding or
+  // removing a light changes every lit material's shader, so each level change recompiled them all —
+  // a stall at the level card on a phone. (Only the middle three light anything: the outer ones barely
+  // reach the girders, and every light costs every pixel on every level.)
+  const lamps = Array.from({ length: 3 }, () => { const l = new THREE.PointLight(0xffb84d, 0, 320, 1.2); scene.add(l); return l; });
+  let lampsUsed = 0;
 
   // ---- cast & props ---------------------------------------------------------------------
   // Playable heroes (Emily and Heather only in Girl Power mode) and, on the
@@ -213,7 +221,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (glow.pos.length) levelGroup.add(new THREE.Mesh(glow.geometry(), GLOW));
     scene.add(levelGroup);
     // power-ups lying on the girders
-    pickups.forEach((p) => scene.remove(p));
+    pickups.forEach((p) => { scene.remove(p); p.traverse((o) => o.geometry && o.geometry.dispose()); }); // (each level makes its own)
     pickups.length = 0;
     S.tools.forEach(() => { const t = toolFor[S.hero](); t.scale.setScalar(0.9); scene.add(t); pickups.push(t); });
     setTheme(S.level);
@@ -238,8 +246,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     scene.fog = new THREE.Fog(L.sky[1], 600, 1400);
     fitFog();
     if (sceneryGroup) { scene.remove(sceneryGroup); sceneryGroup.traverse((o) => o.geometry && o.geometry.dispose()); }
-    lamps.forEach((l) => scene.remove(l));
-    lamps.length = 0;
+    lamps.forEach((l) => { l.intensity = 0; }); // (off, not removed — see `lamps`)
+    lampsUsed = 0;
     sceneryGroup = buildScenery(L);
     scene.add(sceneryGroup);
   }
@@ -287,10 +295,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         b.box(x - 4, floor, -160, 8, 260, 8, 0x4a2f18, 2);
         b.box(x - 40, floor + 250, -160, 80, 8, 8, 0x3d2712, 2);
         glow.add(3, 4, 3, () => 0xffd43b, { size: 2, offset: [x + 6, floor + 170, -154] });
-        const lamp = new THREE.PointLight(0xffb84d, 0.7, 320, 1.2);
-        lamp.position.set(x + 9, floor + 170, -120);
-        lamps.push(lamp);
-        scene.add(lamp);
+        if (Math.abs(i) <= 1) { const lamp = lamps[lampsUsed++]; lamp.intensity = 0.7; lamp.position.set(x + 9, floor + 170, -120); }
       }
     } else if (L.scenery === 'xmas') {
       for (let i = 0; i < 12; i++) {
@@ -397,7 +402,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     hudCanvas.width = Math.round(cw * dpr);
     hudCanvas.height = Math.round(ch * dpr);
     if (renderer) {
-      renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2));
+      renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, quality.cap));
       renderer.setSize(cw, ch, false);
     }
     // pause button: the top-right corner of the playfield, beside the HUD bar
@@ -833,6 +838,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   let glAge = 1;
   function render(dt) {
+    if (renderer && !lowPower) quality.tick(dt);
     glAge += dt;
     const drawGL = renderer && (!lowPower || glAge >= 1 / 12);
     const elapsed = Math.min(0.25, glAge);
@@ -848,7 +854,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     hud.draw(!renderer);
   }
 
+  // (tests: what the last frame drew and what's alive on the GPU — the counts must not keep growing)
+  const perfInfo = () => (renderer ? { ratio: renderer.getPixelRatio(), quality: quality.step, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, prog: renderer.info.programs.length } : null);
+  // (tests: feed it frame times as a slow phone would)
+  const qualityTest = (dts) => { dts.forEach((d) => quality.tick(d)); return quality.cap; };
   return {
+    perfInfo, qualityTest,
     hasGL: !!renderer,
     layout,
     render,

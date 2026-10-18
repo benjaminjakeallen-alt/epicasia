@@ -1338,6 +1338,57 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   the client sees it, the client's emote shows on the host, the client leaves → a bot takes over; a code with no
   host) + axe on the board, the lobby and inside the game frame.
 
+### Games → performance check (Oct 18 2026)
+
+The user asked to "double check all games for playability and performance issues". Each arcade game
+now reports `perf()` on its hook (`__rampage` / `__dash` / `__chain`):
+- the smoothed and worst time of a frame's game logic and drawing;
+- the last frame's draw calls and triangles;
+- live GPU geometries and textures, and compiled shaders;
+- the pixel ratio and quality step.
+
+A long-session probe (kept in the scratchpad, not the suite) drove every level of each game, twice or
+more, and found:
+- **Rampage recompiled every lit shader at each level change.** The Coal Mine's lamps were added and
+  removed with its level. Now 3 lamps are always in the scene and switched off elsewhere; the outer 4
+  of the old 7 barely reached the playfield and every light costs every pixel. Shaders went from 19 to
+  11, with none compiled on a second round.
+- **Rampage leaked each level's power-up models.** Now freed.
+- **Tug of Wall leaked each stretch's graffiti textures and the backdrop's ridge geometry.** Now freed
+  (`userData.ownMaterial`).
+- **Tug of Wall's bots stuttered.** The jump planner (`landing()`) rebuilt every box in the level 700
+  times a plan: 1 step in 100 took 8–24 ms, the worst 41 ms on a desktop. Now:
+  - a 1 m grid of the level's fixed boxes (`levelGrid`, cached on the level);
+  - each step's moving boxes worked out once for all seven tries;
+  - `solidsAt` memoized per moment (keyed on the time and which crumbling stones are gone), which cut
+    the garbage behind ~50 ms collection pauses.
+  - Now p99 2–8 ms, worst 12 ms. The bots behave **identically**: all 128 bot-gang times and the 12
+    person-led runs match to the frame. Keep it that way: the grid's lists keep `solidsAt`'s order,
+    because the first box landed on is the one.
+- **Adaptive resolution** (`assets/games/shared/adaptive.js`, all three 3D games). About 2 s slower
+  than 40 fps steps the resolution down: 2× → 1.6× → 1.3× → 1×. It only steps down; frames over 0.1 s
+  don't count. It's off in software GL (already 0.75×). `qualityTest(dts)` on each hook feeds it frame
+  times.
+- **Photo-game walls.** Lost in Translation and Konbini Review drew every entry with its full camera
+  original. A whole trip decoded at once (~48 MB a 12 MP photo) is more than iPhone Safari will hold.
+  Now:
+  - the wall shows the 480 px thumbnail;
+  - a tap opens the full photo in `PhotoViewer` (Download / Share);
+  - entries come 20 at a time, more as you scroll near the end (`src/hooks/usePaged.ts`); a new tab or
+    city filter goes back to the top.
+  - 300 entries: 5,308 page elements → 407, 103 MB → 47 MB heap.
+- **Fine as they were:** Shinkansen (shaders fixed at 24 from its prewarm, geometry flat through laps,
+  the sewer adds no shaders); everyone's frame logic is ≤ 0.5 ms (Tug of Wall's ~1–2 ms). One-off
+  spikes only happen while a level or stretch loads, behind its title card.
+- Tests:
+  - Rampage "a second time through every level…" (same shaders and textures);
+  - Tug of Wall "…leaks no textures";
+  - the adaptive steps in each game's spec;
+  - the wall's thumbnail, full-size viewer and paging in `games.spec.ts`.
+- **Not measurable here:** real GPU cost on phones. CI's software GL draws ~10× slower and is capped at
+  0.75×. Draw calls / triangles per frame for reference: Rampage ~40 / 400k, Shinkansen 130–220 /
+  500–620k, Tug of Wall 150–300 / 60–85k.
+
 ### Flights (built, Sept 30 2026; now shown inside Arrivals)
 
 Same shape as Itinerary: `src/lib/flights.ts` (fetch/create/delete),

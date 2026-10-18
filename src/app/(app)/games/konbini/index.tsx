@@ -36,6 +36,7 @@ import {
   type Entry,
   type Vote,
 } from '../../../../lib/games';
+import { usePaged } from '../../../../hooks/usePaged';
 import { durationLabel, savePhoto, sharePhoto, signedUrls } from '../../../../lib/photos';
 import { CITIES, type CityKey } from '../../../../lib/weather';
 import { shadow } from '../../../../theme/colors';
@@ -121,6 +122,7 @@ export default function KonbiniReview() {
       list.sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || (a.created_at < b.created_at ? 1 : -1));
     return list;
   }, [inCity, counts, tab]);
+  const page = usePaged(shown, `${tab}|${city ?? ''}`);
 
   const member = (id: string) => {
     const i = members.findIndex((m) => m.id === id);
@@ -211,7 +213,13 @@ export default function KonbiniReview() {
       {loading ? (
         <JournalSkeleton label="Loading reviews" />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={page.ref}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={page.onScroll}
+          scrollEventThrottle={200}
+        >
           {error ? <Text style={[type.body, { color: colors.error }]}>{error}</Text> : null}
           {newUp > 0 && tab !== 'board' ? (
             <View
@@ -353,7 +361,7 @@ export default function KonbiniReview() {
               })}
             </View>
           ) : (
-            shown.map((e) => {
+            page.visible.map((e) => {
               const m = member(e.created_by);
               const n = counts.get(e.id) ?? 0;
               const mine = e.created_by === me;
@@ -384,8 +392,8 @@ export default function KonbiniReview() {
                     >
                       {poster ? (
                         <Image
-                          source={{ uri: poster, cacheKey: `games:${e.storage_path}` }}
-                          placeholder={thumb ? { uri: thumb, cacheKey: `games:${e.thumb_path}` } : undefined}
+                          // (the small copy of the poster: the full one is only for the player)
+                          source={{ uri: thumb ?? poster, cacheKey: `games:${thumb ? e.thumb_path : e.storage_path}` }}
                           style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]}
                           contentFit="cover"
                           transition={150}

@@ -7,6 +7,7 @@
 // your traveller; S.cam.yaw (it follows the way on by itself, game.js) is where it looks.
 // hud.js draws the text on top.
 import * as THREE from 'three';
+import { adaptiveQuality } from '../shared/adaptive.js';
 import { MAT, makeHero, LOOKS as HERO_LOOKS } from '../rampage/models.js';
 import { moverBox, windOn, CHAIN } from './sim.js';
 import { ROPE_R, insideAny, ropeBoxes, ropePath, stepRope } from './rope.js';
@@ -32,6 +33,8 @@ const NEON = [0xff2d95, 0x18e0ff, 0xffe11a, 0x7b2cff, 0x3dff8a];
 export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const { S, LEVELS } = game;
   let renderer = null;
+  // (a phone that can't keep up draws at a lower resolution — see shared/adaptive.js)
+  const quality = adaptiveQuality(() => layout());
   try {
     renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true;
@@ -202,7 +205,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   const ridges = [];
   function buildBackdrop(lv) {
-    ridges.forEach((r) => { scene.remove(r); r.material.map.dispose(); r.material.dispose(); });
+    ridges.forEach((r) => { scene.remove(r); r.geometry.dispose(); r.material.map.dispose(); r.material.dispose(); });
     ridges.length = 0;
     const look = SKIES[lv % SKIES.length];
     look.ridges.forEach((col, k) => {
@@ -258,7 +261,11 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   let built = -1;
   const movers = [], crumbles = [], towers = [], bouncers = [];
   function clearLevel() {
-    levelGroup.traverse((o) => { if (o.isMesh && o.geometry && !o.userData.shared) o.geometry.dispose(); });
+    levelGroup.traverse((o) => {
+      if (o.isMesh && o.geometry && !o.userData.shared) o.geometry.dispose();
+      // (the graffiti tags' own painted textures: each stretch made new ones, and they were never freed)
+      if (o.userData.ownMaterial) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    });
     levelGroup.clear();
     [movers, crumbles, towers, bouncers].forEach((a) => { a.length = 0; });
   }
@@ -457,7 +464,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     L.decor.forEach((d) => {
       if (d.type === 'tag') {
         const col = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'][Math.floor(rnd() * 4)];
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.3), new THREE.MeshBasicMaterial({ map: tagTexture(d.text, col), transparent: true, toneMapped: false }));
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.3), new THREE.MeshBasicMaterial({ map: tagTexture(d.text, col), transparent: true, toneMapped: false })); m.userData.ownMaterial = true;
         m.position.set(d.x + d.nx * 0.02, d.y, d.z + d.nz * 0.02);
         m.rotation.y = Math.atan2(d.nx, d.nz);
         levelGroup.add(m);
@@ -718,7 +725,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     Object.assign(view, { cw, ch, dpr });
     for (const c of [glCanvas, hudCanvas]) { c.style.width = cw + 'px'; c.style.height = ch + 'px'; }
     hudCanvas.width = Math.round(cw * dpr); hudCanvas.height = Math.round(ch * dpr);
-    if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2)); renderer.setSize(cw, ch, false); }
+    if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, quality.cap)); renderer.setSize(cw, ch, false); }
     camera.aspect = cw / ch;
     camera.fov = cw / ch < 0.8 ? 68 : 56; // a phone held upright needs a taller view to see sideways
     camera.updateProjectionMatrix();
@@ -794,6 +801,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // ---- draw ----------------------------------------------------------------------------------------
   let windT = 0, lastDraw = -1;
   function draw(t, dt) {
+    if (renderer && !lowPower) quality.tick(dt);
     const V = S.view;
     if (V && V.lv !== built) build(V.lv);
     if (V) {
@@ -869,7 +877,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     hud.draw(t, dt);
   }
 
+  // (tests: what the last frame drew and what's alive on the GPU — the counts must not keep growing)
+  const perfInfo = () => (renderer ? { ratio: renderer.getPixelRatio(), quality: quality.step, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, prog: renderer.info.programs.length } : null);
+  // (tests: feed it frame times as a slow phone would)
+  const qualityTest = (dts) => { dts.forEach((d) => quality.tick(d)); return quality.cap; };
   return {
+    perfInfo, qualityTest,
     draw, event,
     get gl() { return !!renderer; },
     screenPoint: (x, y, z) => toScreen(x, y, z),

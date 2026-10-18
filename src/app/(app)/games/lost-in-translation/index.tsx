@@ -9,6 +9,7 @@ import CircleButton from '../../../../components/CircleButton';
 import OfflineNotice from '../../../../components/OfflineNotice';
 import { JournalSkeleton } from '../../../../components/Skeleton';
 import SkyBackdrop from '../../../../components/SkyBackdrop';
+import PhotoViewer from '../../../../components/chat/PhotoViewer';
 import CityChips from '../../../../components/games/CityChips';
 import VoteButton from '../../../../components/games/VoteButton';
 import WinnerBadge from '../../../../components/games/WinnerBadge';
@@ -34,7 +35,8 @@ import {
   type Entry,
   type Vote,
 } from '../../../../lib/games';
-import { signedUrls } from '../../../../lib/photos';
+import { usePaged } from '../../../../hooks/usePaged';
+import { savePhoto, sharePhoto, signedUrls } from '../../../../lib/photos';
 import { CITIES, type CityKey } from '../../../../lib/weather';
 import { shadow } from '../../../../theme/colors';
 import { fontFamily, type } from '../../../../theme/typography';
@@ -70,6 +72,9 @@ export default function LostInTranslation() {
   const [error, setError] = useState<string | null>(null);
   const [city, setCity] = useState<CityKey | null>(null);
   const [newUp, setNewUp] = useState(0);
+  const [viewing, setViewing] = useState<Entry | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
   useEffect(() => {
     markOpened(GAME);
@@ -124,6 +129,7 @@ export default function LostInTranslation() {
       list.sort((a, b) => (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || (a.created_at < b.created_at ? 1 : -1));
     return list;
   }, [entries, counts, tab, city]);
+  const page = usePaged(shown, `${tab}|${city ?? ''}`);
 
   const member = (id: string) => {
     const i = members.findIndex((m) => m.id === id);
@@ -206,7 +212,13 @@ export default function LostInTranslation() {
       {loading ? (
         <JournalSkeleton label="Loading finds" />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={page.ref}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          onScroll={page.onScroll}
+          scrollEventThrottle={200}
+        >
           {error ? <Text style={[type.body, { color: colors.error }]}>{error}</Text> : null}
 
           {tab === 'board' ? (
@@ -303,7 +315,7 @@ export default function LostInTranslation() {
                   <Ionicons name="chevron-forward" size={18} color={colors.inkTertiary} />
                 </Pressable>
               ) : null}
-              {shown.map((e) => {
+              {page.visible.map((e) => {
                 const m = member(e.created_by);
                 const n = counts.get(e.id) ?? 0;
                 const mine = e.created_by === me;
@@ -329,14 +341,25 @@ export default function LostInTranslation() {
                         <WinnerBadge label={day === today ? 'Leading today' : `Winner · ${dayLabel(day)}`} />
                       ) : null}
                       {url ? (
-                        <Image
-                          source={{ uri: url, cacheKey: `games:${e.storage_path}` }}
-                          placeholder={thumb ? { uri: thumb, cacheKey: `games:${e.thumb_path}` } : undefined}
-                          style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]}
-                          contentFit="cover"
-                          transition={150}
-                          accessibilityLabel={e.caption ? `Photo: ${e.caption}` : `Photo by ${m.name}`}
-                        />
+                        // (the wall shows the small copy — a whole trip of full camera photos decoded at once is
+                        // more than a phone's browser will hold; a tap opens the full one)
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`${e.caption ? `Photo: ${e.caption}` : `Photo by ${m.name}`}. Open full size`}
+                          onPress={() => {
+                            setNote(null);
+                            setViewing(e);
+                          }}
+                          testID="open-find"
+                        >
+                          <Image
+                            source={{ uri: thumb ?? url, cacheKey: `games:${thumb ? e.thumb_path : e.storage_path}` }}
+                            style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]}
+                            contentFit="cover"
+                            transition={150}
+                            accessibilityLabel=""
+                          />
+                        </Pressable>
                       ) : (
                         <View style={[styles.photo, { aspectRatio: ratio, backgroundColor: colors.skeleton }]} />
                       )}
@@ -380,6 +403,23 @@ export default function LostInTranslation() {
           )}
         </ScrollView>
       )}
+      <PhotoViewer
+        uri={viewing ? (urls[viewing.storage_path] ?? null) : null}
+        caption={viewing?.caption ?? ''}
+        onClose={() => setViewing(null)}
+        saving={saving}
+        note={note}
+        onSave={async () => {
+          if (!viewing) return;
+          setSaving(true);
+          const ok = await savePhoto('games', viewing.storage_path).catch(() => false);
+          setSaving(false);
+          setNote(ok ? 'Saved' : 'Could not download the photo');
+        }}
+        onShare={() => {
+          if (viewing) sharePhoto('games', viewing.storage_path).catch(() => {});
+        }}
+      />
     </View>
   );
 }

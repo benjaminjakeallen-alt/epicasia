@@ -944,6 +944,9 @@ const R = createRenderer({
     passBy: function () { SFX.pass(); } }
 });
 window.addEventListener('resize', function () { R.layout(); });
+// (tests: how long a frame's game logic and drawing take, smoothed — on __*.perf)
+const perf = { logic: 0, draw: 0, worstLogic: 0, worstDraw: 0, frames: 0 };
+function perfAdd(logic, draw) { perf.frames++; perf.logic += (logic - perf.logic) * 0.05; perf.draw += (draw - perf.draw) * 0.05; perf.worstLogic = Math.max(perf.worstLogic, logic); perf.worstDraw = Math.max(perf.worstDraw, draw); }
 let last = 0;
 const STEP = 1 / 60;
 function frame(ts) {
@@ -952,10 +955,13 @@ function frame(ts) {
   // fixed-step accumulator without interpolation made the world move 0 or 2
   // steps on some frames — a visible stutter at these speeds, worst on 120 Hz
   // screens where every other frame had no step at all.)
+  const t0 = performance.now();
   if (!S.paused && !S.menu) { let left = dt; while (left > 1e-6) { const h = Math.min(STEP, left); update(h); left -= h; } }
+  const t1 = performance.now();
   // the song plays through a run (muffled down in the sewer), a beat quicker every lap
   music(S.mode === 'run' || S.mode === 'sewer' || S.mode === 'ready', S.runId, S.lap, S.speed); muffled(S.mode === 'sewer' || (S.mode === 'run' && inTunnel(S.dist)), S.mode === 'sewer' ? 650 : 1800);
   R.render(dt);
+  perfAdd(t1 - t0, performance.now() - t1);
   requestAnimationFrame(frame);
 }
 document.addEventListener('visibilitychange', function () {
@@ -964,6 +970,8 @@ document.addEventListener('visibilitychange', function () {
 });
 
 window.__dash = {
+  qualityTest: function (dts) { return R.qualityTest(dts); },
+  perf: function () { return Object.assign({}, perf, R.perfInfo && R.perfInfo()); },
   get mode() { return S.mode; }, get score() { return S.score; }, get dist() { return S.dist; }, get speed() { return S.speed; },
   get lane() { return S.p ? S.p.lane : null; }, get hero() { return S.hero; }, get hi() { return S.hi; }, get coins() { return S.coins; },
   get stage() { return S.stage + 1; }, get round() { return S.lap + 1; }, get shield() { return S.shield; }, get menu() { return S.menu; },

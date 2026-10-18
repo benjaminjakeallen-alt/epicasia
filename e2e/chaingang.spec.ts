@@ -217,7 +217,13 @@ test('tug of wall: two phones in one room play together', async ({ browser }) =>
   await expect(a.getByTestId('gang-member').nth(1)).toContainText('Miles');
 
   // A starts: both phones open the game; bots fill the other two places
-  await a.getByRole('button', { name: 'Start the game' }).click();
+  // (the button is off for a moment while B's change of traveller syncs: wait for it, and press again if a
+  // press landed in that moment)
+  await expect(async () => {
+    await expect(a.getByRole('button', { name: 'Start the game' })).toBeEnabled();
+    await a.getByRole('button', { name: 'Start the game' }).click({ timeout: 2_000 });
+    await expect(a.getByTestId('game-frame')).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
   const fa = await game(a), fb = await game(b);
   expect(await chain(fa, (c) => [c.net, c.me])).toEqual(['host', 0]);
   expect(await chain(fb, (c) => [c.net, c.me])).toEqual(['client', 1]);
@@ -271,9 +277,36 @@ test('tug of wall: three people online all falling at once go back to the watcht
   await open(page, '/games/chaingang/play');
   await page.getByTestId('chain-practise').click();
   const f = await game(page);
+
+  // a phone that can't keep up draws at a lower resolution (shared/adaptive.js): smooth frames keep it
+  // sharp; ~2 s slower than 40 fps steps it down a notch, never below 1×; a long one-off frame doesn't count
+  const qt = (dts: number[]) => f.evaluate((d) => (window as any).__chain.qualityTest(d), dts);
+  expect(await qt(Array(300).fill(1 / 60))).toBe(2);
+  expect(await qt(Array(30).fill(0.5))).toBe(2);
+  expect(await qt(Array(100).fill(1 / 30))).toBe(1.6);
+  expect(await qt(Array(600).fill(1 / 25))).toBe(1);
   for (const lv of [0, 1, 2, 3]) for (const [snapD, repD] of [[9, 6], [36, 30]]) {
     expect(await f.evaluate(([l, a, b]) => (window as any).__chain.netFallTest(l, a, b), [lv, snapD, repD])).toEqual({ whoops: 1, standing: true });
   }
+});
+
+test('tug of wall: a second time through every stretch leaks no textures', async ({ page }) => {
+  // (each stretch's graffiti tags were painted as new textures and never freed)
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/chaingang/play');
+  await page.getByTestId('chain-practise').click();
+  const f = await game(page);
+  const round = async () => {
+    for (const lv of [0, 1, 2, 3]) {
+      await f.evaluate((n) => (window as any).__chain.debug.setLevel(n), lv);
+      await expect.poll(async () => { await chain(f, (c) => c.debug.skipTitle()); return chain(f, (c) => c.mode); }, { timeout: 20_000 }).toBe('play');
+      await page.waitForTimeout(800);
+    }
+    return chain(f, (c) => c.perf());
+  };
+  const first = await round(), second = await round();
+  expect(second.tex).toBe(first.tex);
+  expect(second.prog).toBe(first.prog);
 });
 
 test('tug of wall: a code nobody is hosting says so', async ({ browser }) => {

@@ -645,6 +645,9 @@ renderer = createRenderer({
   glCanvas: document.getElementById('gl'), hudCanvas: document.getElementById('hud'), stage: document.getElementById('stage'),
   game: { S, LEVELS, COLORS, NAMES, PAR, EMOTES, boom: () => SFX.boom() },
 });
+// (tests: how long a frame's game logic and drawing take, smoothed — on __*.perf)
+const perf = { logic: 0, draw: 0, worstLogic: 0, worstDraw: 0, frames: 0 };
+function perfAdd(logic, draw) { perf.frames++; perf.logic += (logic - perf.logic) * 0.05; perf.draw += (draw - perf.draw) * 0.05; perf.worstLogic = Math.max(perf.worstLogic, logic); perf.worstDraw = Math.max(perf.worstDraw, draw); }
 let last = performance.now();
 function frame(now) {
   tick(now);
@@ -660,6 +663,7 @@ function tick(now) {
   S.msgs.forEach((m) => { m.t += dt; });
   S.msgs = S.msgs.filter((m) => m.t < m.life);
   S.emotes = S.emotes.map((e) => (e && (e.t += dt) < 2.4 ? e : null));
+  const t0 = performance.now();
   if (S.net === 'client') {
     clientUpdate(dt);
     // the host has gone quiet: say so (the app tells us if it really left)
@@ -668,13 +672,16 @@ function tick(now) {
   S.view = S.net === 'client' ? clientView() : hostView();
   soundTick(dt);
   steerCamera(dt);
-  if (!document.hidden) renderer.draw(now / 1000, dt);
+  const t1 = performance.now();
+  if (!document.hidden) { renderer.draw(now / 1000, dt); perfAdd(t1 - t0, performance.now() - t1); }
 }
 syncButtons();
 requestAnimationFrame(frame);
 
 // ---- for tests ---------------------------------------------------------------------------------
 window.__chain = {
+  qualityTest: function (dts) { return renderer.qualityTest(dts); },
+  perf: () => Object.assign({}, perf, renderer.perfInfo && renderer.perfInfo()),
   get mode() { return S.mode; }, get net() { return S.net; }, get me() { return S.me; }, get level() { return S.level; },
   get total() { return S.total; }, get scores() { return S.scores; }, get falls() { return S.view ? S.view.falls : 0; },
   get cp() { return S.view ? S.view.cp : 0; }, get tips() { return S.tips; }, get fallsBy() { return S.fallsBy.slice(); }, get emotes() { return S.emotes.map((e) => (e ? EMOTES[e.k] : null)); }, get menu() { return S.menu; }, get gl() { return renderer.gl; }, get camYaw() { return S.cam.yaw; }, get camHang() { return S.cam.hang; }, get music() { return musicState(); }, get route() { const L = LEVELS[S.view ? S.view.lv : S.level]; return L.route.map((n) => ({ p: n.p, jump: !!n.jump })); },

@@ -191,6 +191,14 @@ test('every level can be climbed: a safe ladder up from each girder, none into G
   const f = await game(page);
   expect(await f.evaluate(() => (window as any).__rampage.routeProblems())).toEqual([]);
 
+  // a phone that can't keep up draws at a lower resolution (shared/adaptive.js): smooth frames keep it
+  // sharp; ~2 s slower than 40 fps steps it down a notch, never below 1×; a long one-off frame doesn't count
+  const qt = (dts: number[]) => f.evaluate((d) => (window as any).__rampage.qualityTest(d), dts);
+  expect(await qt(Array(300).fill(1 / 60))).toBe(2);
+  expect(await qt(Array(30).fill(0.5))).toBe(2);
+  expect(await qt(Array(100).fill(1 / 30))).toBe(1.6);
+  expect(await qt(Array(600).fill(1 / 25))).toBe(1);
+
   // Level 3 played through from the top girder: up past Godzilla, to the ledge, rescue.
   await page.keyboard.press('Enter');
   await f.evaluate(() => (window as any).__rampage.debug.setLevel(3));
@@ -447,4 +455,28 @@ test('the first time: a how-to-play card on the first level, then never again', 
   await expect.poll(async () => (await state(f)).mode).toBe('play');
   expect(await f.evaluate(() => (window as any).__rampage.tips)).toBe(false);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.rampage.tips'))).toBe('1');
+});
+
+test('a second time through every level compiles no new shaders and leaks no GPU memory', async ({ page }) => {
+  // (the mine's lamps used to be added and removed with its level — every lit material recompiled at each
+  // level change, a stall on a phone — and each level's power-ups were never freed)
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/rampage');
+  await page.getByTestId('rampage-play').click();
+  const f = await game(page);
+  await page.keyboard.press('Enter');
+  const perf = () => f.evaluate(() => (window as any).__rampage.perf());
+  const round = async () => {
+    for (const lv of [1, 2, 3, 4, 5]) {
+      await f.evaluate((l) => { const d = (window as any).__rampage.debug; d.setLevel(l); d.calm(); }, lv);
+      await page.keyboard.press('Enter');
+      await expect.poll(() => f.evaluate(() => (window as any).__rampage.mode), { timeout: 20_000 }).toBe('play');
+      await page.waitForTimeout(1200);
+    }
+    return perf();
+  };
+  const first = await round(), second = await round();
+  expect(second.prog).toBe(first.prog);
+  expect(second.tex).toBe(first.tex);
+  expect(second.geo).toBeLessThanOrEqual(first.geo + 2); // (only pooled hazards drawn for the first time)
 });

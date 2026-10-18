@@ -119,7 +119,7 @@ test('the wall: top first, daily winners crowned, vote on others, not your own',
 
   // Upvote Sarah's older photo, then take it back.
   // (Found by its photo: votes re-sort the Top list as they land.)
-  const sarahOld = finds.filter({ has: page.getByAltText('Photo by Sarah Lee') });
+  const sarahOld = finds.filter({ has: page.getByRole('button', { name: 'Photo by Sarah Lee. Open full size' }) });
   await sarahOld.getByRole('button', { name: 'Upvote, 1 upvote' }).click();
   await expect(sarahOld.getByRole('button', { name: 'Remove your upvote, 2 upvotes' })).toBeVisible();
   expect(backend.inserts.at(-1)).toEqual({ table: 'game_votes', body: { entry_id: 'e-sarah-old', user_id: USER_ID } });
@@ -127,9 +127,34 @@ test('the wall: top first, daily winners crowned, vote on others, not your own',
   await expect(sarahOld.getByRole('button', { name: 'Upvote, 1 upvote' })).toBeVisible();
   expect(backend.deletes.at(-1)).toEqual({ table: 'game_votes', query: `?entry_id=eq.e-sarah-old&user_id=eq.${USER_ID}` });
 
+  // The wall shows each find's small copy; a tap opens the full photo (a phone's browser can't hold a
+  // whole trip of full camera photos at once).
+  const tom = finds.filter({ hasText: 'Fried rice with no rice' });
+  await expect(tom.locator('img').first()).toHaveAttribute('src', /e-tom-old\.thumb\.jpg/);
+  await tom.getByRole('button', { name: 'Photo: Fried rice with no rice. Open full size' }).click();
+  await expect(page.getByLabel('Photo', { exact: true })).toBeVisible();
+  await expect(page.locator('img[src*="e-tom-old.jpg"]')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Close photo' }).click();
+  await expect(page.getByLabel('Photo', { exact: true })).toHaveCount(0);
+
   // New: newest first.
   await page.getByRole('tab', { name: 'New' }).click();
   await expect(finds.nth(0)).toContainText('Please do not to touch the fish');
+});
+
+test('a long wall shows 20 finds at a time, more as you scroll', async ({ page }) => {
+  const many = Array.from({ length: 45 }, (_, i) => entry(`e-${i}`, i % 2 ? SARAH : TOM, new Date(Date.UTC(2026, 5, 7, 1) + i * 60_000).toISOString(), `Sign number ${i}`));
+  await signInWithFakeBackend(page, { ...DATA, game_entries: many, game_votes: [] });
+  await open(page, '/games/lost-in-translation');
+  const finds = page.getByTestId('find');
+  await expect(finds).toHaveCount(20);
+  await finds.nth(19).scrollIntoViewIfNeeded();
+  await expect(finds).toHaveCount(40);
+  await finds.nth(39).scrollIntoViewIfNeeded();
+  await expect(finds).toHaveCount(45);
+  // a new tab starts from the top again
+  await page.getByRole('tab', { name: 'New' }).click();
+  await expect(finds).toHaveCount(20);
 });
 
 test('leaderboard: points are upvotes received, with finds and daily wins', async ({ page }) => {

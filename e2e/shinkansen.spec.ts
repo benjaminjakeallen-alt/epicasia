@@ -741,6 +741,14 @@ test('skills: Chris’s pickaxe smashes a fairing (then needs a moment), Bennett
   expect(top).toBeGreaterThan(3); // (three jumps up…)
   expect(top).toBeLessThanOrEqual(3.71); // (…to the arch: 9.2 m over the side train, less the head)
   await debug(f, 'pause', false);
+
+  // a phone that can't keep up draws at a lower resolution (shared/adaptive.js): smooth frames keep it
+  // sharp; ~2 s slower than 40 fps steps it down a notch, never below 1×; a long one-off frame doesn't count
+  const qt = (dts: number[]) => f.evaluate((d) => (window as any).__dash.qualityTest(d), dts);
+  expect(await qt(Array(300).fill(1 / 60))).toBe(2);
+  expect(await qt(Array(30).fill(0.5))).toBe(2);
+  expect(await qt(Array(100).fill(1 / 30))).toBe(1.6);
+  expect(await qt(Array(600).fill(1 / 25))).toBe(1);
 });
 
 test('skills: Emily’s endless slide, Nicole’s boba magnet and crow ducking, Jake’s manhole skateboard', async ({ page }) => {

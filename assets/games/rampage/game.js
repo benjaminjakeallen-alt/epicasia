@@ -874,15 +874,21 @@ const R = createRenderer({
   }
 });
 window.addEventListener('resize', function () { R.layout(); });
+// (tests: how long a frame's game logic and drawing take, smoothed — on __*.perf)
+const perf = { logic: 0, draw: 0, worstLogic: 0, worstDraw: 0, frames: 0 };
+function perfAdd(logic, draw) { perf.frames++; perf.logic += (logic - perf.logic) * 0.05; perf.draw += (draw - perf.draw) * 0.05; perf.worstLogic = Math.max(perf.worstLogic, logic); perf.worstDraw = Math.max(perf.worstDraw, draw); }
 // Fixed 60 Hz steps, so the game runs at the same speed on a slow device.
 let last = 0, acc = 0, STEP = 1 / 60;
 function frame(ts) {
   let dt = Math.min(0.25, last ? (ts - last) / 1000 : STEP); last = ts;
+  const t0 = performance.now();
   if (!S.paused && !S.menu) { acc += dt; while (acc >= STEP) { update(STEP); acc -= STEP; } }
+  const t1 = performance.now();
   // the song for the level (the finale's own once Godzilla falls), a touch quicker each round
   const fin = S.finale && (S.mode === 'rescue' || S.mode === 'tally' || S.mode === 'win');
   music(fin || S.mode === 'intro' || S.mode === 'play' || S.mode === 'dying' || S.mode === 'boss', fin ? FINALE : S.level, S.round, S.gz.mood > 0.6);
   R.render(dt);
+  perfAdd(t1 - t0, performance.now() - t1);
   let atk = document.getElementById('atk');
   let ready = S.player && S.player.tool > 0 && S.mode === 'play';
   if (atk.classList.contains('ready') !== !!ready) atk.classList.toggle('ready', !!ready);
@@ -892,6 +898,8 @@ document.addEventListener('visibilitychange', function () { S.paused = document.
 
 // Testing / debugging hooks (the host only enables cheats in development).
 window.__rampage = {
+  qualityTest: function (dts) { return R.qualityTest(dts); },
+  perf: function () { return Object.assign({}, perf, R.perfInfo && R.perfInfo()); },
   get mode() { return S.mode; }, get score() { return S.score; }, get lives() { return S.lives; }, get level() { return S.level + 1; },
   get hero() { return S.hero; }, get hi() { return S.hi; },
   get player() { return S.player && { x: S.player.x, y: S.player.y, st: S.player.st, g: S.player.g, vx: S.player.vx, tool: S.player.tool }; },

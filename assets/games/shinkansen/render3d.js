@@ -4,6 +4,7 @@
 // hills, Kyoto), tunnels, and the roof obstacles. Positions come from the
 // game's distances: z = S.dist - d (ahead is -z). hud.js draws text on top.
 import * as THREE from 'three';
+import { adaptiveQuality } from '../shared/adaptive.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MAT, makeHero, makeHeroine, makePickaxe } from '../rampage/models.js';
 import {
@@ -30,6 +31,8 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const { S, LANES, ROOF, NOSE, CAR, LANE_OFF, STAGES, STAGE_LEN, OBS } = game;
 
   let renderer = null;
+  // (a phone that can't keep up draws at a lower resolution — see shared/adaptive.js)
+  const quality = adaptiveQuality(() => layout());
   try {
     renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true, powerPreference: 'high-performance' });
     renderer.shadowMap.enabled = true;
@@ -371,7 +374,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     Object.assign(view, { cw, ch, dpr });
     for (const c of [glCanvas, hudCanvas]) { c.style.width = cw + 'px'; c.style.height = ch + 'px'; }
     hudCanvas.width = Math.round(cw * dpr); hudCanvas.height = Math.round(ch * dpr);
-    if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, 2)); renderer.setSize(cw, ch, false); }
+    if (renderer) { renderer.setPixelRatio(lowPower ? 0.75 : Math.min(dpr, quality.cap)); renderer.setSize(cw, ch, false); }
     if (sewer) sewer.layout(cw, ch);
     camera.aspect = cw / ch;
     baseFov = cw / ch > 0.9 ? 50 : FOV;
@@ -815,6 +818,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const hud = createHud(hudCanvas, game, view, toScreen);
   let glAge = 1;
   function render(dt) {
+    if (renderer && !lowPower) quality.tick(dt);
     glAge += dt;
     if (S.mode === 'sewer' && S.sewer && sewer) { // down the manhole: the sewer's own scene
       if (!lowPower || glAge >= 1 / 12) { sewer.draw(S, Math.min(0.25, glAge)); glAge = 0; }
@@ -864,5 +868,9 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const shown = (kind) => (pools[kind] || []).filter((m) => m.visible).map((m) => [+m.position.x.toFixed(1), +m.position.y.toFixed(2), +m.position.z.toFixed(1)]); // (tests)
   // (tests: where the camera is, and how high the tunnel's arch is just over it)
   const camHeight = () => ({ y: camera.position.y, ceiling: tunnelCeiling(camera.position.x, ROOF) });
-  return { hasGL: !!renderer, layout, render, heroAt, heroPoint, ringSettled, shown, camHeight, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
+  // (tests: what the last frame drew and what's alive on the GPU — the counts must not keep growing)
+  const perfInfo = () => (renderer ? { ratio: renderer.getPixelRatio(), quality: quality.step, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, geo: renderer.info.memory.geometries, tex: renderer.info.memory.textures, prog: renderer.info.programs.length } : null);
+  // (tests: feed it frame times as a slow phone would)
+  const qualityTest = (dts) => { dts.forEach((d) => quality.tick(d)); return quality.cap; };
+  return { perfInfo, qualityTest, hasGL: !!renderer, layout, render, heroAt, heroPoint, ringSettled, shown, camHeight, programs: () => (renderer ? renderer.info.programs.map((q) => q.name + '#' + q.cacheKey.length) : []) };
 }
