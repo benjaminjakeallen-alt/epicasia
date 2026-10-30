@@ -4,8 +4,9 @@
 // shows each in a sandboxed iframe, offline, so each needs one HTML string:
 // this script bundles the modules with esbuild (three.js tree-shaken and
 // minified in), inlines the bundle into index.html and writes
-// src/games/<game>/html.ts. Art is all code — the games' colours are game
-// art, outside the app's colour tokens.
+// src/games/<game>/html.ts. Art is all code (Sushi Conveyor's pictures are small
+// WebPs, inlined as data URLs) — the games' colours are game art, outside the app's
+// colour tokens.
 //
 //   node tools/build-games.mjs          # regenerate every html.ts
 //   node tools/build-games.mjs --check  # CI: fail if any html.ts is stale
@@ -20,6 +21,7 @@ const GAMES = [
   { dir: 'rampage', name: 'RAMPAGE_HTML' },
   { dir: 'shinkansen', name: 'SHINKANSEN_HTML' },
   { dir: 'chaingang', name: 'CHAINGANG_HTML' },
+  { dir: 'sushi', name: 'SUSHI_HTML' },
 ];
 const check = process.argv.includes('--check');
 let stale = false;
@@ -34,6 +36,7 @@ for (const g of GAMES) {
     minify: true,
     target: ['safari15', 'chrome100'],
     legalComments: 'none',
+    loader: { '.webp': 'dataurl' }, // (Sushi Conveyor's pictures, inlined)
     write: false,
     logLevel: 'silent',
   });

@@ -51,8 +51,8 @@ graffiti energy); pick from Chris, Jake, Bennett and Miles (the girls later).
   the gong at the top).
 
 **Chosen — to build (Oct 3 2026)**
-- **Sushi Conveyor:** catch and match plates as the belt speeds up. Short
-  rounds for train rides.
+- **Sushi Conveyor — built Oct 30 2026** (see CLAUDE.md): catch and match
+  plates as the belt speeds up. Short rounds for train rides.
 - **Head-to-head variety pack:** 4 people play short Asian-themed mini games
   together, party-game style (e.g. chopstick races, lantern catching,
   mahjong-tile snap, dumpling-folding timing, taiko rhythm). Live rooms, a

@@ -138,3 +138,47 @@ at the centre, delicate golden stamens, and two tiny muted sage green leaves
 behind it"` → `cutout.py <src> blossom.png 720 center 1.06`, resized to
 512. Picked over a porcelain blossom with one leaf and one on a stem (a stem
 looks wrong when the blossom turns). Face-on so it can rotate in place.
+
+## Sushi Conveyor (Oct 30 2026)
+
+The user picked the **real miniature** look (option C) from four game mockups
+(voxel diorama, neon toon, real miniature, kawaii flat 2D; Qwen, 9:16, a
+"mobile game screenshot" of an S-shaped sushi belt with each style appended).
+The game's pictures are made like the menu icons and cut out:
+
+- **Plates.** `MODEL=qwen VIEW="seen from above at a steep 60 degree angle,
+  as if looking down at a sushi counter" ./generate-hf.sh <name> "<subject>"`,
+  where `<subject>` is the piece followed by "on a small round cream ceramic
+  sushi plate with a thin muted sage green rim".
+  - The pieces: salmon nigiri, tuna nigiri, tamago, ebi, two tuna maki, a
+    bowl of edamame, ikura gunkan, uni gunkan, "a big comically oversized
+    mound of bright green wasabi paste", and a maneki-neko.
+  - Tamago took two tries: the first was too pale, so the second asked for
+    "a thick block of bright golden yellow sweet egg omelette".
+  - Then `cutout.py <src> <dst> 256 center 1.04` → WebP (quality 82) in
+    `assets/games/sushi/art/`.
+- **Chef.** `VIEW="three-quarter view from the front and slightly above"`, "a
+  cheerful little sushi chef figurine in a white coat with a white hachimaki
+  headband…, holding a small sushi knife, seen from the waist up behind a
+  wooden counter edge". Cut out at 360.
+- **Counters.** Full-bleed, not on white. Prompt: "An empty sushi bar
+  counter, seen from above at a steep 60 degree angle, a hyper-realistic 3D
+  miniature diorama… The whole middle of the counter is completely clear and
+  empty…". It continues with cups on a shelf along the top, bamboo mats at
+  the sides, and tea, chopsticks, wasabi and ginger at the bottom.
+  - By day: "soft hazy golden morning light".
+  - Late night: "warm glowing red and orange paper lantern light… night-time
+    izakaya mood".
+  - Both 9:16 at 720×1280, WebP quality 76.
+- **Games hub icon.** In the normal icon style, two rounds of three:
+  - **First round:** a belt section, a plate with chopsticks, and a sushi bar
+    with a noren and chef. The sushi bar was used first, but it was paler
+    and busier than the other games' icons.
+  - **Second round,** user's pick C: **"a cute chunky muted sage green
+    ceramic sushi train engine pulling two small flat cars, each carrying a
+    cream plate of salmon nigiri and tuna maki"**.
+  - The other two in the second round: a chunky sage oval belt loop with
+    four plates, one gold; and a stack of sage-rimmed plates with nigiri and
+    chopsticks.
+  - Cut out with `cutout.py <src> <dst> 360 center 1.2` and saved as
+    `assets/images/games/sushi-conveyor.png`.

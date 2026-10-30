@@ -57,7 +57,7 @@ export async function signInWithFakeBackend(
       localStorage.setItem(key, value);
       localStorage.setItem('epicasia.rememberUntil', String(Date.now() + 86_400_000));
       // the arcade games' first-time tips: already seen (a spec that tests them clears these)
-      for (const g of ['rampage', 'shinkansen', 'chaingang']) if (localStorage.getItem(`epicasia.${g}.tips`) === null) localStorage.setItem(`epicasia.${g}.tips`, '1');
+      for (const g of ['rampage', 'shinkansen', 'chaingang', 'sushi']) if (localStorage.getItem(`epicasia.${g}.tips`) === null) localStorage.setItem(`epicasia.${g}.tips`, '1');
     },
     [`sb-${ref}-auth-token`, JSON.stringify(session)] as const,
   );

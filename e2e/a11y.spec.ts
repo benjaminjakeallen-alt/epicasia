@@ -275,6 +275,7 @@ const SCREENS: [string, string][] = [
   ['shinkansen dash', '/games/shinkansen'],
   ['tug of wall', '/games/chaingang'],
   ['tug of wall: lobby', '/games/chaingang/play'],
+  ['sushi conveyor', '/games/sushi'],
   ['chat rooms', '/chat'],
   ['chat room', `/chat/${EVERYONE}`],
   ['new chat room', '/chat/new'],
@@ -415,6 +416,23 @@ test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }
     .locator('button:visible')
     .evaluateAll((els) => els.map((e) => [e.getAttribute('aria-label') ?? e.textContent, e.getBoundingClientRect()]));
   expect(sizes.filter(([, r]) => (r as DOMRect).width < 44 || (r as DOMRect).height < 44)).toEqual([]);
+});
+
+test('a11y: sushi conveyor game (the seat card, then playing)', async ({ page }) => {
+  await signInWithFakeBackend(page, DATA);
+  await open(page, '/games/sushi/play');
+  const ui = page.frameLocator('[data-testid="game-frame"]');
+  await expect(ui.getByRole('button', { name: 'Start' })).toBeVisible();
+  const small = () =>
+    ui.locator('button:visible').evaluateAll((els) =>
+      els.map((e) => [e.getAttribute('aria-label') ?? e.textContent, e.getBoundingClientRect()]).filter(([, r]) => (r as DOMRect).width < 44 || (r as DOMRect).height < 44),
+    );
+  expect(await axe(page)).toEqual([]); // axe also audits inside the game's frame
+  expect(await small()).toEqual([]);
+  await ui.getByRole('button', { name: 'Start' }).click();
+  await expect(ui.getByRole('button', { name: 'Pause' })).toBeVisible();
+  expect(await axe(page)).toEqual([]);
+  expect(await small()).toEqual([]);
 });
 
 test('a11y: tug of wall game (the iframe and its controls)', async ({ page }) => {

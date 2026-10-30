@@ -78,13 +78,16 @@ test('Games hub: a stage shows the picked game; tiles switch it, Play opens it',
   await page.mouse.wheel(196, 0); // two tiles on
   await expect(page.getByTestId('games-title')).toHaveText('Tug of Wall');
   await expect(page.getByRole('tab', { name: 'Tug of Wall' })).toHaveAttribute('aria-selected', 'true');
-  // …and it loops: one on from the last game comes round to the first
+  // …on to the last game, and it loops: one on from the last game comes round to the first
+  await expect.poll(still, { timeout: 10_000 }).toBe(true);
+  await page.mouse.wheel(98, 0);
+  await expect(page.getByTestId('games-title')).toHaveText('Sushi Conveyor');
   await expect.poll(still, { timeout: 10_000 }).toBe(true);
   await page.mouse.wheel(98, 0);
   await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
   await expect.poll(still, { timeout: 10_000 }).toBe(true);
   await page.mouse.wheel(-98, 0);
-  await expect(page.getByTestId('games-title')).toHaveText('Tug of Wall');
+  await expect(page.getByTestId('games-title')).toHaveText('Sushi Conveyor');
   await page.getByRole('tab', { name: 'Lost in Translation' }).click();
   await expect(page.getByTestId('games-title')).toHaveText('Lost in Translation');
   await expect.poll(still, { timeout: 10_000 }).toBe(true);

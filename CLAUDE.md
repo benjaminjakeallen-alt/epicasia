@@ -123,8 +123,8 @@ through them. Build it with standard accessibility practice:
 
 **Games — started (Oct 3 2026).** The user plans 5–6 trip games, each with
 points and a leaderboard; **Lost in Translation**, **Konbini Review**,
-**Godzilla Rampage**, **Shinkansen Dash** and **Tug of Wall** (4-player
-co-op) are built, plus a **trip leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
+**Godzilla Rampage**, **Shinkansen Dash**, **Tug of Wall** (4-player
+co-op) and **Sushi Conveyor** are built, plus a **trip leaderboard** across them (see below). (Trivia from the reunion app is still not planned.)
 
 **Dropped: expense splitting** (user decision, Oct 1 2026 — don't propose
 it again). The `expenses` / `expense_shares` tables from 0001 still exist
@@ -1352,6 +1352,84 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   the client sees it, the client's emote shows on the host, the client leaves → a bot takes over; a code with no
   host) + axe on the board, the lobby and inside the game frame.
 
+### Games → Sushi Conveyor (built, Oct 30 2026)
+
+From the ideas list ("catch and match plates as the belt speeds up, short
+rounds for train rides"). **Art style: real miniature** — the user picked it
+(option C) from four mockups (voxel diorama, neon toon, real miniature,
+kawaii flat 2D). Because a live 3D scene couldn't match that mockup, the game
+is **2D canvas with generated pictures**: every sushi plate, the wasabi, the
+lucky cat, the chef and the counter (by day, and a lantern-lit late-night
+one) are Higgsfield Qwen Image 3 pictures in the menu icons' style, cut out
+with `tools/menu-icons/cutout.py` and saved as small WebPs in
+`assets/games/sushi/art/` (~240 KB). `build-games` inlines them as data URLs
+(`loader: {'.webp': 'dataurl'}`). The belt is drawn in code: a sage ceramic rim
+and a slate surface with moving slats, three rows joined by rounded turns.
+Plates come out from under a sage noren by the chef and leave off the bottom
+right. Icon `assets/images/games/sushi-conveyor.png`: a sage toy train pulling
+two cars of sushi. The user picked it (option C) from a second round of three
+in the other games' chunky style. A belt loop and a plate stack were the other
+two, and a busier sushi-bar icon from the first round was replaced.
+- **Rules** (`assets/games/sushi/sim.js`, no drawing): a 75 s round; up to 3
+  order tickets, each asking for 1–3 pieces, with a patience bar. Tap a plate
+  a ticket wants and it flies up to that ticket (the one with the least
+  patience). A filled ticket is served: a bonus of 200–500 by the patience left.
+  A ticket that runs out is a strike; 3 strikes end the round early ("Kitchen
+  closed!").
+  - A plate nobody ordered costs 3 s; it stays on the belt and wobbles.
+  - Wasabi costs 5 s ("Too hot!").
+  - Gold plates score ×3.
+  - Every 4 in a row raises the combo multiplier by 0.5 (up to ×3); three of
+    the same piece in a row is a "Triple!" (+300).
+  - **Belt levels every 15 s** (`LEVELS`): faster (0.9 → 1.9 diameters/s),
+    more and bigger tickets, ebi/edamame, then ikura, then uni, wasabi from
+    belt 2.
+  - **Fair by construction:** half the plates are what the tickets still
+    want, and a ticket past half its patience whose piece isn't on the belt
+    gets it next. `simulate()` (on `__sushi`) runs a perfect bot. At reaction
+    times of 0.4, 1 and 2 s over 1,800 rounds no ticket ever ran out; before
+    the urgent rule, 2–9% of rounds did. The e2e checks 20 rounds.
+- **The secret:** a **lucky cat** rides by in about half of all rounds,
+  between 25 and 55 s. Tap it for +1,000, and the first time **the late-night
+  counter** is unlocked. The seat card then has a "Counter: by day / late
+  night" button. Nothing hints at it beforehand.
+- **Who's at the counter:** the 10 travellers as buttons on the seat card.
+  That's the run's `hero` ("as Mei · belt 4" on the board). The app keeps the
+  seat, the counter and the unlock in `epicasia.sushi.seat` (`sushiSeat` /
+  `saveSushiSeat` in arcade.ts); the game posts `seat` and `unlock {key:'night'}`.
+- **Screens** (DOM cards in cream and sage, like the app): seat → first-time
+  how-to-play (`INIT.tips`) → 3-2-1 "Irasshaimase!" → play → "Gochisōsama!"
+  card with score, NEW HIGH SCORE, orders served, best combo, and Play again /
+  Change seat / Leave. The pause menu (❚❚, Esc/P, or hiding the page) has
+  Resume, Sound, Music, Restart round and Leave game. Leaving mid-round saves
+  the score so far.
+- **Sound** (`sound.js` on the shared synth): a gentle D-minor pentatonic
+  loop (koto arpeggio, a breathy lead hook, woodblock), 100 bpm and +6 a belt
+  level. Soft effects: a tok, a landing chime, a pluck run for an order up, a
+  boop, a sizzle, a falling run, a sparkle, the gong at time. **Not heard on a
+  phone yet.**
+- **Scores:** `game_scores` game `sushi_conveyor` (`0028_sushi_conveyor.sql`,
+  applied); `level` is the fastest belt reached and `round` is 1.
+- `window.__sushi`: mode, paused, hero, counter, night, score, time, level,
+  combo, strikes, served, orders, wanted, `plates()` (with screen positions),
+  `simulate(seed, reaction)`, `perf()`. In development `debug` adds calm, skip,
+  spawn(type, {gold, at}), clear, order(types), setTime, setT, expire, pause.
+- Tests: `e2e/sushi.spec.ts` covers:
+  - the board;
+  - play: the fairness simulation, picking Mei, a gold salmon (+300) and a
+    tuna serving an order, an unordered edamame (−3 s, combo gone, stays on
+    the belt), wasabi (−5 s), a late ticket as a strike, time up, and the
+    exact `game_scores` insert, Play again, pause freezing the clock, Leave;
+  - the belt levels;
+  - the lucky cat unlocking the night counter, remembered with the seat
+    across a reload;
+  - the first-time tips.
+
+  Plus axe on the board and inside the game (seat card and playing; every
+  button ≥ 44).
+- **Not checked on a phone yet:** how it feels to tap moving plates with a
+  thumb, and the sound.
+
 ### Games → performance check (Oct 18 2026)
 
 The user asked to "double check all games for playability and performance issues". Each arcade game
@@ -1873,7 +1951,8 @@ backend code.
   `0025_shinkansen_liam.sql` (… and `liam`),
   `0026_chain_gang.sql` (`game_scores.game` may be `chain_gang`; the
   realtime policies also allow `chaingang:%` topics — see Tug of Wall),
-  `0027_mei.sql` (`game_scores.hero` may be `mei`).
+  `0027_mei.sql` (`game_scores.hero` may be `mei`),
+  `0028_sushi_conveyor.sql` (`game_scores.game` may be `sushi_conveyor`).
   **Applied** to project `rjywjnidmjpfcjymaavi` via the Supabase MCP
   connector (`mcp__Supabase__apply_migration`) — the connector is connected
   for this account, so use it directly for future schema changes rather

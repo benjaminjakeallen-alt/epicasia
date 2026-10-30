@@ -64,6 +64,14 @@ export const GAMES: {
     image: require('../../assets/images/games/chain-gang.png'),
     href: '/(app)/games/chaingang',
   },
+  {
+    key: 'sushi_conveyor',
+    title: 'Sushi Conveyor',
+    line: 'Tap the plates the orders ask for as the belt speeds up. 75 seconds a round.',
+    icon: 'restaurant-outline',
+    image: require('../../assets/images/games/sushi-conveyor.png'),
+    href: '/(app)/games/sushi',
+  },
 ];
 
 export type Entry = {

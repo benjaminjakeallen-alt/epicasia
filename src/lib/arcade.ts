@@ -3,7 +3,7 @@ import { cached } from './offline';
 import { supabase } from './supabase';
 
 // Arcade game scores (0014_game_scores.sql): Godzilla Rampage, Shinkansen
-// Dash and Tug of Wall. Each game is an offline HTML game (assets/games/<slug>/) that posts
+// Dash, Tug of Wall and Sushi Conveyor. Each game is an offline HTML game (assets/games/<slug>/) that posts
 // one `score` message per finished run. Each run is saved as a row; a board
 // shows every player's best run. A run finished offline waits in
 // AsyncStorage and goes up on the next save or the next visit to the board.
@@ -12,6 +12,7 @@ export const ARCADE = {
   godzilla_rampage: { slug: 'rampage' },
   shinkansen_dash: { slug: 'shinkansen' },
   chain_gang: { slug: 'chaingang' },
+  sushi_conveyor: { slug: 'sushi' },
 } as const;
 export type ArcadeGame = keyof typeof ARCADE;
 
@@ -92,6 +93,27 @@ export async function unlockHero(game: ArcadeGame, hero: unknown): Promise<void>
   const have = await unlockedHeroes(game);
   if (have.includes(h)) return;
   await AsyncStorage.setItem(`epicasia.${ARCADE[game].slug}.unlocked`, JSON.stringify([...have, h])).catch(() => {});
+}
+
+/** Sushi Conveyor: who's at the counter and which counter (the late-night one is a secret the
+ *  game finds; it posts `unlock` and this phone keeps it). */
+export type SushiSeat = { hero: Hero; counter: 'day' | 'night'; night: boolean };
+const SUSHI_KEY = 'epicasia.sushi.seat';
+export async function sushiSeat(): Promise<SushiSeat> {
+  try {
+    const raw = JSON.parse((await AsyncStorage.getItem(SUSHI_KEY)) ?? '{}');
+    const night = raw.night === true;
+    return { hero: HEROES.find((h) => h === raw.hero) ?? 'chris', counter: night && raw.counter === 'night' ? 'night' : 'day', night };
+  } catch {
+    return { hero: 'chris', counter: 'day', night: false };
+  }
+}
+export async function saveSushiSeat(change: { hero?: unknown; counter?: unknown; night?: boolean }): Promise<void> {
+  const cur = await sushiSeat();
+  const hero = HEROES.find((h) => h === change.hero) ?? cur.hero;
+  const night = cur.night || change.night === true;
+  const counter = change.counter === 'night' || change.counter === 'day' ? change.counter : cur.counter;
+  await AsyncStorage.setItem(SUSHI_KEY, JSON.stringify({ hero, night, counter: night ? counter : 'day' })).catch(() => {});
 }
 
 async function readPending(game: ArcadeGame): Promise<Run[]> {
