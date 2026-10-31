@@ -1366,10 +1366,14 @@ with `tools/menu-icons/cutout.py` and saved as small WebPs in
 (`loader: {'.webp': 'dataurl'}`). The belt is drawn in code: a sage ceramic rim
 and a slate surface with moving slats, three rows joined by rounded turns.
 Plates come out from under a sage noren by the chef and leave off the bottom
-right. Icon `assets/images/games/sushi-conveyor.png`: a sage toy train pulling
-two cars of sushi. The user picked it (option C) from a second round of three
-in the other games' chunky style. A belt loop and a plate stack were the other
-two, and a busier sushi-bar icon from the first round was replaced.
+right. Icon `assets/images/games/sushi-conveyor.png`: a wooden geta board with
+salmon, maki and tamago, a sage soy dish and wasabi.
+- The user picked it (option C) from a third round of four.
+- The other three in that round: a plate with chopsticks, a belt section with
+  a gold plate, and a turntable.
+- Replaced along the way: a busy sushi-bar icon from the first round, and the
+  sage toy train from the second round (the user's first pick, which they
+  didn't like once it was in).
 - **Rules** (`assets/games/sushi/sim.js`, no drawing): a 75 s round; up to 3
   order tickets, each asking for 1–3 pieces, with a patience bar. Tap a plate
   a ticket wants and it flies up to that ticket (the one with the least

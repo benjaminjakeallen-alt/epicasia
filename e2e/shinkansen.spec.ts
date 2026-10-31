@@ -401,8 +401,10 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
   const hop = (await sw()).peak;
   expect(hop).toBeLessThan(1.5);
+  // (held for 0.75 s of game time — 45 fixed steps — not of the clock: under load a frame can cover less)
+  const held = (await sw()).steps;
   await page.mouse.down();
-  await page.waitForTimeout(700);
+  await expect.poll(async () => (await sw()).steps - held, { timeout: 10_000, intervals: [50] }).toBeGreaterThanOrEqual(45);
   await page.mouse.up();
   await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
   expect((await sw()).peak).toBeGreaterThan(2.3);
@@ -893,7 +895,10 @@ test('missions, the multiplier, a lucky cat resetting it, your best gate, and he
   // a lucky cat (and its mission), then a fairing: the cat saves you and the multiplier starts again
   await debug(f, 'spawn', 'neko', 1, 8);
   await expect.poll(async () => (await st(f)).shield).toBe(true);
-  expect((await f.evaluate(() => (window as any).__dash.missions)).filter((m: { done: boolean }) => m.done).map((m: { id: string }) => m.id).sort()).toEqual(['mult', 'neko']);
+  // (the mission is ticked off on the game step after the pickup)
+  await expect
+    .poll(async () => (await f.evaluate(() => (window as any).__dash.missions)).filter((m: { done: boolean }) => m.done).map((m: { id: string }) => m.id).sort())
+    .toEqual(['mult', 'neko']);
   await debug(f, 'spawn', 'hump', 1, 10);
   await expect.poll(async () => (await st(f)).shield).toBe(false);
   expect(await f.evaluate(() => (window as any).__dash.mult)).toBe(1);
@@ -912,7 +917,8 @@ test('missions, the multiplier, a lucky cat resetting it, your best gate, and he
 
   // the run's distance goes back to the app as this phone's best
   await debug(f, 'gameOver', 5000);
-  await expect.poll(() => page.evaluate(() => Number(localStorage.getItem('epicasia.shinkansen.bestDist')))).toBeGreaterThanOrEqual(4300);
+  // (after the 1.3 s crash, in game time: slow frames under load stretch it)
+  await expect.poll(() => page.evaluate(() => Number(localStorage.getItem('epicasia.shinkansen.bestDist'))), { timeout: 20_000 }).toBeGreaterThanOrEqual(4300);
   expect(errors).toEqual([]);
 });
 

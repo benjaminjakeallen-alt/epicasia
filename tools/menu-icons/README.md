@@ -180,5 +180,13 @@ The game's pictures are made like the menu icons and cut out:
   - The other two in the second round: a chunky sage oval belt loop with
     four plates, one gold; and a stack of sage-rimmed plates with nigiri and
     chopsticks.
+  - The user then didn't like the train once it was in.
+  - **Third round,** user's pick C: **"a small wooden sushi geta serving
+    board on two little feet with three pieces of sushi in a row (salmon
+    nigiri, tuna maki, tamago), a muted sage green ceramic soy sauce dish
+    and a dab of wasabi beside them"**.
+  - The others in the third round: a sage-rimmed plate with chopsticks
+    lifting a tuna nigiri, a curved belt section with a gold plate, and a
+    sage revolving turntable.
   - Cut out with `cutout.py <src> <dst> 360 center 1.2` and saved as
     `assets/images/games/sushi-conveyor.png`.
