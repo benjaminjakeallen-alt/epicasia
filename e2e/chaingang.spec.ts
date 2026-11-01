@@ -72,6 +72,10 @@ test('tug of wall: every stretch is winnable by a gang of bots (1–4 of them)',
   const fl = await chain(f, (c) => c.floatTest());
   expect(fl.lowest).toBeLessThan(-2);
   expect(fl.onTop).toBe(true);
+  // holding GRAB on something moving keeps you on it, and a teammate hanging off it is hauled up onto it, from any side
+  const rides = await chain(f, (c) => c.moverTest());
+  expect(rides.length).toBeGreaterThan(30);
+  expect(rides.filter((r: { drift: number; up: number | null }) => r.drift > 0.6 || r.up === null || r.up > 6)).toEqual([]);
 });
 
 test('tug of wall: practise with bots, clear all four stretches, the run is saved', async ({ page }) => {

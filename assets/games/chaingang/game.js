@@ -17,7 +17,7 @@
 // exit. From the app: net {msg}, peer-left {i}, host-left.
 
 import { LEVELS } from './levels.js';
-import { STEP, createSim, stepSim, botInput, simulateLevel, knock } from './sim.js';
+import { STEP, createSim, stepSim, botInput, simulateLevel, knock, moverBox } from './sim.js';
 import { createRenderer } from './render3d.js';
 import { SFX, audio, music, duck, isMuted, isMusicOn, setMuted, setMusic, musicState } from './sound.js';
 
@@ -707,6 +707,28 @@ window.__chain = {
     for (let k = 0; k < 240; k++) { stepSim(sim, [{ grab: true }, {}]); lowest = Math.min(lowest, b.y - sp.y); }
     return { lowest: +lowest.toFixed(2), onTop: !!b.ground && b.y > sp.y - 0.3 };
   },
+  // holding on to something that moves (user, Nov 1 2026, Dragon Festival: "I fell off the platform and all characters
+  // floated away in a direction, not falling"): one holds GRAB on each kind of moving platform with the other hanging off
+  // it from a side and from under it. The holder must stay on it (it used to carry them on in a straight line, off it and
+  // through the air, the gang with them) and the one hanging must be hauled up onto it
+  moverTest: () => LEVELS.flatMap((L, lv) => {
+    const kinds = {};
+    L.movers.forEach((m, k) => { if (m.kind !== 'part' && !(m.kind in kinds)) kinds[m.kind] = k; });
+    return Object.entries(kinds).flatMap(([kind, k]) => [[2.2, 0], [0, 2.2], [-2.2, 0], [0.2, 0.2]].map((off) => {
+      const sim = createSim(lv, [{ hero: 'chris' }, { hero: 'jake' }]), [a, b] = sim.players;
+      sim.t = 3;
+      const m = L.movers[k], box = moverBox(m, sim.t), cx = (box.x0 + box.x1) / 2, cz = (box.z0 + box.z1) / 2;
+      Object.assign(a, { x: cx, y: box.y1, z: cz }); Object.assign(b, { x: cx + off[0], y: box.y1 - 4.2, z: cz + off[1] });
+      let drift = 0, up = null;
+      for (let i = 0; i < 60 * 8; i++) {
+        stepSim(sim, [{ grab: true }, {}]);
+        const o = moverBox(m, sim.t);
+        drift = Math.max(drift, Math.hypot(a.x - (o.x0 + o.x1) / 2, a.z - (o.z0 + o.z1) / 2));
+        if (up === null && b.ground && b.ground.mover && b.y > a.y - 1.2) up = +(sim.t - 3).toFixed(1);
+      }
+      return { lv, kind, off, drift: +drift.toFixed(2), up };
+    }));
+  }),
   // three people online, headless (user, Oct 17 2026: "when we all fell we all whipped in a circle and we
   // never reset"): a host and two phones as they really run — the host moves its own traveller and places
   // the others where their phones last said (repD steps ago); each phone moves only its own and places the

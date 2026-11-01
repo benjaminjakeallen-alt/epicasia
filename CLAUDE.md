@@ -1255,6 +1255,28 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
     foot, which pulled away from the gang, and everyone waited for ever.
     `laterLeg()` now moves it on to the leg it's standing on.
     Re-proved: 128/128, 12/12, the rope never inside anything.
+  - *Floating away on a moving platform* (user, Nov 1 2026, Dragon
+    Festival: "I fell off the platform and all characters floated away in
+    a direction, not falling").
+    - The cause: holding GRAB on something moving (the dragon, a cart,
+      the carousel) carried you on at the speed it had when you grabbed,
+      in a straight line. Nothing checked that it was still under you,
+      because GRAB skips your own movement. As the gang's anchor, you
+      took everyone with you through the air.
+    - Now each step a traveller on a moving thing is put on it where it is
+      now, or falls if it's gone from under them.
+    - Hauling up onto a moving thing also works now. It's allowed with no
+      wall face (the platform carries you both). Someone right under it is
+      lifted up close beneath it and slid out the nearest clear side the
+      rope reaches, then hauled up. Bots dig in on moving things too.
+    - The lip check looks a little further in (`R * 1.3`), so nobody
+      hovers caught on a cart's rope post.
+    - `__chain.moverTest()` checks it: GRAB on every kind of moving thing
+      on every stretch, with the other hanging off a side or right under.
+      All 48 cases stay on, at most 0.17 m off centre, and are hauled up in
+      1.3–5.5 s. The old code failed all 48: a holder drifted up to 22.5 m
+      away.
+    - Re-proved: 128/128 bot gangs and 12/12 person-led.
 
   **Looks:** each rope glows warm
   and throbs when pulled tight; a traveller hauling leans back hand over hand;

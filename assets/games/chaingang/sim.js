@@ -179,6 +179,15 @@ export function stepSim(sim, inputs) {
     p.coy = p.ground ? COYOTE : Math.max(0, p.coy - dt);
     if (p.scrT > 0) p.scrT -= dt;
     if (p.knockT > 0) p.knockT -= dt;
+    // on something that moves: where it is now. Holding GRAB you don't move by yourself, so nothing else
+    // looked again — you were carried on at the speed it had when you grabbed, in a straight line, off it
+    // and away through the air, and as the gang's anchor you took them all with you (user, Nov 1 2026,
+    // Dragon Festival: "all characters floated away in a direction, not falling"). Gone from under you: you fall.
+    if (p.ground && p.ground.mover) {
+      const cur = solids.find((s) => s.id === p.ground.id);
+      p.ground = cur && p.x > cur.x0 - R && p.x < cur.x1 + R && p.z > cur.z0 - R && p.z < cur.z1 + R && Math.abs(p.y - cur.y1) < 0.35 ? cur : null;
+      if (p.ground) p.y = p.ground.y1;
+    }
     const ground = p.ground;
 
     // GRAB: on the ground (or against a wall) you dig in and become the gang's anchor
@@ -238,23 +247,42 @@ export function stepSim(sim, inputs) {
     const wasReeled = p.reeled; p.reeled = false;
     // (not with something that moves right above you — a cart, a lantern: the reel only jammed you up under
     // it; out from under it first, then the reel can take you. Under stone, you slide out toward them)
-    const overhead = solids.some((s) => s.mover && p.x > s.x0 - R && p.x < s.x1 + R && p.z > s.z0 - R && p.z < s.z1 + R && s.y0 > p.y + PH - 0.3 && s.y0 < p.y + PH + 3);
+    const overhead = solids.find((s) => s.mover && p.x > s.x0 - R && p.x < s.x1 + R && p.z > s.z0 - R && p.z < s.z1 + R && s.y0 > p.y + PH - 0.3 && s.y0 < p.y + PH + 3);
+    // …but hanging under something moving that a teammate rides and holds you from (the dragon, a cart),
+    // you're brought out from under it to its nearest side, and then hauled up onto it — otherwise you
+    // hung there and it towed the whole gang off through the air (user, Nov 1 2026, Dragon Festival: "I
+    // fell off the platform and all characters floated away in a direction, not falling")
+    const rider = (q) => q && q.grab && q.ground && q.ground.mover && q.y > p.y - 0.5;
+    if (!ground && anchored && p.knockT <= 0 && overhead && (rider(sim.players[i - 1]) || rider(sim.players[i + 1]))) {
+      // (lifted up close under it as you go — the rope's too short to swing out sideways from far below —
+      // and out the nearest side the rope reaches from there)
+      const o = overhead, q = rider(sim.players[i - 1]) ? sim.players[i - 1] : sim.players[i + 1], top = o.y0 - PH - 0.15;
+      const outs = [[o.x0 - R - 0.3 - p.x, 0], [o.x1 + R + 0.3 - p.x, 0], [0, o.z0 - R - 0.3 - p.z], [0, o.z1 + R + 0.3 - p.z]];
+      const reach = (u) => Math.hypot(p.x + u[0] - q.x, top - q.y, p.z + u[1] - q.z) < CHAIN - 0.2;
+      const clear = (u) => !solids.some((s) => !s.oneWay && hit(p.x + u[0], Math.max(p.y, top), p.z + u[1], s)); // (not into the rock beside it)
+      const out = outs.sort((u, v) => (clear(v) - clear(u)) || (reach(v) - reach(u)) || Math.hypot(...u) - Math.hypot(...v))[0];
+      const n = Math.hypot(...out) || 1;
+      p.vx = (o.vx || 0) + (out[0] / n) * REEL_IN_V * 1.5; p.vz = (o.vz || 0) + (out[1] / n) * REEL_IN_V * 1.5;
+      p.vy = Math.max(p.vy, Math.max(-1, Math.min(REEL, (top - p.y) * 6))); p.hung = true;
+    }
     if (!ground && anchored && p.knockT <= 0 && !overhead) {
       // (once it's begun, a haul carries on right up to them, however close. It's for hauling someone up the
-      // wall face under you, so it starts only with them against the face of the ledge you're on: it used to
+      // wall face under you, so it starts only with them against the face of the ledge you're on — or under
+      // the moving thing you ride, which has no face but carries you both: it used to
       // lift a dangler level with whoever held them and fly them across open air to them — user, Oct 18 2026,
       // on Lantern Night: "we floated across a gap to the wall")
       const up = [sim.players[i - 1], sim.players[i + 1]].find((q) => q && q.grab && q.ground && q.y > p.y - 0.5
-        && (wasReeled || (Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2 && faceToward(p, q, solids))));
+        && (wasReeled || (Math.hypot(q.x - p.x, q.y - p.y, q.z - p.z) > 1.2 && (q.ground.mover || faceToward(p, q, solids)))));
       if (up) {
         const dx = up.x - p.x, dz = up.z - p.z, d = Math.hypot(dx, dz) || 1;
         p.reeled = true; p.hung = true; // (from here it's a steady haul, not a kick each time the rope pulls tight)
         // up to just over the lip and held there, smoothly (no bobbing), while drawn in — it only ever lifts
         // (never slows a jump); once there's
         // ground right under your feet, let go and you step down onto it
-        // (under their feet or under the half of them toward whoever holds them: pinned against the holder at the
-        // lip by the push apart, they'd hover there for ever with their middle just out over the drop)
-        const floor = Math.max(groundBelow(sim, p.x, p.z, p.y + 0.05), groundBelow(sim, p.x + (dx / d) * R * 0.6, p.z + (dz / d) * R * 0.6, p.y + 0.05));
+        // (under their feet or just past their edge toward whoever holds them: pinned at the lip — against the
+        // holder by the push apart, or a cart's rope post — they'd hover there for ever, their middle just out
+        // over the drop)
+        const floor = Math.max(groundBelow(sim, p.x, p.z, p.y + 0.05), groundBelow(sim, p.x + (dx / d) * R * 1.3, p.z + (dz / d) * R * 1.3, p.y + 0.05));
         const over = p.y - floor <= 0.3;
         if (!over) p.vy = Math.max(p.vy, Math.max(-1, Math.min(REEL, (up.y + 0.2 - p.y) * 8)));
         // drawn in toward them at a steady pace (set, not built up: pressed against a wall face the push
@@ -537,7 +565,8 @@ export function botInput(sim, i) {
   if (reeling && theirs(reeling)) reeling = null;
   if (!reeling && hanging && nbrs.includes(hanging) && !theirs(hanging)) { reeling = hanging; p.reelStart = sim.t; p.reelUntil = sim.t + 5; }
   p.reelFor = reeling ? sim.players.indexOf(reeling) : null;
-  if (reeling && p.ground && !p.ground.mover && p.ground.crumble === undefined) { out.grab = true; return out; }
+  // (on something moving too: you ride it holding on, and haul them up onto it)
+  if (reeling && p.ground && p.ground.crumble === undefined) { out.grab = true; return out; }
   if (hanging && p.ground && !(nbrs.includes(hanging) && theirs(hanging))) {
     const [ax, az] = flat(p.x - hanging.x, p.z - hanging.z);
     if (footing(p.x + ax * 0.8, p.z + az * 0.8)) { out.mx = ax; out.mz = az; } else out.grab = true;
