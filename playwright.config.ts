@@ -1,12 +1,15 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// E2E_PORT lets several checkouts (git worktrees) run their suites side by side, each on its own dev server.
+const PORT = Number(process.env.E2E_PORT || 8081);
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
   // On CI the github reporter also turns each failure into an annotation on the run.
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: `http://localhost:${PORT}`,
     trace: 'on-first-retry',
   },
   projects: [
@@ -25,8 +28,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npx expo start --web --port 8081',
-    url: 'http://localhost:8081',
+    command: `npx expo start --web --port ${PORT}`,
+    url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: { BROWSER: 'none' },
