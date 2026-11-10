@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  Animated,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +19,7 @@ import { confirm } from '../../lib/confirm';
 import { addDays, formatMonthDay, formatWeekday, todayDay } from '../../lib/dates';
 import { deleteEntry, hasContent, saveDraft, type Draft, type DraftMedia, type JournalEntry } from '../../lib/journal';
 import { signedUrls } from '../../lib/photos';
+import { POP, useEnter } from '../../lib/socialMotion';
 import { stopForDay } from '../../lib/places';
 import { draftJournal, imageForYuki } from '../../lib/yuki';
 import { colors as c, legTextColors, shadow } from '../../theme/colors';
@@ -36,6 +39,33 @@ const PHOTO = 92;
 function legText(day: string): string | null {
   const stop = stopForDay(day);
   return stop ? legTextColors[stop.key as keyof typeof legTextColors] : null;
+}
+
+// What you've typed in a NEW entry is kept on the phone until it's saved or
+// discarded, so a reload (iPhone drops a web app from memory) doesn't lose it.
+// Photos and voice notes can't be kept this way.
+type KeptText = Pick<Draft, 'title' | 'body' | 'city' | 'day' | 'shared'>;
+// Under the offline copies' prefix, so signing out deletes it with them.
+const draftKey = (userId: string) => `epicasia.cache.${userId}.journalDraft`;
+
+// Things that appear while you write (Yuki's draft, a status line, the recorder) ease in.
+function Rise({ children }: { children: ReactNode }) {
+  const t = useEnter();
+  return (
+    <Animated.View style={{ opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// A photo tile pops in when it's added.
+function Pop({ children }: { children: ReactNode }) {
+  const t = useEnter(true, POP);
+  return (
+    <Animated.View style={{ opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }}>
+      {children}
+    </Animated.View>
+  );
 }
 
 export default function JournalEditor({
@@ -58,6 +88,62 @@ export default function JournalEditor({
   const [writing, setWriting] = useState(false);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const saved = useRef(JSON.stringify(initial));
+  const [restored, setRestored] = useState(false);
+  const keep = useRef(false); // set once the kept draft has been looked for
+
+  // A new entry picks up the text left unsaved last time.
+  useEffect(() => {
+    if (!initial.isNew) return;
+    let alive = true;
+    AsyncStorage.getItem(draftKey(userId))
+      .then((raw) => {
+        if (!alive) return;
+        const kept = raw ? (JSON.parse(raw) as Partial<KeptText>) : null;
+        if (kept && (kept.title?.trim() || kept.body?.trim())) {
+          setDraft((d) =>
+            d.title || d.body
+              ? d
+              : {
+                  ...d,
+                  title: String(kept.title ?? ''),
+                  body: String(kept.body ?? ''),
+                  city: typeof kept.city === 'string' ? kept.city : d.city,
+                  day: typeof kept.day === 'string' ? kept.day : d.day,
+                  shared: !!kept.shared,
+                },
+          );
+          setCityEdited(true);
+          setRestored(true);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        keep.current = true;
+      });
+    return () => {
+      alive = false;
+    };
+  }, [initial.isNew, userId]);
+
+  // …and keeps it as you type (a moment after you stop).
+  const { title, body, city, day, shared } = draft;
+  useEffect(() => {
+    if (!initial.isNew) return;
+    const id = setTimeout(() => {
+      if (!keep.current) return;
+      const text: KeptText = { title, body, city, day, shared };
+      (title.trim() || body.trim()
+        ? AsyncStorage.setItem(draftKey(userId), JSON.stringify(text))
+        : AsyncStorage.removeItem(draftKey(userId))
+      ).catch(() => {});
+    }, 400);
+    return () => clearTimeout(id);
+  }, [initial.isNew, userId, title, body, city, day, shared]);
+
+  const forget = () => {
+    keep.current = false; // nothing typed from here on is kept either
+    return AsyncStorage.removeItem(draftKey(userId)).catch(() => {});
+  };
 
   const set = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }));
   const setMedia = (id: string, patch: Partial<DraftMedia>) =>
@@ -108,6 +194,11 @@ export default function JournalEditor({
     setDraft((d) => ({ ...d, media: [...d.media, ...added] }));
   }
 
+  async function removeNote(id: string) {
+    // A recording can't be picked again the way a photo can.
+    if (await confirm('Remove this voice note?', 'The recording will be gone once you save.')) removeMedia(id);
+  }
+
   function removeMedia(id: string) {
     setDraft((d) => ({ ...d, media: d.media.filter((m) => m.id !== id) }));
   }
@@ -124,6 +215,7 @@ export default function JournalEditor({
         if (total) setSaving(`Uploading ${Math.min(done + 1, total)} of ${total}…`);
       });
       saved.current = JSON.stringify(draft);
+      await forget();
       router.back();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save. Check your connection and try again.');
@@ -137,6 +229,7 @@ export default function JournalEditor({
       const leave = await confirm('Discard changes?', 'This entry has changes that are not saved.');
       if (!leave) return;
     }
+    await forget();
     router.back();
   }
 
@@ -203,7 +296,10 @@ export default function JournalEditor({
           disabled={!!saving}
           onPress={save}
           testID="journal-save"
-          style={({ pressed }) => [styles.save, { backgroundColor: pressed ? c.accentPressed : c.accent }]}
+          style={({ pressed }) => [
+            styles.save,
+            { backgroundColor: pressed ? c.accentPressed : c.accent, opacity: saving ? 0.6 : 1 },
+          ]}
         >
           <Text style={[type.button, { color: c.onAccent }]}>Save</Text>
         </Pressable>
@@ -215,14 +311,36 @@ export default function JournalEditor({
         showsVerticalScrollIndicator={false}
       >
         {saving ? (
-          <Text style={[type.bodyStrong, styles.status, { color: c.highlight }]} accessibilityLiveRegion="polite">
-            {saving}
-          </Text>
+          <Rise>
+            <Text style={[type.bodyStrong, styles.status, { color: c.highlight }]} accessibilityLiveRegion="polite">
+              {saving}
+            </Text>
+          </Rise>
         ) : null}
         {error ? (
-          <Text style={[type.body, styles.status, { color: c.danger }]} accessibilityLiveRegion="assertive">
-            {error}
-          </Text>
+          <Rise>
+            <Text style={[type.body, styles.status, { color: c.danger }]} accessibilityLiveRegion="assertive">
+              {error}
+            </Text>
+          </Rise>
+        ) : null}
+        {restored ? (
+          <Rise>
+            <View style={styles.restored} testID="journal-restored">
+              <Ionicons name="time-outline" size={18} color={c.highlight} />
+              <Text style={[type.body, styles.flex, { color: c.ink }]}>Unsaved entry restored</Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setDraft((d) => ({ ...d, title: '', body: '', shared: false }));
+                  setRestored(false);
+                }}
+                style={styles.restoredBtn}
+              >
+                <Text style={[type.bodyStrong, { color: c.highlight }]}>Start fresh</Text>
+              </Pressable>
+            </View>
+          </Rise>
         ) : null}
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
@@ -234,6 +352,8 @@ export default function JournalEditor({
                 key={d}
                 accessibilityRole="button"
                 accessibilityState={{ selected: on }}
+                // RN-web drops `selected` on a button; this is what a screen reader hears.
+                aria-pressed={on}
                 accessibilityLabel={`${formatWeekday(d)} ${formatMonthDay(d)}${d === todayDay() ? ', today' : ''}`}
                 onPress={() => pickDay(d)}
                 style={[styles.day, { backgroundColor: on ? c.accent : c.card }]}
@@ -286,6 +406,7 @@ export default function JournalEditor({
         </View>
 
         {suggestion ? (
+          <Rise>
           <View style={[styles.card, styles.suggestion]} testID="yuki-draft">
             <View style={styles.suggestionHead}>
               <YukiMark size={24} />
@@ -322,6 +443,7 @@ export default function JournalEditor({
               </Pressable>
             </View>
           </View>
+          </Rise>
         ) : hasNotes ? (
           <Pressable
             accessibilityRole="button"
@@ -346,7 +468,8 @@ export default function JournalEditor({
           {photos.map((m, i) => {
             const src = m.localUri ?? (m.storage_path ? urls[m.thumb_path ?? m.storage_path] : undefined);
             return (
-              <View key={m.id} style={styles.photoWrap} testID="journal-photo">
+              <Pop key={m.id}>
+              <View style={styles.photoWrap} testID="journal-photo">
                 {src ? (
                   <Image
                     source={{ uri: src, cacheKey: m.storage_path ? `journal:${m.thumb_path ?? m.storage_path}` : undefined }}
@@ -368,6 +491,7 @@ export default function JournalEditor({
                   </View>
                 </Pressable>
               </View>
+              </Pop>
             );
           })}
           <Pressable
@@ -404,10 +528,11 @@ export default function JournalEditor({
               onChangeCaption={(caption) => setMedia(m.id, { caption })}
               transcript={m.transcript}
               onChangeTranscript={(transcript) => setMedia(m.id, { transcript })}
-              onRemove={() => removeMedia(m.id)}
+              onRemove={() => void removeNote(m.id)}
             />
           ))}
           {recording ? (
+            <Rise>
             <VoiceRecorder
               onCancel={() => setRecording(false)}
               onDone={(n) => {
@@ -429,6 +554,7 @@ export default function JournalEditor({
                 }));
               }}
             />
+            </Rise>
           ) : (
             <Pressable
               accessibilityRole="button"
@@ -485,6 +611,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     boxShadow: shadow.card,
   },
+  restored: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 52,
+    borderRadius: 18,
+    paddingLeft: 14,
+    paddingRight: 6,
+    backgroundColor: c.card,
+    boxShadow: shadow.card,
+  },
+  restoredBtn: { minHeight: 44, paddingHorizontal: 12, justifyContent: 'center' },
   screen: { flex: 1 },
   flex: { flex: 1 },
   header: {
