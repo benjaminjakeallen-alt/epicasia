@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import FormButton from '../components/form/FormButton';
-import FormField from '../components/form/FormField';
+import PasswordField from '../components/form/PasswordField';
 import FormScreen from '../components/form/FormScreen';
 import { supabase } from '../lib/supabase';
 
@@ -85,21 +85,21 @@ export default function ResetPassword() {
 
   return (
     <FormScreen title="Set New Password" error={saveError}>
-      <FormField
+      <PasswordField
         label="New Password"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <FormField
+      <PasswordField
         label="Confirm Password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
-        secureTextEntry
         textContentType="newPassword"
         autoComplete="new-password"
+        returnKeyType="go"
+        onSubmitEditing={handleSave}
       />
       <FormButton label="Save Password" onPress={handleSave} loading={saving} />
     </FormScreen>

@@ -1,5 +1,6 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { shadow } from '../../theme/colors';
+import { PressScale } from '../shell/motion';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
 
@@ -26,10 +27,11 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
   }
 
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       onPress={onPress}
       disabled={isDisabled}
+      accessibilityState={{ disabled: !!isDisabled, busy: !!loading }}
       style={({ pressed }) => [
         styles.button,
         {
@@ -44,7 +46,7 @@ export default function FormButton({ label, onPress, loading, disabled, variant 
       ) : (
         <Text style={[type.button, { color: colors.onAccent }]}>{label}</Text>
       )}
-    </Pressable>
+    </PressScale>
   );
 }
 

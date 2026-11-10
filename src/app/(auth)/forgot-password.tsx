@@ -15,9 +15,15 @@ export default function ForgotPassword() {
   const [sent, setSent] = useState(false);
 
   async function handleSend() {
+    if (loading) return;
     setError(null);
+    const cleanEmail = email.trim();
+    if (!/^\S+@\S+\.\S+$/.test(cleanEmail)) {
+      setError('Enter the email address you signed up with.');
+      return;
+    }
     setLoading(true);
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: authReturnUrl('/reset-password'),
     });
     setLoading(false);
@@ -37,7 +43,7 @@ export default function ForgotPassword() {
     return (
       <FormScreen
         title="Check your email"
-        subtitle={`If an account exists for ${email}, a reset link is on its way.`}
+        subtitle={`If an account exists for ${email.trim()}, a reset link is on its way.`}
       >
         <FormButton label="Back to Sign In" onPress={() => router.replace('/(auth)/login')} />
       </FormScreen>
@@ -60,6 +66,8 @@ export default function ForgotPassword() {
         keyboardType="email-address"
         textContentType="emailAddress"
         autoComplete="email"
+        returnKeyType="send"
+        onSubmitEditing={handleSend}
       />
       <FormButton label="Send Reset Link" onPress={handleSend} loading={loading} />
     </FormScreen>

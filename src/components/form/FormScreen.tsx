@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
+import { Appear } from '../shell/motion';
 import SkyBackdrop from '../SkyBackdrop';
 
 type Props = {
@@ -55,8 +56,18 @@ export default function FormScreen({ title, subtitle, error, children, footer, h
             </Text>
           ) : null}
 
+          {/* Keyed by its text, so a new problem settles in afresh (and is read out). */}
           {error ? (
-            <Text style={[type.body, styles.error, { color: colors.error }]}>{error}</Text>
+            <Appear key={error} from="above" distance={6}>
+              <Text
+                style={[type.body, styles.error, { color: colors.error }]}
+                accessibilityRole="alert"
+                accessibilityLiveRegion="assertive"
+                testID="form-error"
+              >
+                {error}
+              </Text>
+            </Appear>
           ) : null}
 
           <View style={styles.form}>{children}</View>

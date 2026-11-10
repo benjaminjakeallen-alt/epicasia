@@ -10,6 +10,8 @@ import YukiWakeRow from '../../components/yuki/YukiWakeRow';
 import CircleButton from '../../components/CircleButton';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
+import PasswordField from '../../components/form/PasswordField';
+import { Appear, PressScale } from '../../components/shell/motion';
 import { Bone } from '../../components/Skeleton';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import { useAuth } from '../../lib/AuthProvider';
@@ -35,6 +37,7 @@ export default function ProfileScreen() {
   const [busy, setBusy] = useState<'photo' | 'name' | 'password' | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,6 +49,13 @@ export default function ProfileScreen() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load your profile'));
   }, [myId]);
+
+  // A confirmation ("Name saved") has said its piece after a few seconds.
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   async function pick(fromCamera: boolean) {
     setError(null);
@@ -111,7 +121,9 @@ export default function ProfileScreen() {
   }
 
   async function signOut() {
+    if (signingOut) return;
     if (!(await confirm('Sign out?', 'You can sign back in with your email and password.'))) return;
+    setSigningOut(true); // (the screen goes away when the session does)
     await unregisterPush().catch(() => {});
     await clearOfflineCopies();
     await clearLocalDocuments();
@@ -201,14 +213,18 @@ export default function ProfileScreen() {
         {nameChanged ? <FormButton label="Save name" onPress={saveName} loading={busy === 'name'} /> : null}
 
         {notice ? (
-          <Text style={[type.bodyStrong, styles.center, { color: c.success }]} accessibilityLiveRegion="polite">
-            {notice}
-          </Text>
+          <Appear key={notice} from="above" distance={6}>
+            <Text style={[type.bodyStrong, styles.center, { color: c.success }]} accessibilityLiveRegion="polite">
+              {notice}
+            </Text>
+          </Appear>
         ) : null}
         {error ? (
-          <Text style={[type.body, styles.center, { color: c.danger }]} accessibilityLiveRegion="assertive">
-            {error}
-          </Text>
+          <Appear key={error} from="above" distance={6}>
+            <Text style={[type.body, styles.center, { color: c.danger }]} accessibilityLiveRegion="assertive">
+              {error}
+            </Text>
+          </Appear>
         ) : null}
 
         <View style={[styles.card, { backgroundColor: c.card }]}>
@@ -219,11 +235,10 @@ export default function ProfileScreen() {
         </View>
 
 
-        <FormField
+        <PasswordField
           label="New password"
           value={newPassword}
           onChangeText={setNewPassword}
-          secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
           textContentType="newPassword"
@@ -235,7 +250,7 @@ export default function ProfileScreen() {
         ) : null}
 
         {profile?.is_admin ? (
-          <Pressable
+          <PressScale
             accessibilityRole="button"
             onPress={() => router.push('/(app)/admin')}
             testID="open-admin"
@@ -244,14 +259,14 @@ export default function ProfileScreen() {
             <Ionicons name="shield-checkmark-outline" size={22} color={c.highlight} />
             <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Admin</Text>
             <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
-          </Pressable>
+          </PressScale>
         ) : null}
 
         <NotificationsRow />
 
         <YukiWakeRow />
 
-        <Pressable
+        <PressScale
           accessibilityRole="button"
           onPress={() => router.push('/(app)/accessibility')}
           testID="open-accessibility"
@@ -260,17 +275,17 @@ export default function ProfileScreen() {
           <Ionicons name="accessibility-outline" size={22} color={c.highlight} />
           <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Accessibility</Text>
           <Ionicons name="chevron-forward" size={20} color={c.inkSecondary} />
-        </Pressable>
+        </PressScale>
 
-        <Pressable
+        <PressScale
           accessibilityRole="button"
           onPress={signOut}
           testID="sign-out"
           style={({ pressed }) => [styles.signOut, { backgroundColor: pressed ? c.dangerSoft : c.card }]}
         >
           <Ionicons name="log-out-outline" size={20} color={c.danger} />
-          <Text style={[type.bodyStrong, { color: c.danger }]}>Sign out</Text>
-        </Pressable>
+          <Text style={[type.bodyStrong, { color: c.danger }]}>{signingOut ? 'Signing out…' : 'Sign out'}</Text>
+        </PressScale>
       </ScrollView>
     </View>
   );

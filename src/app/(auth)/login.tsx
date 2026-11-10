@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
+import PasswordField from '../../components/form/PasswordField';
 import FormScreen from '../../components/form/FormScreen';
 import Wordmark from '../../components/Wordmark';
 import { PHOTOS } from '../../lib/places';
@@ -11,6 +12,17 @@ import { recordSignIn, REMEMBER_DAYS, savedEmail } from '../../lib/rememberMe';
 import { supabase } from '../../lib/supabase';
 import { type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
+
+// Supabase's own wording, in plainer words.
+function signInMessage(message: string) {
+  if (/invalid login credentials/i.test(message)) {
+    return 'That email and password don’t match. Check them, or use “Forgot password?” below.';
+  }
+  if (/failed to fetch|network|load failed/i.test(message)) {
+    return 'Couldn’t reach Epic Asia. Check your connection and try again.';
+  }
+  return message;
+}
 
 export default function Login() {
   const router = useRouter();
@@ -31,15 +43,21 @@ export default function Login() {
   }, []);
 
   async function handleSignIn() {
+    if (loading) return;
     setError(null);
-    setLoading(true);
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (signInError) {
-      setError(signInError.message);
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !password) {
+      setError('Enter your email and password.');
       return;
     }
-    await recordSignIn(remember, email).catch(() => {});
+    setLoading(true);
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: cleanEmail, password });
+    setLoading(false);
+    if (signInError) {
+      setError(signInMessage(signInError.message));
+      return;
+    }
+    await recordSignIn(remember, cleanEmail).catch(() => {});
     // On success, AuthProvider's onAuthStateChange updates the session and
     // (app)/_layout.tsx's Redirect takes over — nothing else to do here.
   }
@@ -80,21 +98,23 @@ export default function Login() {
         keyboardType="email-address"
         textContentType="username"
         autoComplete="username"
+        returnKeyType="next"
       />
-      <FormField
+      <PasswordField
         label="Password"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         textContentType="password"
         autoComplete="password"
+        returnKeyType="go"
+        onSubmitEditing={handleSignIn}
       />
       <Pressable
         testID="remember-me"
         accessibilityRole="checkbox"
         accessibilityState={{ checked: remember }}
+        aria-checked={remember}
         onPress={() => setRemember((r) => !r)}
-        hitSlop={8}
         style={styles.remember}
       >
         <View
@@ -122,8 +142,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    marginTop: -4,
-    marginBottom: 22,
+    // a real 44pt row (the web ignores hitSlop)
+    minHeight: 44,
+    marginTop: -14,
+    marginBottom: 12,
   },
   box: {
     width: 20,

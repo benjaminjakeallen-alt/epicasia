@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import FormButton from '../../components/form/FormButton';
 import FormField from '../../components/form/FormField';
+import PasswordField from '../../components/form/PasswordField';
 import FormScreen from '../../components/form/FormScreen';
 import { INVITE_PATTERN, joinErrorMessage, normalizeInvite } from '../../lib/invites';
 import { PHOTOS } from '../../lib/places';
@@ -21,6 +22,7 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
 
   async function handleRegister() {
+    if (loading) return;
     setError(null);
 
     const code = normalizeInvite(invite);
@@ -103,21 +105,21 @@ export default function Register() {
         textContentType="emailAddress"
         autoComplete="email"
       />
-      <FormField
+      <PasswordField
         label="Password"
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
         textContentType="newPassword"
         autoComplete="new-password"
       />
-      <FormField
+      <PasswordField
         label="Confirm Password"
         value={confirmPassword}
         onChangeText={setConfirmPassword}
-        secureTextEntry
         textContentType="newPassword"
         autoComplete="new-password"
+        returnKeyType="go"
+        onSubmitEditing={handleRegister}
       />
       <FormButton label="Create Account" onPress={handleRegister} loading={loading} />
     </FormScreen>
