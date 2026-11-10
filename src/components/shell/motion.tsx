@@ -144,36 +144,46 @@ let firstScreenShown = false;
 export function ScreenTransition({ children }: { children: ReactNode }) {
   const focused = useIsFocused();
   const v = useRef(new Animated.Value(1)).current;
-  const from = useRef(1); // 1 = arriving (from the right), -1 = coming back (from the left)
-  // Gaining focus starts the glide (state adjusted during render, so the
-  // first painted frame is already the start of it).
-  const [wasFocused, setWasFocused] = useState(false);
   const [moving, setMoving] = useState(false);
-  if (focused !== wasFocused) {
-    setWasFocused(focused);
-    if (focused && firstScreenShown) setMoving(true);
+  const from = useRef(1); // 1 = arriving (from the right), -1 = coming back (from the left)
+  const [seenFocus, setSeenFocus] = useState(false);
+
+  // React's adjust-during-render pattern (not setState in an effect): a change of focus decides whether to glide.
+  if (focused !== seenFocus) {
+    setSeenFocus(focused);
+    if (focused) {
+      if (!firstScreenShown) {
+        from.current = -1;
+      } else {
+        v.setValue(0);
+        setMoving(true);
+      }
+    } else if (moving) {
+      // left mid-glide: settle now, so coming back glides afresh
+      v.setValue(1);
+      setMoving(false);
+    }
   }
 
-  useLayoutEffect(() => {
-    if (!focused) return;
+  useEffect(() => {
     firstScreenShown = true;
-    if (!moving) {
-      from.current = -1;
-      return;
-    }
-    v.setValue(0);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!moving) return;
     const run = Animated.timing(v, {
       toValue: 1,
       duration: 240,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
-    run.start(() => {
+    run.start(({ finished }) => {
+      if (!finished) return;
       from.current = -1; // the next time it gains focus, it's being returned to
       setMoving(false);
     });
     return () => run.stop();
-  }, [focused, moving, v]);
+  }, [moving, v]);
 
   if (!moving) return <Animated.View style={flex}>{children}</Animated.View>;
   const travel = prefersReducedMotion() ? 0 : 18 * from.current;

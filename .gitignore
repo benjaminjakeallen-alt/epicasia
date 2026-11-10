@@ -45,3 +45,6 @@ yarn-error.*
 /playwright-report/
 /playwright/.cache/
 .review/
+
+# agents' temporary git worktrees
+.claude/worktrees/

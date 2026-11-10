@@ -6,7 +6,7 @@ module.exports = defineConfig([
   expoConfig,
   {
     // Build output, and Edge Functions (Deno, `npm:` imports — not part of the app bundle).
-    ignores: ['dist/*', 'supabase/functions/**'],
+    ignores: ['dist/*', 'supabase/functions/**', '.claude/worktrees/**'],
   },
   {
     rules: {
