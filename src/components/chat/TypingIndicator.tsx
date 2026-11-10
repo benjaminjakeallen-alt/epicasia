@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AccessibilityInfo, Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { colors as c, shadow } from '../../theme/colors';
+import { useEnter } from '../../lib/socialMotion';
 import { fontFamily } from '../../theme/typography';
 
 // "Sarah is typing…" with three dots that breathe in turn. Only mounted
@@ -8,6 +9,7 @@ import { fontFamily } from '../../theme/typography';
 // decoration; reduce-motion gets static dots.
 export default function TypingIndicator({ label }: { label: string }) {
   const t = useRef(new Animated.Value(0)).current;
+  const enter = useEnter();
 
   useEffect(() => {
     let loop: Animated.CompositeAnimation | null = null;
@@ -43,14 +45,20 @@ export default function TypingIndicator({ label }: { label: string }) {
   };
 
   return (
-    <View style={styles.row} accessibilityLiveRegion="polite">
+    <Animated.View
+      style={[
+        styles.row,
+        { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] },
+      ]}
+      accessibilityLiveRegion="polite"
+    >
       <View style={styles.bubble}>
         {[0, 1, 2].map((i) => (
           <Animated.View key={i} style={[styles.dot, dot(i)]} />
         ))}
       </View>
       <Text style={styles.label}>{label}</Text>
-    </View>
+    </Animated.View>
   );
 }
 

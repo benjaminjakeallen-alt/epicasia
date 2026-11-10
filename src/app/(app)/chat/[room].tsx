@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Pressable,
   StyleSheet,
@@ -49,6 +50,8 @@ import {
   type Room,
 } from '../../../lib/chat';
 import { markRoomRead } from '../../../lib/chatUnread';
+import { confirm } from '../../../lib/confirm';
+import { usePresence } from '../../../lib/socialMotion';
 import { MAX_VIDEO_BYTES, type PickedPhoto as Picked } from '../../../lib/photos';
 import { notifyChat } from '../../../lib/push';
 import { firstName, personColor, sameDay, sameRun, typingLabel } from '../../../lib/chatFormat';
@@ -130,6 +133,26 @@ export default function ChatRoom() {
   const chat = useRef<ReturnType<typeof subscribeChat> | null>(null);
   const membersRef = useRef<Member[]>([]);
   membersRef.current = members;
+  const listRef = useRef<FlatList<ChatItem>>(null);
+  // Messages sent or received while the room is open (id → when): they animate in.
+  const fresh = useRef(new Map<string, number>());
+  // Scrolled up away from the newest message, and how many arrived meanwhile.
+  const [away, setAway] = useState(false);
+  const awayRef = useRef(false);
+  const [missed, setMissed] = useState(0);
+  const jump = usePresence(away);
+
+  const toLatest = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setMissed(0);
+  }, []);
+
+  // Notes ("No more notifications from Sarah") clear themselves.
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   const people = useMemo(() => {
     const map = new Map<string, { name: string; color: string; avatar: string | null }>();
@@ -213,6 +236,10 @@ export default function ChatRoom() {
             const next = prev.slice();
             next[i] = { ...m, localUri: prev[i].localUri, localVideo: prev[i].localVideo };
             return next;
+          }
+          if (!fresh.current.has(m.id)) {
+            fresh.current.set(m.id, Date.now());
+            if (awayRef.current && m.user_id !== myId) setMissed((n) => n + 1);
           }
           const next = [m as ChatItem, ...prev];
           next.sort((a, b) => b.created_at.localeCompare(a.created_at));
@@ -341,7 +368,11 @@ export default function ChatRoom() {
       localUri: video ? undefined : photo?.uri,
       localVideo: video,
     };
+    fresh.current.set(out.id, Date.now());
     setMessages((prev) => [optimistic, ...prev]);
+    // Your own message always brings the newest back into view.
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    setMissed(0);
     setText('');
     setPhoto(null);
     setReplyTo(null);
@@ -505,7 +536,8 @@ export default function ChatRoom() {
         label: 'Delete message',
         icon: 'trash-outline',
         destructive: true,
-        onPress: () => {
+        onPress: async () => {
+          if (!(await confirm('Delete this message?', 'It will be removed for everyone in the room.'))) return;
           setMessages((prev) =>
             prev.map((x) =>
               x.id === m.id
@@ -513,7 +545,10 @@ export default function ChatRoom() {
                 : x,
             ),
           );
-          deleteMessage(m).catch(() => setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x))));
+          deleteMessage(m).catch(() => {
+            setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+            setError('Couldn’t delete that message. Try again.');
+          });
         },
       });
     }
@@ -565,6 +600,7 @@ export default function ChatRoom() {
         }}
         onToggleReaction={toggleReaction}
         onRetry={retry}
+        fresh={Date.now() - (fresh.current.get(item.id) ?? 0) < 900}
       />
     );
   };
@@ -647,9 +683,49 @@ export default function ChatRoom() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.list}
             ListFooterComponent={loadingOlder ? <OlderSkeleton /> : null}
+            ref={listRef}
+            onScroll={(e) => {
+              // Inverted: offset 0 is the newest message.
+              const up = e.nativeEvent.contentOffset.y > 240;
+              if (up === awayRef.current) return;
+              awayRef.current = up;
+              setAway(up);
+              if (!up) setMissed(0);
+            }}
+            scrollEventThrottle={64}
             testID="chat-list"
           />
         )}
+
+        {jump.mounted ? (
+          <Animated.View
+            pointerEvents={away ? 'box-none' : 'none'}
+            style={[
+              styles.jumpWrap,
+              {
+                opacity: jump.t,
+                transform: [{ translateY: jump.t.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+              },
+            ]}
+          >
+            <Pressable
+              onPress={toLatest}
+              accessibilityRole="button"
+              accessibilityLabel={
+                missed ? `${missed} new ${missed === 1 ? 'message' : 'messages'}. Go to the latest` : 'Go to the latest message'
+              }
+              style={({ pressed }) => [styles.jump, pressed && { transform: [{ scale: 0.95 }] }]}
+              testID="jump-latest"
+            >
+              <Ionicons name="arrow-down" size={18} color={c.highlight} />
+              {missed ? (
+                <Text style={styles.jumpText}>
+                  {missed} new {missed === 1 ? 'message' : 'messages'}
+                </Text>
+              ) : null}
+            </Pressable>
+          </Animated.View>
+        ) : null}
 
         {notice ? (
           <Pressable onPress={() => setNotice(null)} style={styles.error} accessibilityRole="button" accessibilityLiveRegion="polite">
@@ -807,6 +883,33 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.bodyMedium,
     fontSize: 14.5,
     color: c.accentPressed,
+  },
+  // Sits over the bottom of the list, above the composer.
+  jumpWrap: {
+    alignItems: 'flex-end',
+    paddingRight: 14,
+    height: 0,
+    zIndex: 2,
+  },
+  jump: {
+    position: 'absolute',
+    right: 14,
+    bottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    minWidth: 44,
+    height: 44,
+    paddingHorizontal: 13,
+    borderRadius: 22,
+    backgroundColor: c.card,
+    boxShadow: shadow.float,
+  },
+  jumpText: {
+    fontFamily: fontFamily.bodySemiBold,
+    fontSize: 13.5,
+    color: c.highlight,
   },
   error: {
     flexDirection: 'row',

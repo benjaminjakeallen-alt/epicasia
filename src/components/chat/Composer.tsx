@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Animated, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
 import { durationLabel, isVideo, type PickedPhoto } from '../../lib/photos';
+import { POP, reduceMotion, useEnter } from '../../lib/socialMotion';
 
 export type { PickedPhoto };
 
@@ -24,6 +25,21 @@ type Props = {
   onSend: () => void;
   bottomInset: number;
 };
+
+// The reply / edit / attachment bars rise into place above the box.
+function Rise({ children }: { children: ReactNode }) {
+  const t = useEnter();
+  return (
+    <Animated.View
+      style={[
+        styles.attachRow,
+        { opacity: t, transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] },
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function Composer({
   value,
@@ -47,10 +63,23 @@ export default function Composer({
   const canSend = value.trim().length > 0 || !!photo;
   const video = photo ? isVideo(photo) : false;
 
+  // The send button gives a small pop when there's something to send.
+  const pop = useRef(new Animated.Value(1)).current;
+  const could = useRef(canSend);
+  useEffect(() => {
+    if (could.current === canSend) return;
+    could.current = canSend;
+    if (!canSend || reduceMotion()) return;
+    pop.setValue(0.82);
+    const a = Animated.spring(pop, { toValue: 1, ...POP });
+    a.start();
+    return () => a.stop();
+  }, [canSend, pop]);
+
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(bottomInset, 10) }]}>
       {editing !== null ? (
-        <View style={styles.attachRow}>
+        <Rise>
           <View style={[styles.replyBar, { borderLeftColor: c.accent }]}>
             <Text style={[styles.replyName, { color: c.highlight }]} numberOfLines={1}>
               Editing message
@@ -59,14 +88,16 @@ export default function Composer({
               {editing || 'Add text to your message'}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={onCancelEdit} accessibilityLabel="Cancel editing" style={styles.dismiss}>
-            <Ionicons name="close" size={18} color={c.inkSecondary} />
+          <Pressable accessibilityRole="button" onPress={onCancelEdit} accessibilityLabel="Cancel editing" style={styles.dismissHit}>
+            <View style={styles.dismiss}>
+              <Ionicons name="close" size={18} color={c.inkSecondary} />
+            </View>
           </Pressable>
-        </View>
+        </Rise>
       ) : null}
 
       {replyTo ? (
-        <View style={styles.attachRow}>
+        <Rise>
           <View style={[styles.replyBar, { borderLeftColor: replyTo.color }]}>
             <Text style={[styles.replyName, { color: replyTo.color }]} numberOfLines={1}>
               Replying to {replyTo.name}
@@ -75,14 +106,16 @@ export default function Composer({
               {replyTo.text}
             </Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={onCancelReply} hitSlop={10} accessibilityLabel="Cancel reply" style={styles.dismiss}>
-            <Ionicons name="close" size={18} color={c.inkSecondary} />
+          <Pressable accessibilityRole="button" onPress={onCancelReply} accessibilityLabel="Cancel reply" style={styles.dismissHit}>
+            <View style={styles.dismiss}>
+              <Ionicons name="close" size={18} color={c.inkSecondary} />
+            </View>
           </Pressable>
-        </View>
+        </Rise>
       ) : null}
 
       {photo ? (
-        <View style={styles.attachRow}>
+        <Rise>
           <View>
             {video ? (
               <View style={[styles.preview, styles.videoPreview]} accessibilityLabel="Video">
@@ -96,13 +129,15 @@ export default function Composer({
               accessibilityRole="button"
               onPress={onClearPhoto}
               accessibilityLabel={video ? 'Remove video' : 'Remove photo'}
-              style={styles.previewClose}
+              style={styles.previewCloseHit}
             >
-              <Ionicons name="close" size={13} color={c.onMedia} />
+              <View style={styles.previewClose}>
+                <Ionicons name="close" size={13} color={c.onMedia} />
+              </View>
             </Pressable>
           </View>
           <Text style={styles.previewHint}>{video ? 'Video' : 'Photo'} ready — add a caption or send</Text>
-        </View>
+        </Rise>
       ) : null}
 
       <View style={styles.bar}>
@@ -132,6 +167,7 @@ export default function Composer({
           />
         </View>
 
+        <Animated.View style={{ transform: [{ scale: pop }] }}>
         <Pressable
           onPress={onSend}
           disabled={!canSend}
@@ -146,6 +182,7 @@ export default function Composer({
         >
           <Ionicons name={editing !== null ? 'checkmark' : 'arrow-up'} size={20} color={c.onAccent} />
         </Pressable>
+        </Animated.View>
       </View>
     </View>
   );
@@ -184,6 +221,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: c.inkSecondary,
   },
+  // A real 44pt target around the 30pt circle (RN-web drops hitSlop).
+  dismissHit: {
+    width: 44,
+    height: 44,
+    margin: -7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dismiss: {
     width: 30,
     height: 30,
@@ -197,10 +242,16 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 14,
   },
-  previewClose: {
+  previewCloseHit: {
     position: 'absolute',
-    top: -6,
-    right: -6,
+    top: -17,
+    right: -17,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewClose: {
     width: 22,
     height: 22,
     borderRadius: 11,

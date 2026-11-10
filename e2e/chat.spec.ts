@@ -44,6 +44,8 @@ const REACTIONS = [
 
 // Press and hold like a finger (RN-web long press needs the pointer held).
 async function longPress(page: Page, target: ReturnType<Page['getByLabel']>) {
+  // A sheet that is still sliding away covers the page for a moment.
+  await expect(page.getByTestId('message-actions')).toHaveCount(0);
   const box = (await target.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -194,6 +196,77 @@ test('edit your own message', async ({ page }) => {
   await expect(page.getByText('Welcome to Tokyo! 🗼')).toBeVisible();
   await expect(page.getByText(/· Edited/)).toBeVisible();
   expect(backend.inserts.filter((i) => i.table === 'messages')).toHaveLength(0);
+});
+
+test('delete your own message: asks first', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, { profiles: PROFILES, chat_rooms: ROOMS, messages: MESSAGES });
+  await open(page, `/chat/${EVERYONE}`);
+  const mine = page.getByLabel(/^You: Welcome to Japan/);
+
+  // "Cancel" leaves it alone.
+  await longPress(page, mine);
+  page.once('dialog', (d) => {
+    expect(d.message()).toContain('Delete this message?');
+    void d.dismiss();
+  });
+  await page.getByText('Delete message').click();
+  await expect(page.getByTestId('message-actions')).toHaveCount(0);
+  await expect(mine).toBeVisible();
+  expect(backend.updates.filter((u) => u.table === 'messages')).toHaveLength(0);
+
+  await longPress(page, mine);
+  page.once('dialog', (d) => void d.accept());
+  await page.getByText('Delete message').click();
+  await expect(page.getByText('Message deleted')).toBeVisible();
+  await expect.poll(() => backend.updates.filter((u) => u.table === 'messages').length).toBe(1);
+  expect(backend.updates.find((u) => u.table === 'messages')!.query).toContain('id=eq.m3');
+});
+
+test('the long-press sheet slides away and can be opened again', async ({ page }) => {
+  await signInWithFakeBackend(page, { profiles: PROFILES, chat_rooms: ROOMS, messages: MESSAGES });
+  await open(page, `/chat/${EVERYONE}`);
+  const bubble = page.getByLabel(/^Sarah Lee: Heading to the hotel now/);
+  for (let i = 0; i < 3; i++) {
+    await longPress(page, bubble);
+    await expect(page.getByTestId('message-actions')).toBeVisible();
+    await expect(page.getByText('Copy text')).toBeVisible();
+    await page.getByLabel('Close', { exact: true }).click();
+    await expect(page.getByTestId('message-actions')).toHaveCount(0);
+  }
+});
+
+test('scrolled up: a pill jumps back to the latest message', async ({ page }) => {
+  const many = Array.from({ length: 36 }, (_, i) => ({
+    ...base,
+    id: `x${i}`,
+    user_id: i % 3 ? SARAH : USER_ID,
+    body: `Message number ${36 - i}`,
+    created_at: ago(i * 7 + 1),
+  }));
+  await signInWithFakeBackend(page, { profiles: PROFILES, chat_rooms: ROOMS, messages: many });
+  await open(page, `/chat/${EVERYONE}`);
+  await expect(page.getByText('Message number 36')).toBeVisible();
+  await expect(page.getByTestId('jump-latest')).toHaveCount(0);
+
+  const list = page.getByTestId('chat-list');
+  await list.hover();
+  await page.mouse.wheel(0, -900);
+  const pill = page.getByTestId('jump-latest');
+  await expect(pill).toBeVisible();
+  await expect(pill).toHaveAccessibleName('Go to the latest message');
+  await expect(page.getByText('Message number 36')).not.toBeInViewport();
+
+  await pill.click();
+  await expect(page.getByText('Message number 36')).toBeInViewport();
+  await expect(pill).toHaveCount(0);
+
+  // Sending from further up brings the newest back too.
+  await page.mouse.wheel(0, -900);
+  await expect(pill).toBeVisible();
+  await page.getByTestId('chat-input').fill('Back at the bottom');
+  await page.getByTestId('chat-send').click();
+  await expect(page.getByText('Back at the bottom')).toBeInViewport();
+  await expect(pill).toHaveCount(0);
 });
 
 test('send a video: uploads the clip and its poster, then the row', async ({ page }) => {

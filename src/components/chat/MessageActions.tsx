@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MORE_REACTIONS, QUICK_REACTIONS } from '../../lib/chat';
+import { useLast, usePresence } from '../../lib/socialMotion';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
@@ -20,20 +21,36 @@ type Props = {
 // Long-press sheet: a reaction bar (+ a wider emoji picker) and the
 // message's actions. A bottom sheet rather than a popover so it's always
 // reachable with a thumb, whatever bubble was pressed.
-export default function MessageActions({ visible, preview, myReactions, onReact, actions, onClose, bottomInset }: Props) {
+export default function MessageActions({ visible, onReact, onClose, bottomInset, ...rest }: Props) {
   const [more, setMore] = useState(false);
+  // The scrim fades and the sheet slides up on a spring, and back down when
+  // it closes — showing what it last held while it leaves.
+  const { mounted, t } = usePresence(visible);
+  const { preview, myReactions, actions } = useLast(rest, visible);
+  const [sheetH, setSheetH] = useState(460);
 
-  const close = () => {
-    setMore(false);
-    onClose();
-  };
+  // Back to the short emoji bar once it has gone (not while it slides away).
+  if (!mounted && more) setMore(false);
+  const close = onClose;
 
   return (
-    // No fade on web: RN-web's Modal only unmounts after its CSS fade's
-    // animationend, and when that never fires the sheet can't reopen.
-    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
-      <Pressable accessibilityRole="button" style={styles.scrim} onPress={close} accessibilityLabel="Close" />
-      <View style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 14) + 6 }]}>
+    // No Modal fade on web: RN-web's Modal only unmounts after its CSS fade's
+    // animationend, and when that never fires the sheet can't reopen. The
+    // motion is ours (usePresence) instead.
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: t }]}>
+        <Pressable accessibilityRole="button" style={styles.scrim} onPress={close} accessibilityLabel="Close" />
+      </Animated.View>
+      <Animated.View
+        onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
+        pointerEvents={visible ? 'auto' : 'none'}
+        style={[
+          styles.sheet,
+          { paddingBottom: Math.max(bottomInset, 14) + 6 },
+          { transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [sheetH, 0], extrapolate: 'clamp' }) }] },
+        ]}
+        testID="message-actions"
+      >
         <View style={styles.handle} />
         {preview ? (
           <Text style={styles.preview} numberOfLines={2}>
@@ -112,7 +129,7 @@ export default function MessageActions({ visible, preview, myReactions, onReact,
             </Pressable>
           ))}
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
