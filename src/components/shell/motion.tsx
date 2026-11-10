@@ -146,35 +146,44 @@ export function ScreenTransition({ children }: { children: ReactNode }) {
   const v = useRef(new Animated.Value(1)).current;
   const [moving, setMoving] = useState(false);
   const from = useRef(1); // 1 = arriving (from the right), -1 = coming back (from the left)
-  const wasFocused = useRef(false);
+  const [seenFocus, setSeenFocus] = useState(false);
+
+  // React's adjust-during-render pattern (not setState in an effect): a change of focus decides whether to glide.
+  if (focused !== seenFocus) {
+    setSeenFocus(focused);
+    if (focused) {
+      if (!firstScreenShown) {
+        from.current = -1;
+      } else {
+        v.setValue(0);
+        setMoving(true);
+      }
+    } else if (moving) {
+      // left mid-glide: settle now, so coming back glides afresh
+      v.setValue(1);
+      setMoving(false);
+    }
+  }
+
+  useEffect(() => {
+    firstScreenShown = true;
+  }, []);
 
   useLayoutEffect(() => {
-    if (!focused) {
-      wasFocused.current = false;
-      return;
-    }
-    if (wasFocused.current) return;
-    wasFocused.current = true;
-    const first = !firstScreenShown;
-    firstScreenShown = true;
-    if (first) {
-      from.current = -1;
-      return;
-    }
-    v.setValue(0);
-    setMoving(true);
+    if (!moving) return;
     const run = Animated.timing(v, {
       toValue: 1,
       duration: 240,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     });
-    run.start(() => {
+    run.start(({ finished }) => {
+      if (!finished) return;
       from.current = -1; // the next time it gains focus, it's being returned to
       setMoving(false);
     });
     return () => run.stop();
-  }, [focused, v]);
+  }, [moving, v]);
 
   if (!moving) return <Animated.View style={flex}>{children}</Animated.View>;
   const travel = prefersReducedMotion() ? 0 : 18 * from.current;
