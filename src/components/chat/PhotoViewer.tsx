@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Image, Modal, Pressable, StatusBar, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLast, usePresence } from '../../lib/socialMotion';
 import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
@@ -18,20 +19,26 @@ type Props = {
 
 // Full-screen photo or video: dark backdrop so the picture carries the
 // screen, with close at the top and download/share at the bottom (thumb reach).
-export default function PhotoViewer({ uri, videoUri, caption, onClose, onSave, onShare, saving, note }: Props) {
+export default function PhotoViewer({ onClose, onSave, onShare, saving, note, ...media }: Props) {
+  const open = !!media.uri;
+  // Fades in with the picture settling to full size, and fades out with what it was showing.
+  const { mounted, t } = usePresence(open, 140);
+  const { uri, videoUri, caption } = useLast(media, open);
   const kind = videoUri ? 'video' : 'photo';
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
   return (
     <Modal
-      visible={!!uri}
+      visible={mounted}
+      transparent
       animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <StatusBar barStyle="light-content" />
-      <View style={styles.root}>
+      <Animated.View style={[styles.root, { opacity: t }]}>
+        <Animated.View style={{ transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }}>
         {videoUri ? (
           <video
             src={videoUri}
@@ -46,9 +53,10 @@ export default function PhotoViewer({ uri, videoUri, caption, onClose, onSave, o
         ) : uri ? (
           <Image source={{ uri }} style={{ width, height }} resizeMode="contain" accessibilityLabel="Photo" />
         ) : null}
+        </Animated.View>
 
         <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel={`Close ${kind}`} style={styles.round}>
+          <Pressable accessibilityRole="button" onPress={onClose} accessibilityLabel={`Close ${kind}`} style={styles.round}>
             <Ionicons name="close" size={22} color={c.onMedia} />
           </Pressable>
         </View>
@@ -82,7 +90,7 @@ export default function PhotoViewer({ uri, videoUri, caption, onClose, onSave, o
             </Pressable>
           </View>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

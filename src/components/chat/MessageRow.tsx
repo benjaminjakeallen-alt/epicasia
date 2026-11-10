@@ -1,10 +1,11 @@
 import Avatar from '../Avatar';
 import { Ionicons } from '@expo/vector-icons';
-import { memo } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { memo, useEffect, useRef } from 'react';
+import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Message, Reaction } from '../../lib/chat';
 import { dayLabel, firstName, photoSize, timeLabel } from '../../lib/chatFormat';
 import { durationLabel } from '../../lib/photos';
+import { POP, reduceMotion, useEnter } from '../../lib/socialMotion';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
@@ -38,7 +39,57 @@ type Props = {
   onPressPhoto: (m: ChatItem) => void;
   onToggleReaction: (m: ChatItem, emoji: string) => void;
   onRetry: (m: ChatItem) => void;
+  /** A message that has just been sent or has just arrived: it rises into place. */
+  fresh?: boolean;
 };
+
+// A reaction pill. One added after the message was already on screen pops
+// in; a count that changes gives a small bump.
+function ReactionPill({
+  emoji,
+  count,
+  mine,
+  pop,
+  onPress,
+}: {
+  emoji: string;
+  count: number;
+  mine: boolean;
+  pop: boolean;
+  onPress: () => void;
+}) {
+  const scale = useEnter(pop, POP);
+  const shown = useRef(count);
+  useEffect(() => {
+    if (shown.current === count) return;
+    shown.current = count;
+    if (reduceMotion()) return;
+    scale.setValue(1.25);
+    const a = Animated.spring(scale, { toValue: 1, ...POP });
+    a.start();
+    return () => a.stop();
+  }, [count, scale]);
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
+      accessibilityLabel={`${emoji} ${count}${mine ? ', including you. Tap to remove' : '. Tap to add yours'}`}
+      style={styles.reactionHit}
+    >
+      <Animated.View
+        style={[
+          styles.reaction,
+          { backgroundColor: mine ? c.accentSoft : c.card, borderColor: mine ? c.accent : c.border },
+          { transform: [{ scale }] },
+        ]}
+      >
+        <Text style={styles.reactionEmoji}>{emoji}</Text>
+        {count > 1 ? <Text style={[styles.reactionCount, { color: mine ? c.accent : c.inkSecondary }]}>{count}</Text> : null}
+      </Animated.View>
+    </Pressable>
+  );
+}
 
 function MessageRow({
   item,
@@ -58,7 +109,13 @@ function MessageRow({
   onPressPhoto,
   onToggleReaction,
   onRetry,
+  fresh,
 }: Props) {
+  // New messages rise a little and fade in from their sender's side.
+  const enter = useEnter(!!fresh);
+  // Reactions that were there when the row appeared don't pop; later ones do.
+  const born = useRef(Date.now()).current;
+  const settled = Date.now() - born > 1200;
   const deleted = !!item.deleted_at;
   const isVideo = !deleted && (!!item.video_path || !!item.localVideo);
   const hasPhoto = !deleted && (!!item.image_path || !!item.localUri || isVideo);
@@ -96,7 +153,22 @@ function MessageRow({
         </View>
       ) : null}
 
-      <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs, { marginTop: startsRun ? 10 : 2 }]}>
+      <Animated.View
+        style={[
+          styles.row,
+          mine ? styles.rowMine : styles.rowTheirs,
+          { marginTop: startsRun ? 10 : 2 },
+          fresh
+            ? {
+                opacity: enter,
+                transform: [
+                  { translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) },
+                  { translateX: enter.interpolate({ inputRange: [0, 1], outputRange: [mine ? 10 : -10, 0] }) },
+                ],
+              }
+            : null,
+        ]}
+      >
         {!mine ? (
           <View style={styles.avatarSlot}>
             {endsRun ? (
@@ -191,25 +263,14 @@ function MessageRow({
           {grouped.length > 0 ? (
             <View style={[styles.reactions, mine ? styles.reactionsMine : null]}>
               {grouped.map((g) => (
-                <Pressable
-                  accessibilityRole="button"
+                <ReactionPill
                   key={g.emoji}
+                  emoji={g.emoji}
+                  count={g.count}
+                  mine={g.mine}
+                  pop={settled}
                   onPress={() => onToggleReaction(item, g.emoji)}
-                  accessibilityLabel={`${g.emoji} ${g.count}${g.mine ? ', including you. Tap to remove' : '. Tap to add yours'}`}
-                  style={styles.reactionHit}
-                >
-                  <View
-                    style={[
-                      styles.reaction,
-                      { backgroundColor: g.mine ? c.accentSoft : c.card, borderColor: g.mine ? c.accent : c.border },
-                    ]}
-                  >
-                    <Text style={styles.reactionEmoji}>{g.emoji}</Text>
-                    {g.count > 1 ? (
-                      <Text style={[styles.reactionCount, { color: g.mine ? c.accent : c.inkSecondary }]}>{g.count}</Text>
-                    ) : null}
-                  </View>
-                </Pressable>
+                />
               ))}
             </View>
           ) : null}
@@ -229,7 +290,7 @@ function MessageRow({
             </View>
           ) : null}
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
