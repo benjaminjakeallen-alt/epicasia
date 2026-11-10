@@ -78,6 +78,7 @@ test('grid groups by day, filters, opens the viewer and favourites', async ({ pa
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/gallery-viewer.png' });
   await viewer.getByLabel('Close', { exact: true }).click();
+  await expect(viewer).toHaveCount(0); // it fades out
 
   // Favourites filter now shows just that one.
   await page.getByRole('button', { name: 'Favorites' }).click();
@@ -201,6 +202,7 @@ test('select photos: make an album, then remove one from it', async ({ page }) =
   // The new album is now the filter.
   await expect(page.getByTestId(`chip-album:${album.id}`)).toContainText('Best of Kyoto');
   await expect(page.getByTestId('gallery-cell')).toHaveCount(2);
+  await expect(page.getByTestId('album-sheet')).toHaveCount(0); // it slides away
 
   await longPress(page, page.getByLabel('Photo by you: Golden hour at Kinkaku-ji'));
   await page.getByLabel('Remove from album').click();
@@ -209,6 +211,44 @@ test('select photos: make an album, then remove one from it', async ({ page }) =
   const del = backend.deletes.find((d) => d.table === 'album_photos')!.query;
   expect(decodeURIComponent(del)).toContain(`album_id=eq.${album.id}`);
   expect(decodeURIComponent(del)).toContain('photo_id=in.(p1)');
+});
+
+test('deleting photos asks first — from the viewer and from a selection', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, { profiles: PROFILES, gallery_photos: PHOTOS, photo_favorites: [] });
+  await open(page, '/photos');
+
+  // The viewer: "Cancel" keeps the photo, "OK" removes it and closes the viewer.
+  await page.getByLabel('Photo by you: Golden hour at Kinkaku-ji').click();
+  const viewer = page.getByRole('dialog');
+  page.once('dialog', (d) => {
+    expect(d.message()).toContain('Delete this photo?');
+    void d.dismiss();
+  });
+  await viewer.getByLabel('Delete photo').click();
+  await expect(viewer.getByText('Golden hour at Kinkaku-ji')).toBeVisible();
+  expect(backend.deletes.filter((d) => d.table === 'gallery_photos')).toHaveLength(0);
+  page.once('dialog', (d) => void d.accept());
+  await viewer.getByLabel('Delete photo').click();
+  await expect(viewer).toHaveCount(0);
+  await expect(page.getByTestId('gallery-cell')).toHaveCount(5);
+  await expect.poll(() => backend.deletes.filter((d) => d.table === 'gallery_photos').length).toBe(1);
+
+  // A selection of your own: the bar slides in, Delete asks once for all of them.
+  await longPress(page, page.getByLabel('Photo by you').first());
+  await expect(page.getByTestId('select-bar')).toBeVisible();
+  await page.getByLabel('Photo by you').nth(1).click();
+  await expect(page.getByText('2 selected')).toBeVisible();
+  page.once('dialog', (d) => {
+    expect(d.message()).toContain('Delete these 2?');
+    void d.dismiss();
+  });
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByText('2 selected')).toBeVisible();
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await expect(page.getByTestId('gallery-cell')).toHaveCount(3);
+  await expect(page.getByTestId('select-bar')).toHaveCount(0);
+  await expect.poll(() => backend.deletes.filter((d) => d.table === 'gallery_photos').length).toBe(3);
 });
 
 test('share several photos at once as files', async ({ page }) => {
