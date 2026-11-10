@@ -5,6 +5,10 @@ const SARAH = '00000000-0000-4000-8000-0000000000aa';
 const EVERYONE = '00000000-0000-4000-8000-000000000001';
 const FOODIES = '00000000-0000-4000-8000-0000000000f0';
 const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+// Fixed to when this file loaded, like MESSAGES' times: a read time between two messages must stay between them
+// however long the worker takes to reach the test.
+const LOADED = Date.now();
+const atLoad = (min: number) => new Date(LOADED - min * 60_000).toISOString();
 
 const PROFILES = [
   { id: SARAH, display_name: 'Sarah Lee' },
@@ -65,7 +69,7 @@ test('room list: rooms with their newest message and unread counts', async ({ pa
     profiles: PROFILES,
     chat_rooms: ROOMS,
     messages: MESSAGES,
-    chat_room_reads: [{ user_id: USER_ID, room_id: EVERYONE, last_read_at: ago(9.5) }],
+    chat_room_reads: [{ user_id: USER_ID, room_id: EVERYONE, last_read_at: atLoad(9.5) }],
   });
   await open(page, '/chat');
 
@@ -338,7 +342,7 @@ test('home shows unread messages from others on the Group Chat hub', async ({ pa
     // Everyone read up to between Sarah's two messages (m2 is new); Foodies
     // is read up to now. My own reply never counts.
     chat_room_reads: [
-      { user_id: USER_ID, room_id: EVERYONE, last_read_at: ago(9.5) },
+      { user_id: USER_ID, room_id: EVERYONE, last_read_at: atLoad(9.5) },
       { user_id: USER_ID, room_id: FOODIES, last_read_at: ago(0) },
     ],
   });
