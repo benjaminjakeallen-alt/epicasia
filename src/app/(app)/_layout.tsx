@@ -1,6 +1,7 @@
 import { Redirect, Stack, useRouter, type Href } from 'expo-router';
 import { useEffect } from 'react';
 import { View } from 'react-native';
+import { ScreenTransition } from '../../components/shell/motion';
 import UpdateBanner from '../../components/UpdateBanner';
 import YukiVoice from '../../components/yuki/YukiVoice';
 import { useAuth } from '../../lib/AuthProvider';
@@ -48,7 +49,10 @@ export default function AppLayout() {
   const name = String(session.user.user_metadata?.display_name ?? '').split(' ')[0];
   return (
     <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack
+        screenOptions={{ headerShown: false }}
+        screenLayout={({ children }) => <ScreenTransition>{children}</ScreenTransition>}
+      />
       <YukiVoice name={name} />
       <UpdateBanner />
     </View>
