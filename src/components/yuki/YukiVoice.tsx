@@ -1,13 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
-import { useEffect, useRef, useSyncExternalStore } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CHECKLIST } from '../../lib/arrivals';
 import { onYukiWord, setYukiWake, startYukiVoice, stopYuki, talkToYuki, yukiStore } from '../../lib/yukiVoice';
 import { colors as c } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
+import { PressScale, prefersReducedMotion } from '../shell/motion';
 import Blossom from './Blossom';
 
 export function useYuki() {
@@ -49,10 +50,36 @@ export default function YukiVoice({ name }: { name: string }) {
 
   useEffect(() => startYukiVoice({ name, device: () => deviceContext(pathRef.current) }), [name]);
 
-  const yuki = useYuki();
+  const live = useYuki();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  if (yuki.state === 'off' || yuki.state === 'wake') return null;
+
+  // The veil fades in with the blossom springing up, and fades out again
+  // when she's done — it stays mounted (showing her last words, taps passing
+  // through) for the moment that takes.
+  const open = live.state !== 'off' && live.state !== 'wake';
+  const [shown, setShown] = useState(open);
+  if (open && !shown) setShown(true);
+  const lastOpen = useRef(live);
+  if (open) lastOpen.current = live;
+  const yuki = open ? live : lastOpen.current;
+  const veil = useRef(new Animated.Value(0)).current;
+  const rise = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (open) {
+      rise.setValue(0);
+      Animated.parallel([
+        Animated.timing(veil, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.spring(rise, { toValue: 1, stiffness: 190, damping: 17, mass: 0.9, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.timing(veil, { toValue: 0, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(
+        ({ finished }) => finished && setShown(false),
+      );
+    }
+  }, [open, veil, rise]);
+  if (!shown) return null;
+  const still = prefersReducedMotion();
 
   const size = Math.min(width * 0.62, height * 0.34, 300);
   const status =
@@ -67,12 +94,13 @@ export default function YukiVoice({ name }: { name: string }) {
         : '';
 
   return (
-    <View
-      style={[styles.veil, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16 }]}
+    <Animated.View
+      style={[styles.veil, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, opacity: veil }]}
+      pointerEvents={open ? 'auto' : 'none'}
       accessibilityViewIsModal
       testID="yuki-overlay"
     >
-      <View style={styles.top}>
+      <Animated.View style={styles.top}>
         <Text style={[styles.name, { color: c.inkSecondary }]}>Yuki</Text>
         <Pressable
           accessibilityRole="button"
@@ -83,17 +111,23 @@ export default function YukiVoice({ name }: { name: string }) {
         >
           <Ionicons name="close" size={24} color={c.ink} />
         </Pressable>
-      </View>
+      </Animated.View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={yuki.state === 'listening' && yuki.heard ? 'Done — send my question' : 'Talk to Yuki'}
-        onPress={talkToYuki}
-        style={styles.blossom}
-        testID="yuki-talk"
+      <Animated.View
+        style={
+          still ? undefined : { transform: [{ scale: rise.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) }] }
+        }
       >
-        <Blossom size={size} mode={yuki.state} pulse={onYukiWord} />
-      </Pressable>
+        <PressScale
+          accessibilityRole="button"
+          accessibilityLabel={yuki.state === 'listening' && yuki.heard ? 'Done — send my question' : 'Talk to Yuki'}
+          onPress={talkToYuki}
+          style={styles.blossom}
+          testID="yuki-talk"
+        >
+          <Blossom size={size} mode={yuki.state === 'off' || yuki.state === 'wake' ? 'still' : yuki.state} pulse={onYukiWord} />
+        </PressScale>
+      </Animated.View>
 
       <ScrollView style={styles.words} contentContainerStyle={styles.wordsContent}>
         {status ? (
@@ -129,7 +163,7 @@ export default function YukiVoice({ name }: { name: string }) {
           <Text style={[type.bodyStrong, { color: c.highlight }]}>Listen for “Hey Yuki”</Text>
         </Pressable>
       ) : null}
-    </View>
+    </Animated.View>
   );
 }
 

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import OrbitMenu, { type OrbitMenuItem } from '../../components/OrbitMenu';
+import { PressScale } from '../../components/shell/motion';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import Wordmark from '../../components/Wordmark';
 import YukiMark from '../../components/YukiMark';
@@ -87,7 +88,7 @@ export default function Home() {
         <View style={styles.topRow}>
           <Wordmark size={24} testID="home-title" />
           <View style={styles.topActions}>
-            <Pressable
+            <PressScale
               onPress={talkToYuki}
               accessibilityRole="button"
               accessibilityLabel="Talk to Yuki, your trip assistant"
@@ -100,8 +101,9 @@ export default function Home() {
               {yuki.state === 'wake' ? (
                 <View style={[styles.yukiEar, { backgroundColor: colors.success }]} testID="yuki-listening-dot" />
               ) : null}
-            </Pressable>
-            <Pressable
+            </PressScale>
+            <PressScale
+              to={0.92}
               onPress={() => router.push('/(app)/profile')}
               accessibilityRole="button"
               accessibilityLabel="Your profile"
@@ -109,7 +111,7 @@ export default function Home() {
               style={[styles.avatar, { backgroundColor: colors.card }]}
             >
               <Avatar name={fullName || session?.user.email || '?'} path={avatar} color={colors.accent} size={40} />
-            </Pressable>
+            </PressScale>
           </View>
         </View>
 

@@ -92,4 +92,14 @@ test('the menu is one adjustable control for screen readers', async ({ page }) =
   await expect(ring).toBeVisible();
   await page.getByLabel('Next').click();
   await expect(page.getByRole('slider', { name: 'Arrivals, 2 of 7' })).toBeVisible();
+
+  // With a keyboard it works like any slider: arrows turn it, Enter opens.
+  await page.getByRole('slider').focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('slider', { name: 'Photos, 3 of 7' })).toBeVisible();
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('slider', { name: 'Itinerary, 1 of 7' })).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/itinerary$/);
 });

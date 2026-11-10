@@ -4,7 +4,6 @@ import {
   Easing,
   Image,
   PanResponder,
-  Pressable,
   StyleSheet,
   Text,
   View,
@@ -14,6 +13,7 @@ import {
 } from 'react-native';
 import { openFeedback, preloadSounds, stepFeedback } from '../lib/feedback';
 import { watchScreenReader } from '../lib/speech';
+import { PressScale, prefersReducedMotion } from './shell/motion';
 import { colors as palette, shadow } from '../theme/colors';
 import { fontFamily, type } from '../theme/typography';
 import { useTheme } from '../theme/useTheme';
@@ -42,6 +42,8 @@ const RY_RATIO = 0.485;
 
 // The soft gold glow connecting neighbouring hubs.
 const LINE_GLOW = 10;
+/** How far (pt) the selected label slides in when the ring steps. */
+const LABEL_SLIDE = 14;
 
 const mod = (n: number, m: number) => ((n % m) + m) % m;
 
@@ -120,19 +122,26 @@ export default function OrbitMenu({
   // listener (not an effect) so on web it runs inside the drag's touch
   // handler — iOS Safari only allows the haptic during a user gesture.
   const lastFront = useRef(0);
+  // The selected label arrives from the side the ring is turning from.
+  const labelX = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const id = rotation.addListener(({ value }) => {
+      const turning = Math.sign(value - current.current) || 1;
       current.current = value;
       const idx = mod(Math.round(value), N);
       if (idx !== lastFront.current) {
         lastFront.current = idx;
+        if (!prefersReducedMotion()) {
+          labelX.setValue(turning * LABEL_SLIDE);
+          Animated.spring(labelX, { toValue: 0, stiffness: 320, damping: 28, mass: 0.7, useNativeDriver: true }).start();
+        }
         stepFeedback();
         onFrontChangeRef.current?.(items[idx], idx);
       }
       setFront((prev) => (prev === idx ? prev : idx));
     });
     return () => rotation.removeListener(id);
-  }, [rotation, N, items]);
+  }, [rotation, N, items, labelX]);
 
   const open = useCallback(
     (item: OrbitMenuItem) => {
@@ -229,8 +238,12 @@ export default function OrbitMenu({
     [glow],
   );
 
+  // Where the ring is heading, so quick taps on an arrow (or key presses)
+  // each add a step instead of all aiming at the same neighbour.
+  const heading = useRef(0);
   const settle = useCallback(
     (target: number) => {
+      heading.current = Math.round(target);
       Animated.spring(rotation, {
         toValue: Math.round(target),
         damping: 20,
@@ -252,6 +265,8 @@ export default function OrbitMenu({
     },
     [settle, N],
   );
+
+  const stepBy = useCallback((d: number) => settle(heading.current + d), [settle]);
 
   const pan = useMemo(
     () =>
@@ -357,7 +372,8 @@ export default function OrbitMenu({
                   },
                 ]}
               >
-                <Pressable
+                <PressScale
+                  to={0.94}
                   testID={`orbit-item-${item.key}`}
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -384,33 +400,27 @@ export default function OrbitMenu({
                 >
                   <Image source={item.image} style={{ width: H, height: H }} resizeMode="contain" />
 
-                  {item.badge ? (
-                    <View style={[styles.badge, { backgroundColor: c.danger }]} testID={`orbit-badge-${item.key}`}>
-                      <Text style={[styles.badgeText, { color: c.onDanger }]}>
-                        {item.badge > 99 ? '99+' : item.badge}
-                      </Text>
-                    </View>
-                  ) : null}
-                </Pressable>
+                  {item.badge ? <Badge count={item.badge} testID={`orbit-badge-${item.key}`} /> : null}
+                </PressScale>
               </Animated.View>
             );
           })}
 
           <View style={[styles.readout, { top: cy + ry + H * (large ? 0.8 : 0.62) }]}>
             <View style={styles.selectRow}>
-              <Pressable
+              <PressScale
+                to={0.82}
                 accessibilityRole="button"
                 onPress={() => {
                   if (justDragged()) return;
                   stepFeedback();
-                  goTo(front - 1);
+                  stepBy(-1);
                 }}
-                hitSlop={14}
                 accessibilityLabel="Previous"
                 style={[styles.arrow, large && styles.arrowLarge]}
               >
                 <Text style={[styles.arrowText, large && styles.arrowTextLarge, { color: large ? c.ink : c.inkTertiary }]}>‹</Text>
-              </Pressable>
+              </PressScale>
               {/* For VoiceOver the selected label is one "adjustable" control:
                   swipe up/down turns the ring and reads the new item,
                   double-tap opens it. */}
@@ -426,31 +436,57 @@ export default function OrbitMenu({
                 accessibilityHint="Swipe up or down to turn the menu. Double-tap to open."
                 accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate' }]}
                 onAccessibilityAction={(e) => {
-                  if (e.nativeEvent.actionName === 'increment') goTo(front + 1);
-                  else if (e.nativeEvent.actionName === 'decrement') goTo(front - 1);
+                  if (e.nativeEvent.actionName === 'increment') stepBy(1);
+                  else if (e.nativeEvent.actionName === 'decrement') stepBy(-1);
                   else if (selected.href) open(selected);
                 }}
+                // On the web it's a slider: the arrow keys turn it, Enter opens.
+                // (react-native-web passes key events through; the View type doesn't list them.)
+                tabIndex={0}
+                {...({
+                  onKeyDown: (e: { key: string; preventDefault: () => void }) => {
+                    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') stepBy(1);
+                    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') stepBy(-1);
+                    else if ((e.key === 'Enter' || e.key === ' ') && selected.href) open(selected);
+                    else return;
+                    e.preventDefault();
+                  },
+                } as object)}
                 testID="orbit-adjustable"
               >
-                <Text testID="orbit-selected" style={[styles.label, large && styles.labelLarge, { color: large ? c.ink : selected.color }]}>
-                  {selected.label}
-                </Text>
+                <Animated.View
+                  style={{
+                    opacity: labelX.interpolate({
+                      inputRange: [-LABEL_SLIDE, 0, LABEL_SLIDE],
+                      outputRange: [0.2, 1, 0.2],
+                      extrapolate: 'clamp',
+                    }),
+                    transform: [{ translateX: labelX }],
+                  }}
+                >
+                  <Text
+                    testID="orbit-selected"
+                    style={[styles.label, large && styles.labelLarge, { color: large ? c.ink : selected.color }]}
+                  >
+                    {selected.label}
+                  </Text>
+                </Animated.View>
               </View>
-              <Pressable
+              <PressScale
+                to={0.82}
                 accessibilityRole="button"
                 onPress={() => {
                   if (justDragged()) return;
                   stepFeedback();
-                  goTo(front + 1);
+                  stepBy(1);
                 }}
-                hitSlop={14}
                 accessibilityLabel="Next"
                 style={[styles.arrow, large && styles.arrowLarge]}
               >
                 <Text style={[styles.arrowText, large && styles.arrowTextLarge, { color: large ? c.ink : c.inkTertiary }]}>›</Text>
-              </Pressable>
+              </PressScale>
             </View>
-            <Pressable
+            <PressScale
               accessibilityRole="button"
               testID="orbit-open"
               disabled={!selected.href}
@@ -466,11 +502,31 @@ export default function OrbitMenu({
               <Text style={[type.button, large && styles.openTextLarge, { color: selected.href ? c.onAccent : c.highlight }]}>
                 {selected.href ? `Open ${selected.label}` : 'Coming soon'}
               </Text>
-            </Pressable>
+            </PressScale>
           </View>
         </>
       )}
     </View>
+  );
+}
+
+// The unread count on a hub. It pops when the number goes up (a message
+// arrived while you're looking at home).
+function Badge({ count, testID }: { count: number; testID: string }) {
+  const c = useTheme();
+  const scale = useRef(new Animated.Value(1)).current;
+  const shownCount = useRef(count);
+  useEffect(() => {
+    const rose = count > shownCount.current;
+    shownCount.current = count;
+    if (!rose || prefersReducedMotion()) return;
+    scale.setValue(1.35);
+    Animated.spring(scale, { toValue: 1, stiffness: 260, damping: 12, mass: 0.7, useNativeDriver: true }).start();
+  }, [count, scale]);
+  return (
+    <Animated.View style={[styles.badge, { backgroundColor: c.danger, transform: [{ scale }] }]} testID={testID}>
+      <Text style={[styles.badgeText, { color: c.onDanger }]}>{count > 99 ? '99+' : count}</Text>
+    </Animated.View>
   );
 }
 

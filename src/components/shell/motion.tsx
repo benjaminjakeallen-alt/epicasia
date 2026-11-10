@@ -144,25 +144,24 @@ let firstScreenShown = false;
 export function ScreenTransition({ children }: { children: ReactNode }) {
   const focused = useIsFocused();
   const v = useRef(new Animated.Value(1)).current;
-  const [moving, setMoving] = useState(false);
   const from = useRef(1); // 1 = arriving (from the right), -1 = coming back (from the left)
-  const wasFocused = useRef(false);
+  // Gaining focus starts the glide (state adjusted during render, so the
+  // first painted frame is already the start of it).
+  const [wasFocused, setWasFocused] = useState(false);
+  const [moving, setMoving] = useState(false);
+  if (focused !== wasFocused) {
+    setWasFocused(focused);
+    if (focused && firstScreenShown) setMoving(true);
+  }
 
   useLayoutEffect(() => {
-    if (!focused) {
-      wasFocused.current = false;
-      return;
-    }
-    if (wasFocused.current) return;
-    wasFocused.current = true;
-    const first = !firstScreenShown;
+    if (!focused) return;
     firstScreenShown = true;
-    if (first) {
+    if (!moving) {
       from.current = -1;
       return;
     }
     v.setValue(0);
-    setMoving(true);
     const run = Animated.timing(v, {
       toValue: 1,
       duration: 240,
@@ -174,7 +173,7 @@ export function ScreenTransition({ children }: { children: ReactNode }) {
       setMoving(false);
     });
     return () => run.stop();
-  }, [focused, v]);
+  }, [focused, moving, v]);
 
   if (!moving) return <Animated.View style={flex}>{children}</Animated.View>;
   const travel = prefersReducedMotion() ? 0 : 18 * from.current;
