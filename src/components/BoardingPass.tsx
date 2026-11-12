@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatMonthDay, formatWallClockTime, formatWeekday, nightsBetween, wallClockDay } from '../lib/dates';
 import type { Flight } from '../lib/flights';
@@ -22,6 +24,20 @@ export default function BoardingPass({ flight, canDelete, onDelete }: { flight: 
   const dayShift = depDay && arrDay ? nightsBetween(depDay, arrDay) : 0;
   const carrier = [flight.airline, flight.flight_number].filter(Boolean).join(' · ');
   const route = `${flight.departure_airport ?? '—'} to ${flight.arrival_airport ?? '—'}`;
+
+  // Tap the confirmation code to copy it (for a check-in page or a kiosk).
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(false), 1600);
+    return () => clearTimeout(id);
+  }, [copied]);
+  const copy = () => {
+    if (!flight.confirmation_code) return;
+    Clipboard.setStringAsync(flight.confirmation_code)
+      .then(() => setCopied(true))
+      .catch(() => {});
+  };
 
   return (
     <View
@@ -87,9 +103,16 @@ export default function BoardingPass({ flight, canDelete, onDelete }: { flight: 
               </View>
               <View style={styles.passBottom}>
                 <Text style={[type.caption, { color: colors.inkTertiary }]}>Confirmation</Text>
-                <Text style={[styles.confirmation, { color: colors.ink }]} selectable>
-                  {flight.confirmation_code}
-                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={copied ? 'Copied' : `Copy confirmation code ${flight.confirmation_code}`}
+                  onPress={copy}
+                  style={styles.copy}
+                  testID="copy-confirmation"
+                >
+                  <Text style={[styles.confirmation, { color: colors.ink }]}>{flight.confirmation_code}</Text>
+                  <Ionicons name={copied ? 'checkmark' : 'copy-outline'} size={16} color={copied ? colors.success : colors.inkTertiary} />
+                </Pressable>
               </View>
             </>
           ) : null}
@@ -197,9 +220,11 @@ const styles = StyleSheet.create({
   },
   passBottom: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     justifyContent: 'space-between',
   },
+  // A 44pt row to tap, without making the pass taller.
+  copy: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, marginVertical: -12, paddingLeft: 12 },
   confirmation: {
     fontFamily: fontFamily.monoSemiBold,
     fontSize: 15,

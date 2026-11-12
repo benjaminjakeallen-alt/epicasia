@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import BoardingPass from '../../../components/BoardingPass';
 import CircleButton from '../../../components/CircleButton';
@@ -11,11 +11,24 @@ import { PassSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
 import { CHECKED, CHECKLIST, COUNTRIES, countryColor, PASSPORT } from '../../../lib/arrivals';
+import { confirm } from '../../../lib/confirm';
 import { deleteFlight, fetchFlights, type Flight } from '../../../lib/flights';
 import { peek } from '../../../lib/offline';
+import { airportName } from '../../../lib/places';
+import { POP, useEnter } from '../../../lib/socialMotion';
 import { shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 import { useTheme } from '../../../theme/useTheme';
+
+// The tick pops into its box when you check something off (ones already ticked when the screen opens just sit there).
+function Tick({ color, pop }: { color: string; pop: boolean }) {
+  const t = useEnter(pop, POP);
+  return (
+    <Animated.View style={{ opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) }] }}>
+      <Ionicons name="checkmark" size={16} color={color} />
+    </Animated.View>
+  );
+}
 
 // Arrivals: getting into each country — visas, arrival forms, airport
 // walk-throughs — plus your boarding passes, your private documents and a
@@ -61,7 +74,9 @@ export default function Arrivals() {
       .catch(() => {});
   }, []);
 
+  const [justTicked, setJustTicked] = useState<string | null>(null);
   function toggle(id: string) {
+    setJustTicked(id);
     setDone((prev) => {
       const next = { ...prev, [id]: !prev[id] };
       AsyncStorage.setItem(CHECKS_KEY, JSON.stringify(next)).catch(() => {});
@@ -69,12 +84,14 @@ export default function Arrivals() {
     });
   }
 
-  async function handleDelete(id: string) {
+  async function handleDelete(flight: Flight) {
+    const to = airportName(flight.arrival_airport) ?? flight.arrival_airport ?? 'there';
+    if (!(await confirm(`Remove the flight to ${to}?`, 'The boarding pass will be removed for everyone.'))) return;
     try {
-      await deleteFlight(id);
-      setFlights((prev) => prev.filter((f) => f.id !== id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
+      await deleteFlight(flight.id);
+      setFlights((prev) => prev.filter((f) => f.id !== flight.id));
+    } catch {
+      setError('Couldn’t remove that flight. Try again.');
     }
   }
 
@@ -168,7 +185,7 @@ export default function Arrivals() {
                     { borderColor: on ? colors.accent : colors.inkTertiary, backgroundColor: on ? colors.accent : 'transparent' },
                   ]}
                 >
-                  {on ? <Ionicons name="checkmark" size={16} color={colors.onAccent} /> : null}
+                  {on ? <Tick color={colors.onAccent} pop={justTicked === item.id} /> : null}
                 </View>
                 <Text style={[type.body, styles.flex, { color: on ? colors.inkSecondary : colors.ink }]}>{item.text}</Text>
               </Pressable>
@@ -192,7 +209,7 @@ export default function Arrivals() {
               key={flight.id}
               flight={flight}
               canDelete={flight.created_by === session?.user.id}
-              onDelete={() => handleDelete(flight.id)}
+              onDelete={() => handleDelete(flight)}
             />
           ))
         )}

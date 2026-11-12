@@ -3,6 +3,7 @@ import { useState } from 'react';
 import FormButton from '../../../components/form/FormButton';
 import FormField from '../../../components/form/FormField';
 import FormScreen from '../../../components/form/FormScreen';
+import PickerField from '../../../components/form/PickerField';
 import { useAuth } from '../../../lib/AuthProvider';
 import { addDays, isValidDay, parseTimeInput, wallClockISO } from '../../../lib/dates';
 import { createFlight } from '../../../lib/flights';
@@ -39,12 +40,12 @@ export default function NewFlight() {
       return;
     }
     if (!isValidDay(day.trim())) {
-      setError('Date must be a real date, e.g. 2027-06-11.');
+      setError('Pick the date it leaves.');
       return;
     }
     const depTime = parseTimeInput(departs);
     if (!depTime) {
-      setError('Departure time must look like "10:30 AM" or "22:30".');
+      setError('Pick the time it leaves.');
       return;
     }
 
@@ -52,13 +53,13 @@ export default function NewFlight() {
     if (arrives.trim()) {
       const arrTime = parseTimeInput(arrives);
       if (!arrTime) {
-        setError('Arrival time must look like "1:45 PM" or "13:45".');
+        setError('Pick the arrival time again.');
         return;
       }
       let arrDay = arrivalDay.trim();
       if (arrDay) {
         if (!isValidDay(arrDay) || arrDay < day.trim()) {
-          setError('Arrival date must be a real date on or after the departure date.');
+          setError('The arrival date can’t be before the departure date.');
           return;
         }
       } else {
@@ -95,7 +96,8 @@ export default function NewFlight() {
       );
       router.back();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to save');
+      setError(navigator.onLine === false ? 'You’re offline. Try again when you have signal.' : 'Couldn’t save that. Try again.');
+      console.warn(e);
     } finally {
       setSaving(false);
     }
@@ -116,14 +118,15 @@ export default function NewFlight() {
       />
       <FormField label="From" value={from} onChangeText={setFrom} placeholder="NRT" autoCapitalize="characters" maxLength={3} />
       <FormField label="To" value={to} onChangeText={setTo} placeholder="PEK" autoCapitalize="characters" maxLength={3} />
-      <FormField label="Date" value={day} onChangeText={setDay} placeholder="2027-06-11" />
-      <FormField label="Departs" value={departs} onChangeText={setDeparts} placeholder="10:30 AM" />
-      <FormField label="Arrives (optional)" value={arrives} onChangeText={setArrives} placeholder="1:45 PM" />
-      <FormField
-        label="Arrival date (optional, if not the same day)"
+      <PickerField label="Date" kind="date" value={day} onChangeText={setDay} testID="flight-day" />
+      <PickerField label="Departs" kind="time" value={departs} onChangeText={setDeparts} testID="flight-departs" />
+      <PickerField label="Arrives (optional)" kind="time" value={arrives} onChangeText={setArrives} testID="flight-arrives" />
+      <PickerField
+        label="Arrival date (only if it isn’t the same or the next day)"
+        kind="date"
         value={arrivalDay}
         onChangeText={setArrivalDay}
-        placeholder="2027-06-12"
+        testID="flight-arrival-day"
       />
       <FormField
         label="Confirmation code (optional)"

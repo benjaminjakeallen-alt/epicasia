@@ -68,6 +68,34 @@ test('arrivals lists boarding passes boarding passes in airport-local time', asy
   await page.screenshot({ path: 'test-results/flights-list.png' });
 });
 
+test('removing a flight asks first; tapping the confirmation code copies it', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const backend = await signInWithFakeBackend(page, { flights: FLIGHTS });
+  await open(page, '/arrivals');
+  const trash = page.getByLabel('Delete flight NRT to PEK');
+
+  page.once('dialog', (d) => {
+    expect(d.message()).toContain('Remove the flight to Beijing Capital?');
+    void d.dismiss();
+  });
+  await trash.click();
+  await expect(trash).toBeVisible();
+  expect(backend.deletes).toHaveLength(0);
+
+  // The confirmation code is a button that copies it.
+  const code = page.getByTestId('copy-confirmation').first();
+  await code.click();
+  await expect(code).toHaveAccessibleName('Copied');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(FLIGHTS.map((f) => f.confirmation_code)).toContain(copied);
+  await expect(code).toHaveAccessibleName(`Copy confirmation code ${copied}`, { timeout: 5000 });
+
+  page.once('dialog', (d) => void d.accept());
+  await trash.click();
+  await expect(trash).toHaveCount(0);
+  expect(backend.deletes.map((d) => d.table)).toEqual(['flights']);
+});
+
 test('add-flight form validates and saves wall-clock times', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, { flights: [] });
   await open(page, '/flights/new');
@@ -80,9 +108,11 @@ test('add-flight form validates and saves wall-clock times', async ({ page }) =>
   await page.getByPlaceholder('ANA').fill('ANA');
   await page.getByPlaceholder('NH 961').fill('nh 961');
   await page.getByPlaceholder('NRT').fill('nrt');
-  await page.getByPlaceholder('2027-06-11').fill('2027-06-11');
-  await page.getByPlaceholder('10:30 AM').fill('10:30 PM');
-  await page.getByPlaceholder('1:45 PM').fill('1:45 AM'); // earlier clock time -> lands next day
+  // (date and time come from the phone's own pickers: inputs of type date / time)
+  await expect(page.getByTestId('flight-day')).toHaveAttribute('type', 'date');
+  await page.getByTestId('flight-day').fill('2027-06-11');
+  await page.getByTestId('flight-departs').fill('22:30');
+  await page.getByTestId('flight-arrives').fill('01:45'); // earlier clock time -> lands next day
   await page.getByPlaceholder('ABC123').fill('abc123');
   await page.getByText('Save', { exact: true }).click();
 

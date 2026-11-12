@@ -22,6 +22,15 @@
         height: 100%;
         flex: 1;
       }
+      /* iPhone Safari zooms the whole page in when you tap a field whose text is under 16px (and
+         doesn't zoom back). Only iOS has -webkit-touch-callout, so nothing changes elsewhere. */
+      @supports (-webkit-touch-callout: none) {
+        input,
+        textarea,
+        select {
+          font-size: 16px !important;
+        }
+      }
     </style>
     <!-- Saved to a phone's home screen ("Add to Home Screen"): icon, name and
          full-screen launch. Icons are made from assets/pwa-icon.png (option A,

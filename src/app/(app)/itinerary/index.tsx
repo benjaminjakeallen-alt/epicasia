@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import {
   Image,
@@ -15,8 +15,9 @@ import CircleButton from '../../../components/CircleButton';
 import { TimelineSkeleton } from '../../../components/Skeleton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { useAuth } from '../../../lib/AuthProvider';
+import { confirm } from '../../../lib/confirm';
 import { peek } from '../../../lib/offline';
-import { formatMonthDay, formatWeekday, parseDay } from '../../../lib/dates';
+import { formatMonthDay, formatWeekday, parseDay, todayDay } from '../../../lib/dates';
 import { deleteItineraryItem, fetchItinerary, type ItineraryItem } from '../../../lib/itinerary';
 import { photoForDay, STOPS } from '../../../lib/places';
 import { legColorForCity, legTextForCity, shadow } from '../../../theme/colors';
@@ -60,16 +61,32 @@ export default function ItineraryList() {
     }, [load]),
   );
 
-  async function handleDelete(id: string) {
+  async function handleDelete(item: ItineraryItem) {
+    if (!(await confirm(`Remove “${item.title}”?`, 'It will be removed from the itinerary for everyone.'))) return;
     try {
-      await deleteItineraryItem(id);
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to delete');
+      await deleteItineraryItem(item.id);
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+    } catch {
+      setError('Couldn’t remove that. Try again.');
     }
   }
 
   const days = Array.from(new Set(items.map((i) => i.day))).sort();
+
+  // During the trip the list opens on today (or the next day with plans), not back on day one.
+  const today = todayDay();
+  const openOn = days.length && today > days[0] && today <= days[days.length - 1] ? days.find((d) => d >= today) : undefined;
+  const scroller = useRef<ScrollView>(null);
+  const dayTops = useRef(new Map<string, number>());
+  const jumped = useRef(false);
+  const [laidOut, setLaidOut] = useState(0);
+  useEffect(() => {
+    if (jumped.current || !openOn) return;
+    const top = dayTops.current.get(openOn);
+    if (top === undefined) return;
+    jumped.current = true;
+    scroller.current?.scrollTo({ y: Math.max(0, top - 8), animated: false });
+  }, [openOn, laidOut]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -89,7 +106,7 @@ export default function ItineraryList() {
       {loading ? (
         <TimelineSkeleton />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView ref={scroller} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="itinerary-scroll">
           <View style={[styles.summary, { backgroundColor: colors.card }]}>
             <View style={styles.summaryText}>
               <Text style={[styles.summaryTitle, { color: colors.ink }]}>Asia Disney Adventure</Text>
@@ -118,9 +135,19 @@ export default function ItineraryList() {
             const legText = legTextForCity(dayCity) ?? colors.accent;
             const isLast = dayIdx === days.length - 1;
             return (
-              <View key={day} style={styles.dayRow}>
+              <View
+                key={day}
+                style={styles.dayRow}
+                onLayout={(e) => {
+                  dayTops.current.set(day, e.nativeEvent.layout.y);
+                  if (day === openOn && !jumped.current) setLaidOut((n) => n + 1);
+                }}
+                testID={day === today ? 'itinerary-today' : undefined}
+              >
                 <View style={styles.rail}>
-                  <Text style={[styles.weekday, { color: colors.inkTertiary }]}>{formatWeekday(day)}</Text>
+                  <Text style={[styles.weekday, { color: day === today ? legText : colors.inkTertiary }, day === today && styles.todayLabel]}>
+                    {day === today ? 'Today' : formatWeekday(day)}
+                  </Text>
                   <View style={[styles.dayCircle, { backgroundColor: legText }]}>
                     <Text style={[styles.dayNum, { color: colors.onAccent }]}>{parseDay(day).getDate()}</Text>
                   </View>
@@ -140,7 +167,7 @@ export default function ItineraryList() {
                             {item.created_by === session?.user.id ? (
                               <Pressable
                                 accessibilityRole="button"
-                                onPress={() => handleDelete(item.id)}
+                                onPress={() => handleDelete(item)}
                                 style={styles.iconHit}
                                 accessibilityLabel={`Delete ${item.title}`}
                               >
@@ -243,6 +270,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginBottom: 4,
   },
+  todayLabel: { fontFamily: fontFamily.bodySemiBold },
   dayCircle: {
     width: 34,
     height: 34,
