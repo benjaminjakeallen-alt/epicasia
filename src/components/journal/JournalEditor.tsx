@@ -20,6 +20,7 @@ import { addDays, formatMonthDay, formatWeekday, todayDay } from '../../lib/date
 import { deleteEntry, hasContent, saveDraft, type Draft, type DraftMedia, type JournalEntry } from '../../lib/journal';
 import { signedUrls } from '../../lib/photos';
 import { POP, useEnter } from '../../lib/socialMotion';
+import { SlideSwitch } from '../shell/motion';
 import { stopForDay } from '../../lib/places';
 import { draftJournal, imageForYuki } from '../../lib/yuki';
 import { colors as c, legTextColors, shadow } from '../../theme/colors';
@@ -582,9 +583,7 @@ export default function JournalEditor({
         >
           <Ionicons name="people-outline" size={20} color={c.inkSecondary} />
           <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Share with the group</Text>
-          <View style={[styles.toggle, { backgroundColor: draft.shared ? c.accent : c.handle }]}>
-            <View style={[styles.knob, { backgroundColor: c.card, alignSelf: draft.shared ? 'flex-end' : 'flex-start' }]} />
-          </View>
+          <SlideSwitch on={draft.shared} />
         </Pressable>
 
         {previous ? (
@@ -778,19 +777,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
     paddingVertical: 10,
     minHeight: 60,
-  },
-  toggle: {
-    width: 51,
-    height: 31,
-    borderRadius: 16,
-    padding: 2,
-    justifyContent: 'center',
-  },
-  knob: {
-    width: 27,
-    height: 27,
-    borderRadius: 14,
-    boxShadow: shadow.card,
   },
   delete: {
     minHeight: 44,
