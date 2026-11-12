@@ -153,6 +153,7 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   await ui.getByRole('button', { name: 'Leave the game' }).click();
   await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15000 });
   await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 15000 });
+  await expect(page.getByTestId('new-best')).toContainText('New best!'); // (it beat what the board showed before)
   expect(errors).toEqual([]);
 });
 

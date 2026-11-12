@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Avatar from '../../components/Avatar';
 import CircleButton from '../../components/CircleButton';
+import { PressScale } from '../../components/shell/motion';
 import OfflineNotice from '../../components/OfflineNotice';
 import { DocsSkeleton } from '../../components/Skeleton';
 import SkyBackdrop from '../../components/SkyBackdrop';
@@ -12,10 +13,33 @@ import { useAuth } from '../../lib/AuthProvider';
 import { fetchMembers, type Member } from '../../lib/chat';
 import { personColor } from '../../lib/chatFormat';
 import { fetchScores, flushRuns, highScores, localBest, type ArcadeGame, type ScoreRow } from '../../lib/arcade';
+import { winFeedback } from '../../lib/feedback';
 import { markOpened } from '../../lib/gameSeen';
+import { POP, useEnter } from '../../lib/socialMotion';
 import { shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 import { useTheme } from '../../theme/useTheme';
+
+// Your best on each game's board the last time it was looked at (while the app is open).
+const lastBest = new Map<ArcadeGame, number>();
+
+// "New best!" pops in beside your score when you come back from a run that beat it.
+function NewBest() {
+  const colors = useTheme();
+  const t = useEnter(true, POP);
+  return (
+    <Animated.View
+      style={[
+        styles.newBest,
+        { backgroundColor: colors.winnerSoft, opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) }] },
+      ]}
+      testID="new-best"
+    >
+      <Ionicons name="trophy" size={13} color={colors.winnerInk} />
+      <Text style={[styles.newBestText, { color: colors.winnerInk }]}>New best!</Text>
+    </Animated.View>
+  );
+}
 
 // An arcade game's home (Godzilla Rampage, Shinkansen Dash): a Play card and
 // the group's high-score board (each player's best run). The game itself is
@@ -51,6 +75,8 @@ export default function ArcadeBoard({
   const [rows, setRows] = useState<ScoreRow[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [best, setBest] = useState(0);
+  // Back from a run that beat your best: say so (the first look at the board only notes where you stand).
+  const [newBest, setNewBest] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,15 +86,23 @@ export default function ArcadeBoard({
 
   const load = useCallback(() => {
     setError(null);
-    localBest(game).then(setBest);
+    const local = localBest(game);
+    local.then(setBest);
     // A run saved offline goes up first, so it's on the board.
     (me ? flushRuns(me, game).catch(() => {}) : Promise.resolve())
-      .then(() => Promise.all([fetchScores(game), fetchMembers().catch(() => [] as Member[])]))
-      .then(([s, m]) => {
+      .then(() => Promise.all([fetchScores(game), fetchMembers().catch(() => [] as Member[]), local]))
+      .then(([s, m, mine]) => {
         setRows(s);
         setMembers(m);
+        const now = Math.max(mine, highScores(s).find((b) => b.user_id === me)?.score ?? 0);
+        const before = lastBest.get(game);
+        lastBest.set(game, now);
+        if (before !== undefined && now > before) {
+          setNewBest(true);
+          winFeedback();
+        }
       })
-      .catch((err) => setError(err.message))
+      .catch(() => setError('Couldn’t load the scores. Check your connection and come back.'))
       .finally(() => setLoading(false));
   }, [me, game]);
 
@@ -80,6 +114,7 @@ export default function ArcadeBoard({
 
   const board = useMemo(() => highScores(rows), [rows]);
   const myBest = Math.max(best, board.find((b) => b.user_id === me)?.score ?? 0);
+
 
   const member = (id: string) => {
     const i = members.findIndex((m) => m.id === id);
@@ -103,19 +138,25 @@ export default function ArcadeBoard({
           <Text style={[styles.playTitle, { color: colors.onArcade }]}>{tagline}</Text>
           <Text style={[type.body, { color: colors.onArcade }]}>{blurb}</Text>
           {myBest > 0 ? (
-            <Text style={[styles.best, { color: colors.onArcade }]} testID="my-best">
-              Your best {fmt(myBest)}
-            </Text>
+            <View style={styles.bestRow}>
+              <Text style={[styles.best, { color: colors.onArcade }]} testID="my-best">
+                Your best {fmt(myBest)}
+              </Text>
+              {newBest ? <NewBest /> : null}
+            </View>
           ) : null}
-          <Pressable
+          <PressScale
             testID={playTestID}
             accessibilityRole="button"
-            onPress={() => router.push(playHref)}
+            onPress={() => {
+              setNewBest(false);
+              router.push(playHref);
+            }}
             style={({ pressed }) => [styles.cta, { backgroundColor: pressed ? colors.accentPressed : colors.accent }]}
           >
             <Ionicons name="play" size={18} color={colors.onAccent} />
             <Text style={[styles.ctaText, { color: colors.onAccent }]}>Play</Text>
-          </Pressable>
+          </PressScale>
         </View>
 
         <Text style={[styles.section, { color: colors.ink }]} accessibilityRole="header">
@@ -139,6 +180,8 @@ export default function ArcadeBoard({
                   style={[
                     styles.row,
                     i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
+                    // your own row stands out, so you find yourself at a glance
+                    s.user_id === me && [styles.mine, { backgroundColor: colors.accentSoft }],
                   ]}
                   accessible
                   accessibilityLabel={`${s.rank}. ${m.name}${you}, ${fmt(s.score)}, ${line}`}
@@ -182,6 +225,10 @@ const styles = StyleSheet.create({
   play: { borderRadius: 24, padding: 20, gap: 10, boxShadow: shadow.card },
   playTitle: { fontFamily: fontFamily.display, fontSize: 26, lineHeight: 31 },
   best: { fontFamily: fontFamily.mono, fontSize: 15 },
+  bestRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
+  newBest: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26, paddingHorizontal: 10, borderRadius: 13 },
+  newBestText: { fontFamily: fontFamily.bodySemiBold, fontSize: 12.5 },
+  mine: { marginHorizontal: -16, paddingHorizontal: 16 },
   cta: {
     flexDirection: 'row',
     gap: 8,

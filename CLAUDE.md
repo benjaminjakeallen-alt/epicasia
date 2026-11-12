@@ -1921,6 +1921,71 @@ form primitives needed well beyond login/register (itinerary's `new.tsx`
 already reuses them). Reuse them for future add/edit forms rather than
 rebuilding input/button/screen chrome per feature.
 
+## Motion and UX pass (Nov 2026)
+
+The user asked for a run through the whole codebase "especially the animations and user experience, find gaps".
+What it added, so later work stays consistent:
+
+- **Two motion helpers — reuse them, don't write a third.**
+  - `src/components/shell/motion.tsx`:
+    - `PressScale` — a Pressable that sinks under the finger (cards, pills, keypad keys, Play buttons).
+    - `Appear` — fades and settles in on mount (error lines, banners).
+    - `SlideSwitch` — the drawn switch on a settings row; every switch in the app uses it.
+    - `ScreenTransition` — wraps each Stack screen (`screenLayout` in both layouts). A pushed screen fades and
+      glides in from the right, one you come back to from the left; nothing on a cold open. It decides during
+      render (React's adjust-during-render pattern), not with setState in an effect, which lint rejects.
+    - `prefersReducedMotion()` / `useReduceMotion()`.
+  - `src/lib/socialMotion.ts`: `usePresence(visible)` (enter and exit for sheets and viewers; keeps the thing
+    mounted until its exit has played), `useEnter()`, `useLast()`, `SPRING` / `POP`, `reduceMotion()`.
+  - Modals stay `animationType="none"`; the motion is ours. Everything lands on its end state under Reduce Motion.
+  - **Specs must wait for a sheet or viewer to reach count 0 before the next tap** (it still covers the page
+    for ~160 ms while it leaves): `message-actions`, `album-sheet`, the viewer dialog.
+- **Destructive actions ask first** (`confirm()` in `src/lib/confirm.ts`): chat message, photo (viewer and a
+  selection), journal voice note, itinerary item, flight. Documents and pins already did. Keep it that way.
+- **Errors are plain words**, never a raw `e.message` ("Couldn’t save that. Try again.", and an offline line).
+- **Dates and times are picked, not typed.** `src/components/form/PickerField.tsx` is a native
+  `<input type="date|time">` styled like `FormField` (the wheel on iPhone). It gives `YYYY-MM-DD` and `HH:MM`,
+  which `isValidDay` / `parseTimeInput` already read. Used by the itinerary and flight forms. The itinerary form
+  starts on today during the trip (else the first trip day) and its city follows the day's leg until edited.
+- **iPhone zoom:** `public/index.html` forces inputs to 16px on iOS only (`@supports (-webkit-touch-callout:
+  none)`); Safari zooms the page when a field under 16px is tapped. Not checkable in Chromium.
+- **Chat:** new messages rise in, reactions pop, a `jump-latest` pill when scrolled up (counts what arrived),
+  mute notes clear after 4 s.
+- **Photos:** selected photos shrink in a sage frame, the select bar and album sheet slide, notes clear after 6 s.
+- **Journal:** a new entry's text is kept on the phone (`epicasia.cache.<uid>.journalDraft`, cleared at sign-out
+  with the offline copies) and restored with an "Unsaved entry restored · Start fresh" row. Photos and voice notes
+  are not kept.
+- **Home and Yuki:** hubs, arrows, Open, the Yuki pill and the avatar sink under the finger; the selected label
+  slides with the ring; the unread badge pops; arrow keys turn the ring and Enter opens. Yuki's veil fades.
+- **Sign-in forms:** Enter submits, `PasswordField` has an eye button, blank fields are caught before sending.
+- **Itinerary:** during the trip it opens scrolled to today (or the next day with plans), marked "Today"
+  (`itinerary-today`).
+- **Arrivals:** checklist ticks pop (only ones you tick now); tapping a boarding pass's confirmation code copies
+  it (`copy-confirmation`).
+- **Toolkit:** keypad keys sink and tick; the swap arrows turn; a quick price is a button that loads the
+  converter; the phrase and address cards fade in over the page.
+- **Games:**
+  - While an arcade game boots, `ArcadePlay` shows its icon and name on the dark stage (`game-loading`), faded
+    out on the iframe's `onLoad` (`GameFrame`'s new `onLoad` prop). It was a blank dark screen for seconds.
+  - `ArcadeBoard` pops a "New best!" tag (`new-best`) with a chime when you come back from a run that beat your
+    best (kept per game in a module-level map, since the board can remount), and highlights your own row.
+- **Tests added:** `e2e/itinerary.spec.ts`, `e2e/auth-forms.spec.ts`, `e2e/shell-motion.spec.ts`, plus cases in
+  the chat, gallery, journal, flights, toolkit, sushi and rampage specs.
+- **Test fixes found on the way:**
+  - Chat fixtures: a read time between two messages must use `atLoad()` (file-load time, like `MESSAGES`), or a
+    test reached 30 s after the file loads counts the message as read.
+  - The a11y tests inside game frames get 90 s; the Shinkansen sewer test waits 20 s on game state. Both were
+    load failures in full runs.
+  - `E2E_PORT` picks the dev server's port. **Never symlink `node_modules` into a worktree**: Expo Router's
+    route context is cached there with an absolute app root, so one worktree serves another's `src/app`. Use
+    `cp -al` and a per-worktree `TMPDIR` with `--clear`.
+  - **Don't edit app code while a full e2e run is going**: it shares the dev server, so the run tests a mix.
+- **Not reviewed in this pass:** the chat room list / room info / new-room screens, `JournalReader`, the journal
+  list, the photo book screen, weather, the photo-game walls and forms, the trip leaderboard, and the arcade
+  games' own menus.
+- **Not checkable here:** how the motion feels on a real iPhone, Reduce Motion on a device, the iOS date and
+  time wheels, the iOS zoom fix.
+
 ## Stack
 
 Expo (React Native + TypeScript), file-based routing via **Expo Router**.

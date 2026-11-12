@@ -374,7 +374,8 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await page.mouse.move(cx, cy);
   await page.mouse.down();
   await page.mouse.move(cx + box.width, cy, { steps: 3 });
-  const fast = { timeout: 5_000, intervals: [50] };
+  // (20 s: these wait on the game's own state; in software 3D on a busy machine game time runs slower than the clock)
+  const fast = { timeout: 20_000, intervals: [50] };
   await expect.poll(async () => (await sw()).vx, fast).toBeGreaterThan(8.5);
   await expect.poll(async () => (await sw()).x, fast).toBeGreaterThan(10); // up to the first pipe
   // Back the other way, part way: you skid, turn round and walk left.
@@ -386,7 +387,7 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await expect.poll(async () => (await sw()).vx, fast).toBeLessThan(-8.5);
   // Let go: you slow to a stop.
   await page.mouse.up();
-  await expect.poll(async () => (await sw()).vx, { timeout: 5_000 }).toBe(0);
+  await expect.poll(async () => (await sw()).vx, { timeout: 20_000 }).toBe(0);
 
   // A quick tap of jump is a hop; held, the same jump goes well over a pipe's height.
   const jumpBtn = (await ui.locator('#jumpbtn').boundingBox())!;
@@ -397,8 +398,8 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
     b.dispatchEvent(new PointerEvent('pointerup', { pointerId: 7, bubbles: true }));
   });
   await page.mouse.move(jumpBtn.x + jumpBtn.width / 2, jumpBtn.y + jumpBtn.height / 2);
-  await expect.poll(async () => (await sw()).y, { timeout: 5_000 }).toBeGreaterThan(0);
-  await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
+  await expect.poll(async () => (await sw()).y, { timeout: 20_000 }).toBeGreaterThan(0);
+  await expect.poll(async () => (await sw()).ground, { timeout: 20_000 }).toBe(true);
   const hop = (await sw()).peak;
   expect(hop).toBeLessThan(1.5);
   // (held for 0.75 s of game time — 45 fixed steps — not of the clock: under load a frame can cover less)
@@ -406,16 +407,16 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await page.mouse.down();
   await expect.poll(async () => (await sw()).steps - held, { timeout: 10_000, intervals: [50] }).toBeGreaterThanOrEqual(45);
   await page.mouse.up();
-  await expect.poll(async () => (await sw()).ground, { timeout: 5_000 }).toBe(true);
+  await expect.poll(async () => (await sw()).ground, { timeout: 20_000 }).toBe(true);
   expect((await sw()).peak).toBeGreaterThan(2.3);
 
   // Keys too: → runs, Space jumps.
   await page.keyboard.down('ArrowRight');
-  await expect.poll(async () => (await sw()).vx, { timeout: 5_000 }).toBeGreaterThan(8.5);
+  await expect.poll(async () => (await sw()).vx, { timeout: 20_000 }).toBeGreaterThan(8.5);
   await page.keyboard.up('ArrowRight');
   await page.keyboard.press(' ');
   // (a hop is over in ~0.3 s, so check what it leaves behind: a new jump resets the peak to the hop's ~1 tile)
-  await expect.poll(async () => { const pk = (await sw()).peak; return pk > 0.3 && pk < 2; }, { timeout: 5_000 }).toBe(true);
+  await expect.poll(async () => { const pk = (await sw()).peak; return pk > 0.3 && pk < 2; }, { timeout: 20_000 }).toBe(true);
 });
 
 test('the sewer: a head-butt breaks a brick and lets out a feather; the feather gives a tanuki suit that floats you down', async ({ page }) => {
