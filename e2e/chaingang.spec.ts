@@ -339,10 +339,14 @@ test('tug of wall: the first time, a how-to-play card holds the first stretch un
   await expect.poll(() => chain(f, (c) => c.mode)).toBe('title');
   await page.waitForTimeout(4000); // (a title card is 2.8 s)
   expect(await chain(f, (c) => c.mode)).toBe('title');
-  // (held, not tapped: on a busy machine a tap can come and go between two frames of the game)
-  await page.keyboard.down(' ');
-  await expect.poll(() => chain(f, (c) => c.mode), { timeout: 20_000 }).toBe('play');
-  await page.keyboard.up(' ');
+  // (pressed until it takes: the card ignores presses in its first second of GAME time, and on a busy machine
+  // game time runs slower than the clock, so one press 4 s in could still count as too early)
+  await expect
+    .poll(async () => {
+      await page.keyboard.press(' ', { delay: 120 });
+      return chain(f, (c) => c.mode);
+    }, { timeout: 40_000, intervals: [500] })
+    .toBe('play');
   expect(await chain(f, (c) => c.tips)).toBe(false);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.chaingang.tips'))).toBe('1');
 });
