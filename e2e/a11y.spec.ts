@@ -395,6 +395,7 @@ test('a11y: lost in translation leaderboard', async ({ page }) => {
 });
 
 test('a11y: godzilla rampage game (the iframe and its controls)', async ({ page }) => {
+  test.setTimeout(90_000); // (a game boots in software 3D here: ~25 s alone, longer on a busy machine)
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/rampage/play');
   await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Jump' })).toBeVisible();
@@ -407,6 +408,7 @@ test('a11y: godzilla rampage game (the iframe and its controls)', async ({ page 
 });
 
 test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }) => {
+  test.setTimeout(90_000); // (a game boots in software 3D here: ~25 s alone, longer on a busy machine)
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/shinkansen/play');
   await expect(page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -419,6 +421,7 @@ test('a11y: shinkansen dash game (the iframe and its controls)', async ({ page }
 });
 
 test('a11y: sushi conveyor game (the seat card, then playing)', async ({ page }) => {
+  test.setTimeout(90_000); // (a game boots in software 3D here: ~25 s alone, longer on a busy machine)
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/sushi/play');
   const ui = page.frameLocator('[data-testid="game-frame"]');
@@ -436,6 +439,7 @@ test('a11y: sushi conveyor game (the seat card, then playing)', async ({ page })
 });
 
 test('a11y: tug of wall game (the iframe and its controls)', async ({ page }) => {
+  test.setTimeout(90_000); // (a game boots in software 3D here: ~25 s alone, longer on a busy machine)
   await signInWithFakeBackend(page, DATA);
   await open(page, '/games/chaingang/play');
   await page.getByTestId('chain-practise').click();
