@@ -2,8 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
+  Animated,
   Pressable,
   ScrollView,
   SectionList,
@@ -53,6 +54,7 @@ import {
   type PickedPhoto,
 } from '../../../lib/photos';
 import { STOPS } from '../../../lib/places';
+import { POP, SPRING, reduceMotion, useEnter, usePresence } from '../../../lib/socialMotion';
 import { colors as c, shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
 
@@ -86,6 +88,68 @@ const fileOf = (p: GalleryPhoto) => ({ bucket: p.bucket, path: p.video_path ?? p
 type Row = { key: string; photos: GalleryPhoto[] };
 type Section = { key: string; title: string; count: number; data: Row[] };
 
+// A selected photo shrinks a little inside its cell (so the grid shows what's
+// picked at a glance) and springs back when it's let go.
+function SelectScale({ on, children }: { on: boolean; children: ReactNode }) {
+  const v = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    if (reduceMotion()) {
+      v.setValue(on ? 1 : 0);
+      return;
+    }
+    const a = Animated.spring(v, { toValue: on ? 1 : 0, ...SPRING });
+    a.start();
+    return () => a.stop();
+  }, [on, v]);
+  return (
+    <Animated.View style={{ transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [1, 0.86] }) }] }}>
+      {children}
+    </Animated.View>
+  );
+}
+
+// The tick in a selected cell's corner pops in.
+function Tick() {
+  const t = useEnter(true, POP);
+  return (
+    <Animated.View style={{ transform: [{ scale: t }] }}>
+      <Ionicons name="checkmark" size={15} color={c.onAccent} />
+    </Animated.View>
+  );
+}
+
+// The upload card: eases in, and its bar glides to each new fraction.
+function UploadProgress({ done, total }: { done: number; total: number }) {
+  const enter = useEnter();
+  const fill = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const a = Animated.timing(fill, { toValue: total ? done / total : 0, duration: reduceMotion() ? 0 : 260, useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [done, total, fill]);
+  return (
+    <Animated.View
+      style={[
+        styles.progressCard,
+        { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [-8, 0] }) }] },
+      ]}
+      accessibilityLiveRegion="polite"
+    >
+      <Text style={[type.bodyStrong, { color: c.ink }]}>
+        Uploading {Math.min(done + 1, total)} of {total}…
+      </Text>
+      <View
+        style={styles.progressTrack}
+        accessibilityRole="progressbar"
+        accessibilityLabel="Upload progress"
+        accessibilityValue={{ min: 0, max: total, now: done }}
+      >
+        <Animated.View style={[styles.progressFill, { transform: [{ scaleX: fill }] }]} />
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function Photos() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -108,6 +172,14 @@ export default function Photos() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [albumSheet, setAlbumSheet] = useState(false);
   const loadingMore = useRef(false);
+  const selectBar = usePresence(!!selected);
+
+  // Notes ("3 added") clear themselves; tap to clear sooner.
+  useEffect(() => {
+    if (!notice) return;
+    const id = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(id);
+  }, [notice]);
 
   const cell = Math.floor((width - PAD * 2 - GAP * (COLS - 1)) / COLS);
 
@@ -445,6 +517,8 @@ export default function Photos() {
 
   const deleteSelected = useCallback(async () => {
     const list = selectedList;
+    const what = list.length === 1 ? (list[0].video_path ? 'this video' : 'this photo') : `these ${list.length}`;
+    if (!(await confirm(`Delete ${what}?`, 'They’ll be gone from the gallery for everyone.'))) return;
     setSelected(null);
     for (const p of list) await removePhoto(p);
   }, [selectedList, removePhoto]);
@@ -501,18 +575,20 @@ export default function Photos() {
             testID="gallery-cell"
             style={({ pressed }) => [styles.cell, { width: cell, height: cell, opacity: pressed ? 0.85 : 1 }]}
           >
-            {src ? (
-              <Image
-                source={{ uri: src, cacheKey: `${p.bucket}:${p.thumb_path ?? p.storage_path}` }}
-                recyclingKey={p.id}
-                contentFit="cover"
-                transition={160}
-                accessibilityLabel=""
-                style={{ width: cell, height: cell }}
-              />
-            ) : (
-              <View style={[styles.placeholder, { width: cell, height: cell }]} />
-            )}
+            <SelectScale on={isSel}>
+              {src ? (
+                <Image
+                  source={{ uri: src, cacheKey: `${p.bucket}:${p.thumb_path ?? p.storage_path}` }}
+                  recyclingKey={p.id}
+                  contentFit="cover"
+                  transition={160}
+                  accessibilityLabel=""
+                  style={[{ width: cell, height: cell }, isSel && styles.cellPicked]}
+                />
+              ) : (
+                <View style={[styles.placeholder, { width: cell, height: cell }]} />
+              )}
+            </SelectScale>
             {favCount > 0 ? (
               <View style={styles.badgeFav}>
                 <Ionicons name="heart" size={11} color={c.onMedia} />
@@ -530,12 +606,12 @@ export default function Photos() {
                 <Ionicons name="chatbubble" size={10} color={c.onMedia} />
               </View>
             ) : null}
+            {isSel ? <View style={styles.selShade} pointerEvents="none" /> : null}
             {selected ? (
               <View style={[styles.check, isSel && styles.checkOn]}>
-                {isSel ? <Ionicons name="checkmark" size={15} color={c.onAccent} /> : null}
+                {isSel ? <Tick /> : null}
               </View>
             ) : null}
-            {isSel ? <View style={styles.selShade} /> : null}
           </Pressable>
         );
       })}
@@ -593,16 +669,7 @@ export default function Photos() {
         </ScrollView>
       ) : null}
 
-      {upload ? (
-        <View style={styles.progressCard} accessibilityLiveRegion="polite">
-          <Text style={[type.bodyStrong, { color: c.ink }]}>
-            Uploading {Math.min(upload.done + 1, upload.total)} of {upload.total}…
-          </Text>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${(upload.done / upload.total) * 100}%` }]} />
-          </View>
-        </View>
-      ) : null}
+      {upload ? <UploadProgress done={upload.done} total={upload.total} /> : null}
 
       {notice ? (
         <Pressable onPress={() => setNotice(null)} style={styles.notice} accessibilityRole="alert">
@@ -657,8 +724,19 @@ export default function Photos() {
         />
       )}
 
-      {selected ? (
-        <View style={[styles.selectBar, { paddingBottom: insets.bottom + 12 }]}>
+      {selectBar.mounted ? (
+        <Animated.View
+          pointerEvents={selected ? 'auto' : 'none'}
+          style={[
+            styles.selectBar,
+            { paddingBottom: insets.bottom + 12 },
+            {
+              opacity: selectBar.t,
+              transform: [{ translateY: selectBar.t.interpolate({ inputRange: [0, 1], outputRange: [90, 0], extrapolate: 'clamp' }) }],
+            },
+          ]}
+          testID="select-bar"
+        >
           <Pressable onPress={shareSelected} style={styles.selectBtn} accessibilityRole="button" testID="select-share">
             <Ionicons name="share-outline" size={21} color={c.highlight} />
             <Text style={[styles.selectText, { color: c.highlight }]}>Share</Text>
@@ -683,7 +761,7 @@ export default function Photos() {
               <Text style={[styles.selectText, { color: c.danger }]}>Delete</Text>
             </Pressable>
           ) : null}
-        </View>
+        </Animated.View>
       ) : null}
 
       <GalleryViewer
@@ -699,7 +777,11 @@ export default function Photos() {
         onShare={(p) => {
           shareFiles([fileOf(p)]).catch(() => {});
         }}
-        onDelete={removePhoto}
+        onDelete={async (p) => {
+          if (await confirm(`Delete this ${p.video_path ? 'video' : 'photo'}?`, 'It’ll be gone from the gallery for everyone.')) {
+            void removePhoto(p);
+          }
+        }}
         onCaption={(p, text) => {
           setPhotos((prev) => prev.map((x) => (x.id === p.id ? { ...x, caption: text.trim() || null } : x)));
           updateCaption(p.id, text).catch(() => setNotice('Couldn’t save the caption.'));
@@ -789,6 +871,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   progressFill: {
+    width: '100%',
+    transformOrigin: 'left',
     height: 6,
     borderRadius: 3,
     backgroundColor: c.accent,
@@ -834,6 +918,9 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     backgroundColor: c.skeleton,
+  },
+  cellPicked: {
+    borderRadius: 8,
   },
   badgeFav: {
     position: 'absolute',

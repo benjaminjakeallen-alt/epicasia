@@ -140,6 +140,41 @@ test('writing an entry saves the exact row', async ({ page }) => {
   expect(backend.inserts.filter((i) => i.table === 'journal_media')).toHaveLength(0);
 });
 
+test('a new entry keeps what you typed until it is saved or discarded', async ({ page }) => {
+  const backend = await signInWithFakeBackend(page, { profiles: PROFILES, journal_entries: [] });
+  await open(page, '/journal/new');
+  await expect(page.getByTestId('journal-restored')).toHaveCount(0);
+  await page.getByRole('button', { name: /Jun 13/ }).click();
+  await page.getByTestId('journal-title').fill('Great Wall at Mutianyu');
+  await page.getByTestId('journal-body').fill('Took the toboggan down.');
+  await page.waitForTimeout(700); // kept a moment after typing stops
+
+  // The phone drops the app from memory: it's all still there.
+  await open(page, '/journal/new');
+  await expect(page.getByTestId('journal-restored')).toBeVisible();
+  await expect(page.getByTestId('journal-title')).toHaveValue('Great Wall at Mutianyu');
+  await expect(page.getByTestId('journal-body')).toHaveValue('Took the toboggan down.');
+  await expect(page.getByRole('button', { name: /Jun 13/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('Where')).toHaveValue('Beijing');
+
+  // "Start fresh" empties it, and nothing comes back next time.
+  await page.getByRole('button', { name: 'Start fresh' }).click();
+  await expect(page.getByTestId('journal-title')).toHaveValue('');
+  await expect(page.getByTestId('journal-restored')).toHaveCount(0);
+  await page.waitForTimeout(700);
+  await open(page, '/journal/new');
+  await expect(page.getByTestId('journal-title')).toHaveValue('');
+
+  // Saving an entry forgets the kept text too.
+  await page.getByTestId('journal-title').fill('Saved one');
+  await page.waitForTimeout(700);
+  await page.getByTestId('journal-save').click();
+  await expect.poll(() => backend.inserts.filter((i) => i.table === 'journal_entries').length).toBe(1);
+  await open(page, '/journal/new');
+  await expect(page.getByTestId('journal-title')).toHaveValue('');
+  await expect(page.getByTestId('journal-restored')).toHaveCount(0);
+});
+
 test('editing my entry shows its photos and voice notes; removing one deletes it', async ({ page }) => {
   const backend = await signInWithFakeBackend(page, { profiles: PROFILES, journal_entries: ENTRIES });
   await open(page, '/journal/e1');
@@ -152,6 +187,13 @@ test('editing my entry shows its photos and voice notes; removing one deletes it
 
   await page.getByRole('button', { name: 'Remove photo 2' }).click();
   await expect(page.getByTestId('journal-photo')).toHaveCount(1);
+  // A recording can't be picked again, so removing one asks first.
+  page.once('dialog', (d) => {
+    expect(d.message()).toContain('Remove this voice note?');
+    void d.dismiss();
+  });
+  await page.getByTestId('voice-note').getByRole('button', { name: /Remove/ }).click();
+  await expect(page.getByTestId('voice-note')).toHaveCount(1);
   await page.getByTestId('journal-save').click();
 
   await expect.poll(() => backend.deletes.filter((d) => d.table === 'journal_media').length).toBe(1);

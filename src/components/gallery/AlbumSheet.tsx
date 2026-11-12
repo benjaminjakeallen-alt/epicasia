@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import type { Album } from '../../lib/gallery';
+import { useLast, usePresence } from '../../lib/socialMotion';
 import { colors as c, shadow } from '../../theme/colors';
 import { fontFamily, type } from '../../theme/typography';
 
@@ -17,8 +18,12 @@ type Props = {
 
 // "Add to album" for the selected photos: an existing shared album, or a new
 // one named here. A bottom sheet, like the chat's message actions.
-export default function AlbumSheet({ visible, count, albums, onPick, onCreate, onClose, bottomInset }: Props) {
+export default function AlbumSheet({ visible, count: liveCount, albums, onPick, onCreate, onClose, bottomInset }: Props) {
   const [name, setName] = useState('');
+  // Slides up over a fading scrim, and back down — like the chat's sheet.
+  const { mounted, t } = usePresence(visible);
+  const count = useLast(liveCount, visible);
+  const [sheetH, setSheetH] = useState(420);
   const clean = name.trim().replace(/\s+/g, ' ');
 
   const close = () => {
@@ -27,9 +32,21 @@ export default function AlbumSheet({ visible, count, albums, onPick, onCreate, o
   };
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close" style={styles.scrim} onPress={close} />
-      <View style={[styles.sheet, { paddingBottom: Math.max(bottomInset, 14) + 6 }]} accessibilityViewIsModal>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={close}>
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: t }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" style={styles.scrim} onPress={close} />
+      </Animated.View>
+      <Animated.View
+        onLayout={(e) => setSheetH(e.nativeEvent.layout.height)}
+        pointerEvents={visible ? 'auto' : 'none'}
+        style={[
+          styles.sheet,
+          { paddingBottom: Math.max(bottomInset, 14) + 6 },
+          { transform: [{ translateY: t.interpolate({ inputRange: [0, 1], outputRange: [sheetH, 0], extrapolate: 'clamp' }) }] },
+        ]}
+        accessibilityViewIsModal
+        testID="album-sheet"
+      >
         <View style={styles.handle} />
         <Text style={styles.title} accessibilityRole="header">
           Add {count} to an album
@@ -78,7 +95,7 @@ export default function AlbumSheet({ visible, count, albums, onPick, onCreate, o
             <Text style={[type.bodyStrong, { color: c.onAccent }]}>Create</Text>
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

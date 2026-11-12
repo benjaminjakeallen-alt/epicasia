@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   FlatList,
   Modal,
   Pressable,
@@ -18,6 +19,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dayLabel, timeLabel } from '../../lib/chatFormat';
 import { takenAt, type GalleryPhoto } from '../../lib/gallery';
+import { POP, reduceMotion, usePresence } from '../../lib/socialMotion';
 import { colors as c } from '../../theme/colors';
 import { fontFamily } from '../../theme/typography';
 
@@ -69,6 +71,10 @@ export default function GalleryViewer({
   const [draft, setDraft] = useState('');
   const list = useRef<FlatList<GalleryPhoto>>(null);
   const open = startIndex !== null;
+  // The stage fades in and out (the Modal itself doesn't animate on web).
+  const { mounted, t } = usePresence(open, 140);
+  // The heart pops when you favourite a photo.
+  const heart = useRef(new Animated.Value(1)).current;
 
   // Opening the viewer on a photo resets it — adjusted during render (React's
   // "storing information from previous renders" pattern), not in an effect.
@@ -109,23 +115,23 @@ export default function GalleryViewer({
     }
   };
 
-  if (!open) return null;
+  if (!mounted) return null;
   const who = current ? person(current.user_id) : null;
   const mine = current?.user_id === myId;
   const fav = current ? isFav(current.id) : false;
   const count = current ? favCount(current.id) : 0;
 
   return (
-    <Modal visible animationType="none" onRequestClose={onClose} statusBarTranslucent>
+    <Modal visible transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
       <StatusBar barStyle="light-content" />
-      <View style={styles.root}>
+      <Animated.View style={[styles.root, { opacity: t }]} pointerEvents={open ? 'auto' : 'none'}>
         <FlatList
           ref={list}
           data={photos}
           keyExtractor={(p) => p.id}
           horizontal
           pagingEnabled
-          initialScrollIndex={startIndex ?? 0}
+          initialScrollIndex={startIndex ?? index}
           getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
           onMomentumScrollEnd={onScrollEnd}
           onScrollEndDrag={onScrollEnd}
@@ -187,7 +193,7 @@ export default function GalleryViewer({
         />
 
         <View style={[styles.top, { paddingTop: insets.top + 8 }]} pointerEvents="box-none">
-          <Pressable accessibilityRole="button" onPress={onClose} hitSlop={10} accessibilityLabel="Close" style={styles.round}>
+          <Pressable accessibilityRole="button" onPress={onClose} accessibilityLabel="Close" style={styles.round}>
             <Ionicons name="close" size={22} color={c.onMedia} />
           </Pressable>
           <Text style={styles.counter}>
@@ -283,12 +289,20 @@ export default function GalleryViewer({
 
             <View style={styles.actions}>
               <Pressable
-                onPress={() => onToggleFav(current)}
+                onPress={() => {
+                  if (!fav && !reduceMotion()) {
+                    heart.setValue(0.6);
+                    Animated.spring(heart, { toValue: 1, ...POP }).start();
+                  }
+                  onToggleFav(current);
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={fav ? 'Remove from favorites' : 'Add to favorites'}
                 style={({ pressed }) => [styles.pill, fav && styles.pillOn, pressed && styles.pillPressed]}
               >
-                <Ionicons name={fav ? 'heart' : 'heart-outline'} size={19} color={fav ? c.mediaFavorite : c.onMedia} />
+                <Animated.View style={{ transform: [{ scale: heart }] }}>
+                  <Ionicons name={fav ? 'heart' : 'heart-outline'} size={19} color={fav ? c.mediaFavorite : c.onMedia} />
+                </Animated.View>
                 {count > 0 ? <Text style={styles.pillText}>{count}</Text> : null}
               </Pressable>
               <Pressable
@@ -326,7 +340,7 @@ export default function GalleryViewer({
             </View>
           </View>
         ) : null}
-      </View>
+      </Animated.View>
     </Modal>
   );
 }
