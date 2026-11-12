@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SlideSwitch } from '../../../../components/shell/motion';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -364,9 +365,7 @@ export default function ChainGangPlay() {
                   style={[styles.switchRow, { backgroundColor: colors.card }]}
                 >
                   <Text style={[type.body, { color: colors.ink, flex: 1 }]}>Fill empty places with bots</Text>
-                  <View style={[styles.track, { backgroundColor: bots ? colors.accent : colors.border }]}>
-                    <View style={[styles.thumb, { backgroundColor: colors.card, alignSelf: bots ? 'flex-end' : 'flex-start' }]} />
-                  </View>
+                  <SlideSwitch on={bots} />
                 </Pressable>
                 <FormButton
                   label="Start the game"
@@ -410,6 +409,4 @@ const styles = StyleSheet.create({
   member: { paddingVertical: 12, gap: 2 },
   memberName: { fontFamily: fontFamily.bodyMedium, fontSize: 17 },
   switchRow: { flexDirection: 'row', alignItems: 'center', minHeight: 56, borderRadius: 18, paddingHorizontal: 16, gap: 12 },
-  track: { width: 50, height: 30, borderRadius: 15, padding: 3, justifyContent: 'center' },
-  thumb: { width: 24, height: 24, borderRadius: 12 },
 });

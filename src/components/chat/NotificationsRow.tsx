@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { SlideSwitch } from '../shell/motion';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { disablePush, enablePush, pushState, type PushState } from '../../lib/push';
@@ -76,9 +77,7 @@ export default function NotificationsRow({ compact = false }: { compact?: boolea
       >
         <Ionicons name={on ? 'notifications' : 'notifications-outline'} size={22} color={c.highlight} />
         <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>Chat notifications</Text>
-        <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.handle }]}>
-          <View style={[styles.knob, { backgroundColor: c.card, alignSelf: on ? 'flex-end' : 'flex-start' }]} />
-        </View>
+        <SlideSwitch on={on} />
       </Pressable>
       {error ? (
         <Text style={[type.caption, styles.error, { color: c.danger }]} accessibilityLiveRegion="assertive">
@@ -101,7 +100,5 @@ const styles = StyleSheet.create({
     boxShadow: shadow.card,
   },
   noteRow: { alignItems: 'flex-start', paddingVertical: 14 },
-  toggle: { width: 51, height: 31, borderRadius: 16, padding: 2, justifyContent: 'center' },
-  knob: { width: 27, height: 27, borderRadius: 14, boxShadow: shadow.card },
   error: { marginTop: 6, paddingHorizontal: 16 },
 });

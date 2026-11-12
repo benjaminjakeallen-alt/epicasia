@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { SlideSwitch } from '../shell/motion';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Member } from '../../lib/chat';
 import { personColor } from '../../lib/chatFormat';
@@ -58,9 +59,7 @@ export function SwitchRow({
     >
       <Ionicons name={icon} size={21} color={c.highlight} />
       <Text style={[type.bodyStrong, styles.flex, { color: c.ink }]}>{label}</Text>
-      <View style={[styles.toggle, { backgroundColor: value ? c.accent : c.handle }]}>
-        <View style={[styles.knob, { alignSelf: value ? 'flex-end' : 'flex-start' }]} />
-      </View>
+      <SlideSwitch on={value} />
     </Pressable>
   );
 }
@@ -130,8 +129,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     boxShadow: shadow.card,
   },
-  toggle: { width: 51, height: 31, borderRadius: 16, padding: 2, justifyContent: 'center' },
-  knob: { width: 27, height: 27, borderRadius: 14, backgroundColor: c.card, boxShadow: shadow.card },
   people: { gap: 8 },
   person: {
     flexDirection: 'row',

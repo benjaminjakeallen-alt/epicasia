@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../components/CircleButton';
+import { PressScale, SlideSwitch } from '../../components/shell/motion';
 import SkyBackdrop from '../../components/SkyBackdrop';
 import { useA11yMode, type SpeechRate } from '../../lib/a11yMode';
 import { announce } from '../../lib/speech';
@@ -47,9 +48,7 @@ function ToggleRow({
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowDetail}>{detail}</Text>
       </View>
-      <View style={[styles.toggle, { backgroundColor: value ? c.accent : c.handle }]}>
-        <View style={[styles.knob, { alignSelf: value ? 'flex-end' : 'flex-start' }]} />
-      </View>
+      <SlideSwitch on={value} width={60} height={36} pad={3} />
     </Pressable>
   );
 }
@@ -113,7 +112,7 @@ export default function AccessibilitySettings() {
               })}
             </View>
 
-            <Pressable
+            <PressScale
               accessibilityRole="button"
               onPress={() =>
                 announce('Arrivals, 2 of 7. Visas, airports and your documents.', { speak: true, rate: mode.rate })
@@ -122,7 +121,7 @@ export default function AccessibilitySettings() {
             >
               <Ionicons name="volume-high-outline" size={26} color={c.highlight} />
               <Text style={[styles.rowLabel, { color: c.highlight }]}>Hear an example</Text>
-            </Pressable>
+            </PressScale>
           </>
         ) : null}
 
@@ -160,8 +159,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 4 },
   rowLabel: { fontFamily: fontFamily.bodySemiBold, fontSize: 19, lineHeight: 24, color: c.ink },
   rowDetail: { fontFamily: fontFamily.body, fontSize: 16, lineHeight: 22, color: c.inkSecondary },
-  toggle: { width: 60, height: 36, borderRadius: 18, padding: 3, justifyContent: 'center' },
-  knob: { width: 30, height: 30, borderRadius: 15, backgroundColor: c.card, boxShadow: shadow.card },
   section: { fontFamily: fontFamily.display, fontSize: 22, lineHeight: 28, color: c.ink, marginTop: 8 },
   rates: { flexDirection: 'row', gap: 10 },
   rate: {

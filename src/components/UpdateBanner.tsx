@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { reloadApp, watchForUpdate } from '../lib/appUpdate';
+import { Appear } from './shell/motion';
 import { colors as c, shadow } from '../theme/colors';
 import { fontFamily } from '../theme/typography';
 
@@ -26,7 +27,7 @@ export default function UpdateBanner() {
 
   if (!ready || path.endsWith('/play')) return null; // (games are full screen; it waits until you leave)
   return (
-    <View pointerEvents="box-none" style={[styles.layer, { top: insets.top + 8 }]}>
+    <Appear from="above" distance={24} pointerEvents="box-none" style={[styles.layer, { top: insets.top + 8 }]}>
       <View style={[styles.bar, { backgroundColor: c.card, boxShadow: shadow.float }]} accessibilityRole="alert" testID="update-banner">
         <Ionicons name="sparkles-outline" size={18} color={c.highlight} />
         <Text style={[styles.text, { color: c.ink }]}>A new version of Epic Asia is ready</Text>
@@ -39,7 +40,7 @@ export default function UpdateBanner() {
           <Text style={[styles.buttonText, { color: c.onAccent }]}>Update</Text>
         </Pressable>
       </View>
-    </View>
+    </Appear>
   );
 }
 

@@ -1,4 +1,5 @@
 import { StyleSheet, Text, Pressable, View } from 'react-native';
+import { SlideSwitch } from '../shell/motion';
 import { setYukiWake } from '../../lib/yukiVoice';
 import { colors as c, shadow } from '../../theme/colors';
 import { type } from '../../theme/typography';
@@ -31,9 +32,7 @@ export default function YukiWakeRow() {
         <Text style={[type.caption, { color: c.inkSecondary }]}>{note}</Text>
       </View>
       {yuki.unsupported ? null : (
-        <View style={[styles.toggle, { backgroundColor: on ? c.accent : c.handle }]}>
-          <View style={[styles.knob, { backgroundColor: c.card, alignSelf: on ? 'flex-end' : 'flex-start' }]} />
-        </View>
+        <SlideSwitch on={on} />
       )}
     </Pressable>
   );
@@ -51,6 +50,4 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     boxShadow: shadow.card,
   },
-  toggle: { width: 51, height: 31, borderRadius: 16, padding: 2, justifyContent: 'center' },
-  knob: { width: 27, height: 27, borderRadius: 14, boxShadow: shadow.card },
 });

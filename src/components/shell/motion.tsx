@@ -10,6 +10,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { colors as c, shadow } from '../../theme/colors';
 
 // Shared motion for the app shell (home, profile, auth, banners, Yuki):
 // quick, spring-based, interruptible, transforms and opacity only — and all
@@ -124,6 +125,37 @@ export function Appear({
       style={[style, { opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [offset, 0] }) }] }]}
     >
       {children}
+    </Animated.View>
+  );
+}
+
+/**
+ * The drawn switch on a settings row (the row itself is the control): the
+ * knob slides across and the track turns sage, instead of jumping.
+ */
+export function SlideSwitch({ on, width = 51, height = 31, pad = 2 }: { on: boolean; width?: number; height?: number; pad?: number }) {
+  const v = useRef(new Animated.Value(on ? 1 : 0)).current;
+  useEffect(() => {
+    if (prefersReducedMotion()) v.setValue(on ? 1 : 0);
+    else Animated.spring(v, { toValue: on ? 1 : 0, stiffness: 380, damping: 30, mass: 0.7, useNativeDriver: true }).start();
+  }, [on, v]);
+  const knob = height - pad * 2;
+  return (
+    <Animated.View style={{ width, height, borderRadius: height / 2, backgroundColor: c.handle, justifyContent: 'center' }}>
+      <Animated.View
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: height / 2, backgroundColor: c.accent, opacity: v }}
+      />
+      <Animated.View
+        style={{
+          width: knob,
+          height: knob,
+          borderRadius: knob / 2,
+          marginLeft: pad,
+          backgroundColor: c.card,
+          boxShadow: shadow.card,
+          transform: [{ translateX: v.interpolate({ inputRange: [0, 1], outputRange: [0, width - knob - pad * 2] }) }],
+        }}
+      />
     </Animated.View>
   );
 }
