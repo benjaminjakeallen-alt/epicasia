@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEnter } from '../../../lib/socialMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import OfflineNotice from '../../../components/OfflineNotice';
@@ -168,9 +169,17 @@ function Action({ label, icon, a11y, onPress }: { label: string; icon: keyof typ
 /** The address full screen, to show a taxi driver. */
 function AddressCard({ pin, onClose }: { pin: Pin; onClose: () => void }) {
   const insets = useSafeAreaInsets();
+  const t = useEnter();
   return (
-    <Modal visible animationType="none" onRequestClose={onClose}>
-      <View style={[styles.show, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]} testID="address-card">
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View
+        style={[
+          styles.show,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 },
+          { opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }] },
+        ]}
+        testID="address-card"
+      >
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
           <Ionicons name="close" size={28} color={c.ink} />
         </Pressable>
@@ -180,7 +189,7 @@ function AddressCard({ pin, onClose }: { pin: Pin; onClose: () => void }) {
             {pin.address}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

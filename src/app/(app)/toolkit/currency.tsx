@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { PressScale, prefersReducedMotion } from '../../../components/shell/motion';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { countryColor } from '../../../lib/arrivals';
 import {
@@ -22,6 +23,7 @@ import {
   type RateSet,
 } from '../../../lib/currency';
 import { todayDay } from '../../../lib/dates';
+import { selectionTick } from '../../../lib/haptics';
 import { stopForDay } from '../../../lib/places';
 import { shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
@@ -87,7 +89,14 @@ export default function CurrencyConverter() {
     });
   }
 
+  // The swap arrows turn half a circle each time.
+  const turns = useRef(0);
+  const spin = useRef(new Animated.Value(0)).current;
+
   function swap() {
+    turns.current += 1;
+    if (prefersReducedMotion()) spin.setValue(turns.current);
+    else Animated.spring(spin, { toValue: turns.current, stiffness: 260, damping: 22, mass: 0.8, useNativeDriver: true }).start();
     // Keep the converted value as the new starting amount, rounded sensibly.
     const toC = currency(to);
     setInput(amount ? String(Number(result.toFixed(toC.decimals))) : '');
@@ -176,18 +185,27 @@ export default function CurrencyConverter() {
             testID="swap"
             style={({ pressed }) => [styles.swap, { backgroundColor: colors.accentSoft, opacity: pressed ? 0.7 : 1 }]}
           >
-            <Ionicons name="swap-vertical" size={24} color={colors.highlight} />
+            <Animated.View style={{ transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '180deg'] }) }] }}>
+              <Ionicons name="swap-vertical" size={24} color={colors.highlight} />
+            </Animated.View>
           </Pressable>
         </View>
 
         <View style={styles.keypad}>
           {keys.map((k) => (
-            <Pressable
+            <PressScale
               key={k}
+              to={0.94}
               accessibilityRole="button"
               accessibilityLabel={k === 'del' ? 'Delete' : k === '.' ? 'Decimal point' : k}
               accessibilityHint={k === 'del' ? 'Press and hold to clear' : undefined}
-              onPress={() => (k === '00' ? (press('0'), press('0')) : press(k))}
+              onPress={() => {
+                selectionTick();
+                if (k === '00') {
+                  press('0');
+                  press('0');
+                } else press(k);
+              }}
               onLongPress={k === 'del' ? () => setInput('') : undefined}
               testID={`key-${k}`}
               style={({ pressed }) => [styles.key, { backgroundColor: pressed ? colors.surfacePressed : colors.card }]}
@@ -197,7 +215,7 @@ export default function CurrencyConverter() {
               ) : (
                 <Text style={[styles.keyText, { color: colors.ink }]}>{k}</Text>
               )}
-            </Pressable>
+            </PressScale>
           ))}
         </View>
 
@@ -206,15 +224,26 @@ export default function CurrencyConverter() {
         </Text>
         <View style={[styles.table, { backgroundColor: colors.card }]}>
           {QUICK[local].map((n, i) => (
-            <View
+            <Pressable
               key={n}
-              style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator }]}
-              accessible
+              accessibilityRole="button"
+              accessibilityHint="Puts this amount in the converter"
+              onPress={() => {
+                // a quick price goes into the converter, trip currency first
+                setToHome(true);
+                setInput(String(n));
+              }}
+              testID="quick-price"
+              style={({ pressed }) => [
+                styles.row,
+                i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.separator },
+                { opacity: pressed ? 0.6 : 1 },
+              ]}
               accessibilityLabel={`${formatMoney(n, local, { trimWhole: true })} is ${formatMoney(convert(n, local, home, rates.rates), home)}`}
             >
               <Text style={[styles.rowLocal, { color: tint.text }]}>{formatMoney(n, local, { trimWhole: true })}</Text>
               <Text style={[styles.rowHome, { color: colors.ink }]}>{formatMoney(convert(n, local, home, rates.rates), home)}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
 

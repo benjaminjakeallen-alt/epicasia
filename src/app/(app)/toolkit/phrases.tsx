@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEnter } from '../../../lib/socialMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
 import SkyBackdrop from '../../../components/SkyBackdrop';
@@ -162,10 +163,18 @@ export default function Phrasebook() {
 function ShowCard({ phrase, lang, onClose, onSpeak }: { phrase: Phrase; lang: LangKey; onClose: () => void; onSpeak: () => void }) {
   const insets = useSafeAreaInsets();
   const L = LANGUAGES.find((l) => l.key === lang)!;
+  const t = useEnter();
   return (
     // No fade on web: RN-web's Modal only unmounts after its CSS animationend.
-    <Modal visible animationType="none" onRequestClose={onClose}>
-      <View style={[styles.show, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 }]} testID="phrase-card">
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+      <Animated.View
+        style={[
+          styles.show,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 20 },
+          { opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }] },
+        ]}
+        testID="phrase-card"
+      >
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.close}>
           <Ionicons name="close" size={28} color={c.ink} />
         </Pressable>
@@ -184,7 +193,7 @@ function ShowCard({ phrase, lang, onClose, onSpeak }: { phrase: Phrase; lang: La
           <Ionicons name="volume-high" size={22} color={c.onAccent} />
           <Text style={styles.playText}>Play in {L.name}</Text>
         </Pressable>
-      </View>
+      </Animated.View>
     </Modal>
   );
 }

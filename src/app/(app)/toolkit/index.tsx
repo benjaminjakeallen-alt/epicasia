@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, type Href } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import CircleButton from '../../../components/CircleButton';
+import { PressScale } from '../../../components/shell/motion';
 import SkyBackdrop from '../../../components/SkyBackdrop';
 import { shadow } from '../../../theme/colors';
 import { fontFamily, type } from '../../../theme/typography';
@@ -58,7 +59,7 @@ export default function Toolkit() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {TOOLS.map((t) => (
-          <Pressable
+          <PressScale
             key={t.key}
             testID={`tool-${t.key}`}
             accessibilityRole="button"
@@ -74,7 +75,7 @@ export default function Toolkit() {
               <Text style={[type.body, { color: colors.inkSecondary }]}>{t.line}</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.inkTertiary} />
-          </Pressable>
+          </PressScale>
         ))}
       </ScrollView>
     </View>

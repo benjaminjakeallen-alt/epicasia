@@ -42,6 +42,8 @@ async function game(page: Page, mode = 'seat'): Promise<Frame> {
       return frame ? frame.evaluate(() => (window as any).__sushi?.mode ?? null).catch(() => null) : null;
     }, { timeout: 15_000 })
     .toBe(mode);
+  // The loading screen (the game's icon on a dark stage) has faded away once the game is up.
+  await expect(page.getByTestId('game-loading')).toHaveCount(0);
   return frame!;
 }
 const st = (f: Frame) =>

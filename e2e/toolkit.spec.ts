@@ -58,6 +58,14 @@ test('currency: converts on the keypad, swaps, and remembers your currency', asy
   await expect(page.getByTestId('amount-from')).toHaveText('¥5,000');
   await expect(page.getByTestId('amount-to')).toHaveText('$33.33');
   await expect(page.getByLabel('¥1,000 is $6.67')).toBeVisible(); // quick prices
+  // A quick price is a button: it goes into the converter.
+  await page.getByLabel('¥1,000 is $6.67').click();
+  await expect(page.getByTestId('amount-from')).toHaveText('¥1,000');
+  await expect(page.getByTestId('amount-to')).toHaveText('$6.67');
+  await key(page, 'del', 4);
+  await key(page, '5');
+  await key(page, '00');
+  await key(page, '0');
 
   // Swap: now dollars → yen, starting from the converted amount.
   await page.getByTestId('swap').click();

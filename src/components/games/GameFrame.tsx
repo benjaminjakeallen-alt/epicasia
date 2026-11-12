@@ -6,13 +6,15 @@ export type GameFrameProps = {
   onMessage: (msg: { type?: unknown } & Record<string, unknown>) => void;
   /** Filled with a function that posts into the game (Tug of Wall's network relay). */
   postRef?: MutableRefObject<((data: unknown) => void) | null>;
+  /** The game's page has loaded and its script has run. */
+  onLoad?: () => void;
 };
 
 // The game in a sandboxed iframe (scripts only, its own null origin). It
 // posts { source: 'rampage', type, ... } to this window; only messages from
 // this iframe are accepted.
 
-export default function GameFrame({ html, title, onMessage, postRef }: GameFrameProps) {
+export default function GameFrame({ html, title, onMessage, postRef, onLoad }: GameFrameProps) {
   const ref = useRef<HTMLIFrameElement>(null);
   const handler = useRef(onMessage);
   useEffect(() => {
@@ -43,7 +45,10 @@ export default function GameFrame({ html, title, onMessage, postRef }: GameFrame
       title={title}
       srcDoc={html}
       // Focus the game's own window so the arrow keys and Space reach it.
-      onLoad={() => ref.current?.contentWindow?.focus()}
+      onLoad={() => {
+        ref.current?.contentWindow?.focus();
+        onLoad?.();
+      }}
       sandbox="allow-scripts"
       allow="autoplay"
       data-testid="game-frame"
