@@ -339,8 +339,10 @@ test('tug of wall: the first time, a how-to-play card holds the first stretch un
   await expect.poll(() => chain(f, (c) => c.mode)).toBe('title');
   await page.waitForTimeout(4000); // (a title card is 2.8 s)
   expect(await chain(f, (c) => c.mode)).toBe('title');
-  await page.keyboard.press(' ');
+  // (held, not tapped: on a busy machine a tap can come and go between two frames of the game)
+  await page.keyboard.down(' ');
   await expect.poll(() => chain(f, (c) => c.mode), { timeout: 20_000 }).toBe('play');
+  await page.keyboard.up(' ');
   expect(await chain(f, (c) => c.tips)).toBe(false);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('epicasia.chaingang.tips'))).toBe('1');
 });

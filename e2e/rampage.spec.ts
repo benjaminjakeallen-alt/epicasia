@@ -151,8 +151,9 @@ test('play: choose a hero, move, power up, lose, save the run, leave', async ({ 
   // Leaving is behind the pause menu (no accidental exits next to the joystick).
   await ui.getByRole('button', { name: 'Pause' }).click();
   await ui.getByRole('button', { name: 'Leave the game' }).click();
-  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 15000 });
-  await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 15000 });
+  // (45 s: with several software-3D games on one machine, leaving and reloading the board can take over 15 s)
+  await expect(page.getByTestId('game-frame')).toHaveCount(0, { timeout: 45_000 });
+  await expect(page.getByTestId('my-best')).toHaveText('Your best 4,321', { timeout: 45_000 });
   await expect(page.getByTestId('new-best')).toContainText('New best!'); // (it beat what the board showed before)
   expect(errors).toEqual([]);
 });
@@ -179,7 +180,7 @@ test('a run finished offline is saved on the next visit', async ({ page }) => {
   await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Pause' }).click();
   await page.frameLocator('[data-testid="game-frame"]').getByRole('button', { name: 'Leave the game' }).click();
   // (generous: the 3D game renders in software here, which is slow when tests run in parallel)
-  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length, { timeout: 15000 }).toBe(1);
+  await expect.poll(() => backend.inserts.filter((i) => i.table === 'game_scores').length, { timeout: 45_000 }).toBe(1);
   expect(backend.inserts.find((i) => i.table === 'game_scores')!.body).toEqual([
     { game: 'godzilla_rampage', user_id: USER_ID, score: 2500, level: 1, round: 1, hero: 'chris' },
   ]);
