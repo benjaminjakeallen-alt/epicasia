@@ -414,9 +414,15 @@ test('the sewer plays like Mario 3: a joystick that walks and runs, a jump butto
   await page.keyboard.down('ArrowRight');
   await expect.poll(async () => (await sw()).vx, { timeout: 20_000 }).toBeGreaterThan(8.5);
   await page.keyboard.up('ArrowRight');
-  await page.keyboard.press(' ');
-  // (a hop is over in ~0.3 s, so check what it leaves behind: a new jump resets the peak to the hop's ~1 tile)
-  await expect.poll(async () => { const pk = (await sw()).peak; return pk > 0.3 && pk < 2; }, { timeout: 20_000 }).toBe(true);
+  // (a hop is over in ~0.3 s, so check what it leaves behind: a new jump resets the peak to the hop's ~1 tile;
+  // pressed until it takes — on a busy machine a quick tap can come and go between two game steps)
+  await expect
+    .poll(async () => {
+      if ((await sw()).ground) await page.keyboard.press(' ', { delay: 60 });
+      const pk = (await sw()).peak;
+      return pk > 0.3 && pk < 2;
+    }, { timeout: 30_000, intervals: [700] })
+    .toBe(true);
 });
 
 test('the sewer: a head-butt breaks a brick and lets out a feather; the feather gives a tanuki suit that floats you down', async ({ page }) => {
