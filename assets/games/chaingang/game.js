@@ -24,7 +24,7 @@ import { SFX, audio, music, duck, isMuted, isMusicOn, setMuted, setMusic, musicS
 const INIT = window.CHAINGANG_INIT || {};
 export const HEROES = ['chris', 'jake', 'bennett', 'miles', 'mei'];
 export const NAMES = { chris: 'CHRIS', jake: 'JAKE', bennett: 'BENNETT', miles: 'MILES', mei: 'MEI' };
-export const COLORS = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff']; // each place on the chain
+export const COLORS = ['#ff5a5f', '#2fa8ff', '#ffd23f', '#b48cff']; // each place on the chain
 const PAR = [110, 126, 172, 168]; // seconds for a time bonus (the 2nd and 3rd are 15% harder, the 3rd a quarter longer; the 4th, at night, everything at once)
 /** A stretch's medal: gold for well under par with at most one fall, silver for par, bronze for getting there. */
 export function medalFor(lv, time, falls) {
@@ -34,7 +34,7 @@ export function medalFor(lv, time, falls) {
 export const EMOTES = ['👋 HI!', '⏳ WAIT!', '➡️ THIS WAY!', '🙌 NICE!'];
 const TIPS_HOLD = 12; // the first time ever (solo): the first title card waits for a tap, at most this long
 const TITLE_T = 2.8, CLEAR_T = 4.5;
-const PITCH = 0.42, HANG_PITCH = 0.12; // how far the camera looks down on you (and while you hang off a ledge)
+const PITCH = 0.55, HANG_PITCH = 0.12; // how far the camera looks down on you (a bit more since Nov 14 2026, to see the gang and the gaps) and while you hang off a ledge
 const SNAP_EVERY = 1 / 15, STATE_EVERY = 1 / 15, INTERP = 0.12;
 
 const NET = INIT.mode === 'host' || INIT.mode === 'client' ? INIT.mode : 'solo';
@@ -84,9 +84,9 @@ function onEvent(ev) {
     case 'land': if (ev.i === S.me) SFX.land(); break;
     case 'boing': SFX.boing(); if (ev.i === S.me) haptic('heavy'); break;
     case 'crumble': SFX.crumble(); break;
-    case 'whoops': dropSteps.host = dropSteps.mine = 0; lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff2d95', 2); haptic('error'); break;
+    case 'whoops': dropSteps.host = dropSteps.mine = 0; lookBack(); SFX.whoops(); message(who ? 'WHOOPS, ' + who.name + '!' : 'WHOOPS!', '#ff5a5f', 2); haptic('error'); break;
     case 'restart': lookAlong(LEVELS[S.view ? S.view.lv : S.level].spawn.dir); message('BACK TO THE START!', '#ffd23f', 2); break;
-    case 'checkpoint': SFX.checkpoint(); message('WATCHTOWER!', '#18e0ff'); haptic('success'); break;
+    case 'checkpoint': SFX.checkpoint(); message('WATCHTOWER!', '#2fa8ff'); haptic('success'); break;
     case 'zip': SFX.zip(); break;
     case 'knock': SFX.knock(); if (ev.i === S.me) haptic('heavy'); break;
     case 'scramble': if (ev.i === S.me) SFX.scramble(); break;
@@ -554,7 +554,7 @@ window.addEventListener('message', (e) => {
     // someone's phone left: a bot carries on in their place
     S.roster[d.i].bot = true;
     if (S.sim) Object.assign(S.sim.players[d.i], { bot: true, puppet: false });
-    message(S.roster[d.i].name + ' LEFT · A BOT TOOK OVER', '#ffe11a', 2.4);
+    message(S.roster[d.i].name + ' LEFT · A BOT TOOK OVER', '#ffd23f', 2.4);
   } else if (d.type === 'host-left' && S.net === 'client') {
     S.gone = true; setMode('gone');
   }

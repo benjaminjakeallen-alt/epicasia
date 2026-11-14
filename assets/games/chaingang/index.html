@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Tug of Wall</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #1a0b2e; overflow: hidden; }
+  html, body { margin: 0; height: 100%; background: #1d2b4a; overflow: hidden; }
   body {
     box-sizing: border-box; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom);
     touch-action: none; -webkit-user-select: none; user-select: none;
@@ -16,18 +16,18 @@
   canvas { display: block; position: absolute; left: 0; top: 0; }
   #pausebtn { position: absolute; z-index: 4; right: 10px; top: 10px; width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
     color: #fff; font: 900 15px system-ui, sans-serif; letter-spacing: -1px;
-    background: rgba(26,11,46,0.6); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
-  button:focus-visible { outline: 3px solid #ffe11a; }
-  #pause { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(26,11,46,0.55); z-index: 5; }
+    background: rgba(29,43,74,0.6); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
+  button:focus-visible { outline: 3px solid #ffd23f; }
+  #pause { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(29,43,74,0.55); z-index: 5; }
   #pause.show { display: flex; }
   .card { display: flex; flex-direction: column; gap: 12px; align-items: stretch; min-width: 220px; padding: 22px 20px; border-radius: 24px;
-    background: linear-gradient(#5b1a8c, #2a0a5c); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 0 0 3px #1a0b2e, 0 12px 30px rgba(0,0,0,0.5); }
-  .title { font: 900 28px "Arial Black", system-ui, sans-serif; color: #ff2d95; text-align: center; letter-spacing: 1px; margin-bottom: 4px;
-    text-shadow: -2px -2px 0 #1a0b2e, 2px -2px 0 #1a0b2e, -2px 2px 0 #1a0b2e, 2px 2px 0 #1a0b2e, 3px 4px 0 #1a0b2e; }
-  .card button, #over button { font: 900 16px "Arial Black", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #1a0b2e;
-    background: linear-gradient(#fff36b, #ffc23a); box-shadow: inset 0 3px 0 rgba(255,255,255,0.5), 0 5px 0 #b06a00, 0 0 0 2.5px #1a0b2e; }
-  button.alt { color: #fff !important; background: linear-gradient(#5ff0ff, #0fa3d6) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.4), 0 5px 0 #075a80, 0 0 0 2.5px #1a0b2e !important; }
-  button.quit { color: #fff !important; margin-top: 10px; background: linear-gradient(#ff6fb5, #e0157a) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #7a0a40, 0 0 0 2.5px #1a0b2e !important; }
+    background: linear-gradient(#4aa8f0, #2a78cc); box-shadow: inset 0 1px 0 rgba(255,255,255,0.15), 0 0 0 3px #1d2b4a, 0 12px 30px rgba(0,0,0,0.5); }
+  .title { font: 900 28px "Arial Black", system-ui, sans-serif; color: #ffd23f; text-align: center; letter-spacing: 1px; margin-bottom: 4px;
+    text-shadow: -2px -2px 0 #1d2b4a, 2px -2px 0 #1d2b4a, -2px 2px 0 #1d2b4a, 2px 2px 0 #1d2b4a, 3px 4px 0 #1d2b4a; }
+  .card button, #over button { font: 900 16px "Arial Black", system-ui, sans-serif; letter-spacing: 0.5px; min-height: 52px; padding: 0 20px; border-radius: 26px; border: 0; color: #1d2b4a;
+    background: linear-gradient(#fff36b, #ffc23a); box-shadow: inset 0 3px 0 rgba(255,255,255,0.5), 0 5px 0 #b06a00, 0 0 0 2.5px #1d2b4a; }
+  button.alt { color: #fff !important; background: linear-gradient(#5ff0ff, #0fa3d6) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.4), 0 5px 0 #075a80, 0 0 0 2.5px #1d2b4a !important; }
+  button.quit { color: #fff !important; margin-top: 10px; background: linear-gradient(#ff8a7a, #f0503f) !important; box-shadow: inset 0 3px 0 rgba(255,255,255,0.35), 0 5px 0 #9a2a1e, 0 0 0 2.5px #1d2b4a !important; }
   #over { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: 16%; gap: 12px; z-index: 3; pointer-events: none; }
   #over.show { display: flex; }
   #over button { pointer-events: auto; }
@@ -37,35 +37,35 @@
     align-items: flex-end; justify-content: space-between; padding: 0 16px 16px; pointer-events: none; }
   #pad.show { display: flex; }
   .stick { position: relative; width: calc(var(--u) * 2.6 + 18px); height: calc(var(--u) * 2.6 + 18px); border-radius: 50%; touch-action: none; pointer-events: auto;
-    background: radial-gradient(circle, rgba(26,11,46,0.6) 0 55%, rgba(255,255,255,0.08) 72%, rgba(255,255,255,0.03));
-    box-shadow: inset 0 0 0 2px rgba(255,45,149,0.45), inset 0 8px 18px rgba(0,0,0,0.5); }
+    background: radial-gradient(circle, rgba(29,43,74,0.6) 0 55%, rgba(255,255,255,0.08) 72%, rgba(255,255,255,0.03));
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.55), inset 0 8px 18px rgba(0,0,0,0.3); }
   .stick .mark { position: absolute; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.35); font-size: 15px; line-height: 1; pointer-events: none; }
   .stick .ml { left: 11px; } .stick .mr { right: 11px; }
   .stick .mu, .stick .md { left: 50%; top: auto; transform: translateX(-50%); }
   .stick .mu { top: 9px; } .stick .md { bottom: 9px; }
-  .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr, .stick[data-dir~="U"] .mu, .stick[data-dir~="D"] .md { color: #ffe11a; }
+  .stick[data-dir~="L"] .ml, .stick[data-dir~="R"] .mr, .stick[data-dir~="U"] .mu, .stick[data-dir~="D"] .md { color: #ffd23f; }
   .knob { position: absolute; left: 50%; top: 50%; width: calc(var(--u) * 1.2); height: calc(var(--u) * 1.2); margin: calc(var(--u) * -0.6) 0 0 calc(var(--u) * -0.6);
     border-radius: 50%; pointer-events: none; transition: transform 0.14s cubic-bezier(.3,1.6,.5,1);
-    background: radial-gradient(circle at 36% 30%, #ff9ad0, #ff2d95 55%, #a3115e);
-    box-shadow: inset 0 3px 0 rgba(255,255,255,0.4), 0 6px 0 #5a0a35, 0 0 0 2.5px #1a0b2e, 0 10px 16px rgba(0,0,0,0.45); }
+    background: radial-gradient(circle at 36% 30%, #ffffff, #eef5fc 55%, #b9cde2);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.4), 0 6px 0 #7f97b3, 0 0 0 2.5px #1d2b4a, 0 10px 16px rgba(0,0,0,0.45); }
   .stick.on .knob { transition: none; }
   .btns { display: flex; align-items: flex-end; gap: 12px; pointer-events: none; }
-  .btns button { pointer-events: auto; touch-action: none; border-radius: 50%; border: 0; padding: 0; color: #1a0b2e;
+  .btns button { pointer-events: auto; touch-action: none; border-radius: 50%; border: 0; padding: 0; color: #1d2b4a;
     font: 900 calc(var(--u) * 0.34) "Arial Black", system-ui, sans-serif; letter-spacing: 0.3px; }
   #jumpbtn { width: calc(var(--u) * 1.65); height: calc(var(--u) * 1.65); margin-bottom: calc(var(--u) * 0.9);
-    background: radial-gradient(circle at 38% 30%, #fff7a8, #ffe11a 60%, #c99a00);
-    box-shadow: inset 0 3px 0 rgba(255,255,255,0.5), 0 6px 0 #7a5a00, 0 0 0 2.5px #1a0b2e, 0 10px 18px rgba(0,0,0,0.45); }
+    background: radial-gradient(circle at 38% 30%, #fff3a8, #ffd23f 60%, #e0a500);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.5), 0 6px 0 #a87400, 0 0 0 2.5px #1d2b4a, 0 10px 18px rgba(0,0,0,0.45); }
   #grabbtn { width: calc(var(--u) * 1.45); height: calc(var(--u) * 1.45); color: #fff;
-    background: radial-gradient(circle at 38% 30%, #9af6ff, #18e0ff 60%, #0a8fb0);
-    box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 6px 0 #075a70, 0 0 0 2.5px #1a0b2e, 0 10px 18px rgba(0,0,0,0.45); text-shadow: 0 1px 0 #075a70; }
+    background: radial-gradient(circle at 38% 30%, #b8f5a0, #5fcf4a 60%, #3a9a2e);
+    box-shadow: inset 0 3px 0 rgba(255,255,255,0.45), 0 6px 0 #2a6e22, 0 0 0 2.5px #1d2b4a, 0 10px 18px rgba(0,0,0,0.35); text-shadow: 0 1px 0 #2a6e22; }
   .btns button.on { transform: translateY(4px); }
   /* emotes: a bubble button above the joystick, and its four choices */
   #emotebtn { position: absolute; left: 16px; bottom: calc(var(--u) * 2.6 + 34px); width: 44px; height: 44px; border-radius: 22px; border: 0; padding: 0;
-    pointer-events: auto; font-size: 20px; background: rgba(26,11,46,0.6); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
+    pointer-events: auto; font-size: 20px; background: rgba(29,43,74,0.6); box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.4); }
   #emotes { position: absolute; left: 68px; bottom: calc(var(--u) * 2.6 + 30px); display: none; flex-wrap: wrap; gap: 6px; max-width: calc(100vw - 90px); pointer-events: auto; }
   #emotes.show { display: flex; }
-  #emotes button { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 0; color: #1a0b2e; font: 900 13px "Arial Black", system-ui, sans-serif;
-    background: #fff; box-shadow: 0 3px 0 #b9a6d6, 0 0 0 2px #1a0b2e; }
+  #emotes button { min-height: 44px; padding: 0 12px; border-radius: 22px; border: 0; color: #1d2b4a; font: 900 13px "Arial Black", system-ui, sans-serif;
+    background: #fff; box-shadow: 0 3px 0 #a9c3de, 0 0 0 2px #1d2b4a; }
 </style>
 </head>
 <body>

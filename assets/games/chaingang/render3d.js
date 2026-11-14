@@ -1,9 +1,9 @@
-// Draws Tug of Wall with three.js, third person like Chained
-// Together, in a Sunset Overdrive mood: a neon sunset dome (purple →
-// magenta → orange) with a striped retro sun, rings of mountain ridges with
-// the Wall snaking over them, a sea of sunset cloud far below, toon-shaded
-// stone with thick ink outlines, graffiti tags, a chunky gold chain between
-// the travellers, and confetti/sparks on everything. The camera sits behind
+// Draws Tug of Wall with three.js, third person like Chained Together, in a
+// bright, cheerful cartoon look (user, Nov 14 2026, from a reel of a casual
+// co-op rope game): a clear blue sky with puffy clouds, a turquoise sea far
+// below, lush grass on the islands, warm light stone, round trees, wooden
+// posts, soft shading and soft shadows with no ink outlines, a red-and-white
+// rope between the travellers, and confetti on everything. The camera sits behind
 // your traveller; S.cam.yaw (it follows the way on by itself, game.js) is where it looks.
 // hud.js draws the text on top.
 import * as THREE from 'three';
@@ -14,21 +14,23 @@ import { ROPE_R, insideAny, ropeBoxes, ropePath, stepRope } from './rope.js';
 import { createHud } from './hud.js';
 
 const HERO_SCALE = 0.084;
-const INK = 0x1a0b2e; // outline colour
-
-// Per level: sky stops (top → horizon), sun colours, ridge colours, light.
+// Per level: sky stops (top → horizon), the sun (or moon), the clouds' tint, the sea, the haze, light.
 const SKIES = [
-  { sky: ['#2a0a5c', '#5b1a8c', '#a8238f', '#ff2d95', '#ff8a3d', '#ffd35a'], sun: ['#fff36b', '#ff4f8b'], ridges: [0x6b2f8f, 0x8a3a8f], mist: 0xff9ac1,
-    hemi: [0xffd7f0, 0x5a2a7a, 1.5], key: [0xffc28a, 2.6], rim: [0xff2d95, 1.3] },
-  { sky: ['#0d0626', '#2d0f5e', '#6b1f9c', '#c42a9a', '#ff3d9a', '#ffb05a'], sun: ['#ffe66b', '#ff3d7f'], ridges: [0x3a1868, 0x55248a], mist: 0xd76bd6,
-    hemi: [0xe3c8ff, 0x3a1a5a, 1.45], key: [0xffb27a, 2.4], rim: [0x18e0ff, 1.4] },
-  { sky: ['#14103a', '#2c2470', '#5a3a9e', '#a8479c', '#ff5f7a', '#ffc070'], sun: ['#fff1a0', '#ff6f6f'], ridges: [0x2f2868, 0x4a3a8a], mist: 0xb59cff,
-    hemi: [0xdcd4ff, 0x30285a, 1.45], key: [0xffd0a0, 2.3], rim: [0x7b2cff, 1.5] },
-  // the 4th stretch, at night: a deep blue sky with stars, a big pale moon (striped like the sun), sky lanterns rising
-  { sky: ['#010208', '#03061c', '#0a0f36', '#171a52', '#2c2266', '#5a3478'], sun: ['#fffbe8', '#b8c8ff'], ridges: [0x0c0a26, 0x16123a], mist: 0x241c52,
-    hemi: [0x9aa6ff, 0x120c28, 1.0], key: [0xc8d4ff, 1.35], rim: [0xff8a3d, 2.0], night: true },
+  // Sunset Ramparts: a bright late afternoon, a warm glow low on the horizon
+  { sky: ['#2f8fe6', '#4aa6f0', '#7cc2f7', '#b5dcfb', '#e3f2fc', '#fff1d6'], sun: '#fff6d8', cloud: 0xffffff, sea: ['#1fb5c9', '#4fd6dd'], mist: 0xd6ecf8,
+    hemi: [0xe2f2ff, 0xc9b98f, 1.7], key: [0xfff0d8, 2.6], fill: [0xbfe0ff, 0.55] },
+  // Dragon Festival: a clear midday
+  { sky: ['#1f7fe0', '#3a98ee', '#66b7f5', '#a3d6fb', '#d8eefc', '#f2f9ff'], sun: '#ffffff', cloud: 0xffffff, sea: ['#14a9c4', '#3fcfd8'], mist: 0xd3ebfa,
+    hemi: [0xe6f4ff, 0xc6b88e, 1.75], key: [0xfffaf0, 2.7], fill: [0xc8e6ff, 0.5] },
+  // Storm Peak: blustery, a greyer sky, darker sea, heavier clouds
+  { sky: ['#4f6f98', '#6886ab', '#87a1bf', '#a8bccf', '#c6d3de', '#d9e2ea'], sun: '#eef3f8', cloud: 0xe4eaf1, sea: ['#1b7f96', '#3a9fae'], mist: 0xc3d0dc,
+    hemi: [0xdde7f2, 0xa8a48a, 1.6], key: [0xf0f4fa, 2.0], fill: [0xb8c8dc, 0.6] },
+  // Lantern Night: a deep blue night with stars, a big round moon, sky lanterns rising
+  { sky: ['#071233', '#0c1c48', '#15295c', '#203a72', '#2c4a84', '#3f5e96'], sun: '#fff8dc', cloud: 0x3a4f7c, sea: ['#0b3354', '#16507a'], mist: 0x223a66,
+    hemi: [0x9fb8ff, 0x2a3346, 1.1], key: [0xcfe0ff, 1.4], fill: [0xffb070, 0.9], night: true },
 ];
-const NEON = [0xff2d95, 0x18e0ff, 0xffe11a, 0x7b2cff, 0x3dff8a];
+// bright, friendly accents (trims, rockets, confetti): coral, sky blue, sunshine, mint, lilac
+const BRIGHT = [0xff6b5a, 0x3fb3ff, 0xffd23f, 0x4fd68a, 0xb48cff];
 
 export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const { S, LEVELS } = game;
@@ -52,38 +54,30 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     } catch { /* unknown GPU */ }
     if (lowPower) renderer.shadowMap.enabled = false;
     renderer.debug.checkShaderErrors = !!(window.CHAINGANG_INIT || {}).shaderChecks;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NeutralToneMapping; // (keeps the cartoon colours saturated; ACES greyed them)
+    renderer.toneMappingExposure = 1.0;
   }
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.3, 900);
   const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.5);
-  const key = new THREE.DirectionalLight(0xffffff, 2.5); // the low sun
+  const key = new THREE.DirectionalLight(0xffffff, 2.5); // the sun
   key.castShadow = true;
   key.shadow.mapSize.set(lowPower ? 512 : 2048, lowPower ? 512 : 2048);
   Object.assign(key.shadow.camera, { left: -22, right: 22, top: 22, bottom: -22, near: 1, far: 120 });
-  key.shadow.bias = -0.0006; key.shadow.normalBias = 0.03;
-  const rim = new THREE.DirectionalLight(0xff2d95, 1.3); // a neon rim from behind
+  key.shadow.bias = -0.0006; key.shadow.normalBias = 0.03; key.shadow.radius = 3;
+  const rim = new THREE.DirectionalLight(0xbfe0ff, 0.5); // a soft fill from the other side, so shadows are never black
   scene.add(hemi, key, key.target, rim, rim.target);
-  scene.fog = new THREE.Fog(0xff9ac1, 70, 260);
-  const SUN_DIR = new THREE.Vector3(-0.35, 0.12, -1).normalize(); // the sunset, low over the far end of the Wall
+  scene.fog = new THREE.Fog(0xd6ecf8, 80, 300);
+  const SUN_DIR = new THREE.Vector3(-0.45, 0.55, -1).normalize(); // the sun, high over the far end of the Wall
 
-  // ---- materials: toon shading in three steps, plus outlines --------------------------------
-  const ramp = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 175, 175, 175, 255, 255, 255, 255, 255]), 3, 1);
-  ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;
-  const toon = (opts) => new THREE.MeshToonMaterial(Object.assign({ gradientMap: ramp }, opts));
-  // Outlines: the back faces pushed out along their normals, in ink.
-  function outlineMaterial(w) {
-    const m = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
-    m.onBeforeCompile = (sh) => { sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', `vec3 transformed = vec3(position) + normal * ${w.toFixed(3)};`); };
-    return m;
-  }
-  const outlineMat = outlineMaterial(0.045), heroOutline = outlineMaterial(0.32);
-  function outlined(geo, mat, out = outlineMat) {
-    const g = new THREE.Group(), m = new THREE.Mesh(geo, mat), o = new THREE.Mesh(geo, out);
+  // ---- materials: soft, smooth shading (no ink outlines — the look is clean and bright) -------------
+  const toon = (opts) => new THREE.MeshLambertMaterial(opts);
+  /** A mesh that casts and takes shadows, in a group (so things can be added to it). */
+  function outlined(geo, mat) {
+    const g = new THREE.Group(), m = new THREE.Mesh(geo, mat);
     m.castShadow = true; m.receiveShadow = true;
-    g.add(o, m);
+    g.add(m);
     return g;
   }
   function canvasTex(w, h, draw, rx = 1, ry = 1) {
@@ -99,39 +93,39 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   }
   let seed = 11;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  // Wall bricks: warm sandstone, chunky, a few mossy and sun-bleached ones.
+  // Wall bricks: warm, light sandstone, big soft blocks, the odd mossy one.
   const brickTex = canvasTex(256, 256, (c, w, h) => {
-    c.fillStyle = '#5b3b4a'; c.fillRect(0, 0, w, h);
-    const rows = 8, bh = h / rows;
+    c.fillStyle = '#cdb894'; c.fillRect(0, 0, w, h);
+    const rows = 6, bh = h / rows;
     for (let r = 0; r < rows; r++) {
-      const off = r % 2 ? 32 : 0;
-      for (let x = -64; x < w; x += 64) {
-        const v = rnd(), base = v < 0.12 ? [196, 160, 150] : v < 0.2 ? [150, 170, 140] : [214 + rnd() * 20, 168 + rnd() * 18, 140 + rnd() * 16];
+      const off = r % 2 ? 40 : 0;
+      for (let x = -80; x < w; x += 80) {
+        const base = [236 + rnd() * 14, 222 + rnd() * 14, 190 + rnd() * 16];
         c.fillStyle = `rgb(${base[0] | 0},${base[1] | 0},${base[2] | 0})`;
-        c.fillRect(x + off + 3, r * bh + 3, 58, bh - 6);
-        c.fillStyle = 'rgba(255,255,255,0.18)'; c.fillRect(x + off + 3, r * bh + 3, 58, 4);
-        c.fillStyle = 'rgba(60,20,50,0.18)'; c.fillRect(x + off + 3, r * bh + bh - 9, 58, 6);
+        c.fillRect(x + off + 3, r * bh + 3, 74, bh - 6);
+        c.fillStyle = 'rgba(255,255,255,0.22)'; c.fillRect(x + off + 3, r * bh + 3, 74, 5);
+        c.fillStyle = 'rgba(120,90,50,0.1)'; c.fillRect(x + off + 3, r * bh + bh - 10, 74, 7);
       }
     }
   });
   const paveTex = canvasTex(256, 256, (c, w, h) => {
-    c.fillStyle = '#6a4656'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#d5c4a4'; c.fillRect(0, 0, w, h);
     for (let y = 0; y < h; y += 64) for (let x = 0; x < w; x += 64) {
-      const v = 200 + rnd() * 30;
-      c.fillStyle = `rgb(${v | 0},${(v * 0.8) | 0},${(v * 0.72) | 0})`;
-      c.fillRect(x + 3, y + 3, 58, 58);
+      const v = 238 + rnd() * 14;
+      c.fillStyle = `rgb(${v | 0},${(v * 0.95) | 0},${(v * 0.84) | 0})`;
+      c.fillRect(x + 2, y + 2, 60, 60);
     }
   });
   const crackTex = canvasTex(128, 128, (c, w, h) => {
-    c.fillStyle = '#c9a08a'; c.fillRect(0, 0, w, h);
-    c.strokeStyle = '#3a1a2e'; c.lineWidth = 5;
+    c.fillStyle = '#e8d2ad'; c.fillRect(0, 0, w, h);
+    c.strokeStyle = '#8a6a44'; c.lineWidth = 4; c.lineCap = 'round';
     c.beginPath(); c.moveTo(10, 20); c.lineTo(50, 60); c.lineTo(40, 100); c.moveTo(50, 60); c.lineTo(100, 50); c.lineTo(118, 90); c.stroke();
-    c.fillStyle = 'rgba(255,255,255,0.2)'; c.fillRect(0, 0, w, 10);
+    c.fillStyle = 'rgba(255,255,255,0.25)'; c.fillRect(0, 0, w, 10);
   });
-  const STONE = toon({ map: brickTex }), PAVE = toon({ map: paveTex }), DARK = toon({ color: 0x4a2a44 });
+  const STONE = toon({ map: brickTex }), PAVE = toon({ map: paveTex }), DARK = toon({ color: 0x6b5a48 });
   const CRACK = toon({ map: crackTex });
-  const WOOD = toon({ color: 0xb4683c }), RED = toon({ color: 0xe0233c }), GOLD = toon({ color: 0xffc23a }), ROPE = toon({ color: 0xd9b47a });
-  const NEONM = NEON.map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }));
+  const WOOD = toon({ color: 0xc98a52 }), RED = toon({ color: 0xff5a4a }), GOLD = toon({ color: 0xffcf3f }), ROPE = toon({ color: 0xe9d3a6 });
+  const NEONM = BRIGHT.map((c) => toon({ color: c, emissive: c, emissiveIntensity: 0.15 }));
 
   /** A box with its texture ~2 m a tile on every face. */
   function boxGeo(w, h, d, tile = 2) {
@@ -152,7 +146,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     return m;
   }
 
-  // ---- the sky: a gradient dome, a striped sun, ridges all round, a cloud sea -----------------
+  // ---- the sky: a gradient dome, a soft sun (or moon), puffy clouds all round, a turquoise sea below --
   const skyCanvas = document.createElement('canvas');
   skyCanvas.width = 4; skyCanvas.height = 512;
   const skyTex = new THREE.CanvasTexture(skyCanvas);
@@ -162,83 +156,106 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   scene.add(dome);
   function paintSky(stops) {
     const c = skyCanvas.getContext('2d'), g = c.createLinearGradient(0, 0, 0, 512);
-    // top of the sphere to the horizon (the middle), then a warm haze below
+    // top of the sphere to the horizon (the middle), then the same pale haze below
     stops.forEach((s, i) => g.addColorStop((i / (stops.length - 1)) * 0.5, s));
     g.addColorStop(1, stops[stops.length - 1]);
     c.fillStyle = g; c.fillRect(0, 0, 4, 512);
     skyTex.needsUpdate = true;
   }
-  function sunTexture(cols) {
+  /** The sun: a soft white disc in a wide glow. At night, the moon: a pale disc with a few soft craters. */
+  function sunTexture(col, night) {
     return canvasTex(512, 512, (c) => {
-      const g = c.createLinearGradient(0, 40, 0, 470);
-      g.addColorStop(0, cols[0]); g.addColorStop(1, cols[1]);
-      c.save(); c.beginPath(); c.arc(256, 256, 200, 0, Math.PI * 2); c.clip();
-      c.fillStyle = g; c.fillRect(0, 0, 512, 512);
-      c.globalCompositeOperation = 'destination-out';
-      for (let k = 0; k < 7; k++) { const y = 286 + k * 25, hh = 4 + k * 2.4; c.fillRect(0, y, 512, hh); }
-      c.restore();
-      const glow = c.createRadialGradient(256, 256, 190, 256, 256, 256);
-      glow.addColorStop(0, 'rgba(255,220,160,0.55)'); glow.addColorStop(1, 'rgba(255,120,180,0)');
-      c.globalCompositeOperation = 'destination-over'; c.fillStyle = glow; c.fillRect(0, 0, 512, 512);
+      const glow = c.createRadialGradient(256, 256, 40, 256, 256, 256);
+      glow.addColorStop(0, night ? 'rgba(255,248,220,0.5)' : 'rgba(255,255,240,0.9)');
+      glow.addColorStop(0.35, night ? 'rgba(200,215,255,0.16)' : 'rgba(255,250,225,0.35)');
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = glow; c.fillRect(0, 0, 512, 512);
+      c.beginPath(); c.arc(256, 256, night ? 70 : 54, 0, Math.PI * 2); c.fillStyle = col; c.fill();
+      if (night) {
+        c.fillStyle = 'rgba(190,190,170,0.35)';
+        [[230, 236, 16], [285, 270, 11], [250, 292, 8], [292, 228, 7]].forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
+      }
     }, 1, 1);
   }
   const sunMat = new THREE.MeshBasicMaterial({ transparent: true, fog: false, depthWrite: false, toneMapped: false });
-  const sun = new THREE.Mesh(new THREE.PlaneGeometry(150, 150), sunMat);
+  const sun = new THREE.Mesh(new THREE.PlaneGeometry(170, 170), sunMat);
   sun.renderOrder = -19;
   scene.add(sun);
-  function ridgeTexture(col, k) {
-    return canvasTex(2048, 256, (c, w, h) => {
-      c.fillStyle = '#' + new THREE.Color(col).getHexString();
-      c.beginPath(); c.moveTo(0, h);
-      const pts = [];
-      for (let x = 0; x <= w; x += 16) {
-        const y = h * 0.4 + Math.sin(x * 0.006 + k * 2) * h * 0.16 + Math.sin(x * 0.021 + k * 5) * h * 0.08 + (rnd() - 0.5) * 6;
-        pts.push([x, y]); c.lineTo(x, y);
+  // puffy cartoon clouds: round white lumps, a little shade along the bottom
+  function cloudTexture(k) {
+    return canvasTex(512, 256, (c, w, h) => {
+      const blobs = [];
+      const n = 6 + (k % 3);
+      for (let i = 0; i < n; i++) {
+        const u = i / (n - 1), r = 46 + Math.sin(u * Math.PI) * 50 + rnd() * 18;
+        blobs.push([70 + u * (w - 140) + (rnd() - 0.5) * 24, h - 62 - Math.sin(u * Math.PI) * 40 + (rnd() - 0.5) * 16, r]);
       }
-      c.lineTo(w, h); c.closePath(); c.fill();
-      // the Wall along the crests, towers here and there
-      c.strokeStyle = 'rgba(255,190,150,0.6)'; c.lineWidth = 4; c.beginPath();
-      pts.forEach(([x, y], i) => (i ? c.lineTo(x, y + 3) : c.moveTo(x, y + 3))); c.stroke();
-      c.fillStyle = 'rgba(255,190,150,0.65)';
-      for (let i = 5; i < pts.length; i += 11) c.fillRect(pts[i][0] - 4, pts[i][1] - 10, 8, 12);
+      c.fillStyle = '#ffffff';
+      blobs.forEach(([x, y, r]) => { c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); });
+      c.fillRect(70, h - 80, w - 140, 52);
+      // a soft blue-grey shade on the underside
+      c.globalCompositeOperation = 'source-atop';
+      const g = c.createLinearGradient(0, h * 0.45, 0, h);
+      g.addColorStop(0, 'rgba(160,190,220,0)'); g.addColorStop(1, 'rgba(150,180,215,0.55)');
+      c.fillStyle = g; c.fillRect(0, 0, w, h);
     }, 1, 1);
   }
-  const ridges = [];
+  const cloudTexs = [0, 1, 2].map(cloudTexture);
+  const cloudMats = cloudTexs.map((t) => new THREE.SpriteMaterial({ map: t, fog: false, depthWrite: false, transparent: true }));
+  const clouds = [];
+  for (let i = 0; i < 26; i++) {
+    const sp = new THREE.Sprite(cloudMats[i % 3]);
+    const a = (i / 26) * Math.PI * 2 + rnd() * 0.2, r = 260 + rnd() * 160, sc = 50 + rnd() * 60;
+    sp.scale.set(sc * 2, sc, 1);
+    sp.renderOrder = -18;
+    sp.userData = { a, r, y: 8 + rnd() * 70, drift: 0.002 + rnd() * 0.004 };
+    scene.add(sp); clouds.push(sp);
+  }
   function buildBackdrop(lv) {
-    ridges.forEach((r) => { scene.remove(r); r.geometry.dispose(); r.material.map.dispose(); r.material.dispose(); });
-    ridges.length = 0;
     const look = SKIES[lv % SKIES.length];
-    look.ridges.forEach((col, k) => {
-      const r = 420 - k * 110;
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 120, 48, 1, true),
-        new THREE.MeshBasicMaterial({ map: ridgeTexture(col, k + lv * 3), transparent: true, side: THREE.BackSide, fog: false, depthWrite: false }));
-      m.renderOrder = -18 + k;
-      scene.add(m); ridges.push(m);
-    });
     paintSky(look.sky);
     if (sunMat.map) sunMat.map.dispose();
-    sunMat.map = sunTexture(look.sun); sunMat.needsUpdate = true;
+    sunMat.map = sunTexture(look.sun, look.night); sunMat.needsUpdate = true;
+    cloudMats.forEach((m) => m.color.set(look.cloud));
     hemi.color.set(look.hemi[0]); hemi.groundColor.set(look.hemi[1]); hemi.intensity = look.hemi[2];
     key.color.set(look.key[0]); key.intensity = look.key[1];
-    rim.color.set(look.rim[0]); rim.intensity = look.rim[1];
+    rim.color.set(look.fill[0]); rim.intensity = look.fill[1];
     scene.fog.color.set(look.mist);
-    cloudMat.color.set(look.mist);
+    paintSea(look.sea);
     stars.visible = skyLanterns.visible = !!look.night;
   }
-  // a sea of sunset cloud far below: falling means falling into it
-  const cloudTex = canvasTex(512, 512, (c, w, h) => {
-    c.fillStyle = 'rgba(255,255,255,0.35)'; c.fillRect(0, 0, w, h);
-    for (let i = 0; i < 90; i++) {
-      const x = rnd() * w, y = rnd() * h, r = 30 + rnd() * 60;
-      const g = c.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-      c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+  // a turquoise sea far below, with ripples and foam: falling means falling into it
+  const seaCanvas = document.createElement('canvas');
+  seaCanvas.width = seaCanvas.height = 512;
+  const seaTex = new THREE.CanvasTexture(seaCanvas);
+  seaTex.wrapS = seaTex.wrapT = THREE.RepeatWrapping; seaTex.repeat.set(14, 14); seaTex.colorSpace = THREE.SRGBColorSpace;
+  function paintSea([deep, light]) {
+    const c = seaCanvas.getContext('2d'), w = 512, h = 512;
+    let sd = 7; const r = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+    c.fillStyle = deep; c.fillRect(0, 0, w, h);
+    // soft lighter patches
+    for (let i = 0; i < 40; i++) {
+      const x = r() * w, y = r() * h, rr = 30 + r() * 70, g = c.createRadialGradient(x, y, 0, x, y, rr);
+      g.addColorStop(0, light); g.addColorStop(1, 'rgba(0,0,0,0)');
+      c.globalAlpha = 0.5; c.fillStyle = g; c.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      // (wrap round the edges, so the tiles join)
+      [[w, 0], [-w, 0], [0, h], [0, -h]].forEach(([ox, oy]) => { c.save(); c.translate(ox, oy); c.fillRect(x - rr, y - rr, rr * 2, rr * 2); c.restore(); });
     }
-  }, 10, 10);
-  const cloudMat = new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, opacity: 0.92, depthWrite: false, color: 0xff9ac1 });
-  const cloudSea = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), cloudMat);
+    c.globalAlpha = 1;
+    // little white foam ripples
+    c.strokeStyle = 'rgba(255,255,255,0.75)'; c.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+      const x = r() * w, y = r() * h, len = 8 + r() * 22;
+      c.lineWidth = 2 + r() * 2.5;
+      c.beginPath(); c.moveTo(x, y); c.quadraticCurveTo(x + len / 2, y - 4, x + len, y); c.stroke();
+    }
+    seaTex.needsUpdate = true;
+  }
+  const cloudMat = new THREE.MeshBasicMaterial({ map: seaTex }); // (the sea; was a sea of cloud)
+  const cloudSea = new THREE.Mesh(new THREE.PlaneGeometry(1400, 1400), cloudMat);
   cloudSea.rotation.x = -Math.PI / 2;
   scene.add(cloudSea);
+  const cloudTex = seaTex;
   // night: stars on the dome, and paper sky lanterns rising all round
   const starGeo = new THREE.BufferGeometry(), starPos = [];
   for (let i = 0; i < 700; i++) {
@@ -269,18 +286,54 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     levelGroup.clear();
     [movers, crumbles, towers, bouncers].forEach((a) => { a.length = 0; });
   }
-  // the jagged rock hanging under every floating piece
-  const ROCK = toon({ map: rockTex() }), GRASS = toon({ color: 0x5fae5a }), PINE = toon({ color: 0x2f7a4a }), TRUNK = toon({ color: 0x6b3f2a });
+  // the rock hanging under every floating piece: warm, layered cliff rock
+  const ROCK = toon({ map: rockTex() }), GRASS = toon({ map: grassTex() }), TRUNK = toon({ color: 0x8a5a36 });
+  const LEAF = [toon({ color: 0x5cc943 }), toon({ color: 0x48b23a }), toon({ color: 0x79d957 })];
   function rockTex() {
     return canvasTex(128, 128, (c, w, h) => {
-      c.fillStyle = '#6b4a5a'; c.fillRect(0, 0, w, h);
-      for (let i = 0; i < 70; i++) { const v = 80 + rnd() * 60; c.fillStyle = `rgb(${v + 30 | 0},${v | 0},${v + 15 | 0})`; c.fillRect(rnd() * w, rnd() * h, 6 + rnd() * 18, 4 + rnd() * 10); }
+      c.fillStyle = '#b48a5c'; c.fillRect(0, 0, w, h);
+      for (let y = 0; y < h; y += 16) { c.fillStyle = y % 32 ? 'rgba(255,235,200,0.16)' : 'rgba(90,60,30,0.12)'; c.fillRect(0, y, w, 9); } // strata
+      for (let i = 0; i < 40; i++) { const v = rnd(); c.fillStyle = v < 0.5 ? 'rgba(255,240,210,0.18)' : 'rgba(90,60,30,0.14)'; c.fillRect(rnd() * w, rnd() * h, 8 + rnd() * 20, 3 + rnd() * 5); }
     }, 1, 1);
   }
+  function grassTex() {
+    return canvasTex(128, 128, (c, w, h) => {
+      c.fillStyle = '#6ccf45'; c.fillRect(0, 0, w, h);
+      for (let i = 0; i < 90; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(150,230,90,0.35)' : 'rgba(40,140,40,0.18)'; const x = rnd() * w, y = rnd() * h; c.fillRect(x, y, 2, 4 + rnd() * 4); }
+    }, 1, 1);
+  }
+  // an island's side: a lip of grass along the top, cliff rock below it (mapped from the top down, metres)
+  const islandSideTex = canvasTex(64, 256, (c, w, h) => {
+    const m = h / 4; // 4 m of side
+    c.fillStyle = '#b48a5c'; c.fillRect(0, 0, w, h);
+    for (let y = m * 0.5; y < h; y += 12) { c.fillStyle = (y / 12) % 2 < 1 ? 'rgba(255,235,200,0.16)' : 'rgba(90,60,30,0.12)'; c.fillRect(0, y, w, 7); }
+    c.fillStyle = '#6ccf45'; c.fillRect(0, 0, w, m * 0.32);
+    // a scalloped edge where the grass hangs over the rock
+    for (let x = -6; x < w + 6; x += 12) { c.beginPath(); c.arc(x + 6, m * 0.32, 6.5, 0, Math.PI); c.fill(); }
+    c.fillStyle = 'rgba(40,120,40,0.25)'; c.fillRect(0, m * 0.32 - 3, w, 3);
+  }, 1, 1);
+  islandSideTex.wrapT = THREE.ClampToEdgeWrapping;
+  const ISLAND_SIDE = toon({ map: islandSideTex });
+  /** A rock island: grass on top, a grass lip down the sides, cliff below (its sides mapped from the top down). */
+  function islandGeo(w, h, d) {
+    const g = boxGeo(w, h, d), uv = g.attributes.uv;
+    const sides = [[d, h], [d, h], null, null, [w, h], [w, h]];
+    for (let f = 0; f < 6; f++) {
+      if (!sides[f]) continue;
+      for (let k = 0; k < 4; k++) { const i = f * 4 + k, v = uv.getY(i) > 0 ? 1 : 0; uv.setXY(i, uv.getX(i), 1 - (v ? 0 : h / 4)); }
+    }
+    return g;
+  }
+  // a round cartoon tree: a short trunk and three puffy balls of leaves (inside the tree's box, as the pines were)
+  const leafGeo = new THREE.IcosahedronGeometry(1, 1);
+  leafGeo.userData = {};
   function pine(x, y, z, k) {
     const g = new THREE.Group();
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.8, 5), TRUNK); trunk.position.y = 0.4; g.add(trunk);
-    for (let i = 0; i < 3; i++) { const c = outlined(new THREE.ConeGeometry(0.62 - i * 0.14, 1.1, 6), PINE); c.position.y = 1.0 + i * 0.55; g.add(c); } // (inside the tree's box)
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.15, 1.1, 6), TRUNK); trunk.position.y = 0.55; trunk.castShadow = true; g.add(trunk);
+    [[0, 1.55, 0, 0.62], [0.22, 1.25, 0.12, 0.42], [-0.2, 1.95, -0.08, 0.4]].forEach(([dx, dy, dz, r], i) => {
+      const b = new THREE.Mesh(leafGeo, LEAF[(i + Math.round(k)) % 3]); b.userData.shared = true;
+      b.position.set(dx, dy, dz); b.scale.setScalar(r); b.castShadow = true; b.receiveShadow = true; g.add(b);
+    });
     g.position.set(x, y, z); g.scale.setScalar(0.5 + k * 0.25);
     levelGroup.add(g);
   }
@@ -308,12 +361,12 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       }
       return;
     }
-    const g = boxGeo(w, h, d);
-    const mats = s.kind === 'plank' ? WOOD : s.kind === 'rock' ? [ROCK, ROCK, GRASS, ROCK, ROCK, ROCK] : [STONE, STONE, PAVE, DARK, STONE, STONE];
+    const g = s.kind === 'rock' ? islandGeo(w, h, d) : boxGeo(w, h, d);
+    const mats = s.kind === 'plank' ? WOOD : s.kind === 'rock' ? [ISLAND_SIDE, ISLAND_SIDE, GRASS, ROCK, ISLAND_SIDE, ISLAND_SIDE] : [STONE, STONE, PAVE, DARK, STONE, STONE];
     const grp = new THREE.Group();
-    const m = new THREE.Mesh(g, mats), o = new THREE.Mesh(g, outlineMat);
+    const m = new THREE.Mesh(g, mats);
     m.castShadow = m.receiveShadow = true;
-    grp.add(o, m);
+    grp.add(m);
     grp.position.set((s.x0 + s.x1) / 2, (s.y0 + s.y1) / 2, (s.z0 + s.z1) / 2);
     levelGroup.add(grp);
   }
@@ -325,36 +378,22 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     drifters.length = 0;
     for (let i = 0; i < 46; i++) {
       const x = minX + rnd() * (maxX - minX), z = minZ + rnd() * (maxZ - minZ), y = minY + rnd() * (maxY - minY);
-      if (L.solids.some((q) => x > q.x0 - 5 && x < q.x1 + 5 && z > q.z0 - 5 && z < q.z1 + 5)) continue; // keep clear of the way
-      const sz = 0.5 + rnd() * 2.2;
-      const r = outlined(new THREE.DodecahedronGeometry(sz, 0), rnd() < 0.3 ? STONE : ROCK);
-      r.position.set(x, y, z); r.rotation.set(rnd() * 3, rnd() * 3, rnd() * 3);
-      if (rnd() < 0.35) { const top = outlined(new THREE.CylinderGeometry(sz * 0.8, sz * 0.8, 0.2, 7), GRASS); top.position.y = sz * 0.75; r.add(top); }
+      const sz = 0.5 + rnd() * 1.6;
+      if (i % 2 || L.solids.some((q) => x > q.x0 - 10 && x < q.x1 + 10 && z > q.z0 - 10 && z < q.z1 + 10)) continue; // fewer, and well clear of the way (and the camera)
+      const r = outlined(new THREE.DodecahedronGeometry(sz, 0), ROCK);
+      r.position.set(x, y, z); r.rotation.set(0, rnd() * 3, 0); // (upright, so the grass stays on top)
+      const top = outlined(new THREE.CylinderGeometry(sz * 0.8, sz * 0.8, 0.22, 9), GRASS); top.position.y = sz * 0.75; r.add(top); // little grassy islets
       levelGroup.add(r); drifters.push({ r, y, ph: rnd() * 6, sp: 0.2 + rnd() * 0.4 });
     }
-  }
-  function tagTexture(text, col) {
-    return canvasTex(512, 160, (c, w, h) => {
-      let px = 92;
-      c.font = `900 ${px}px "Arial Black", "Avenir Next", system-ui, sans-serif`;
-      while (c.measureText(text).width > w - 60 && px > 30) { px -= 4; c.font = `900 ${px}px "Arial Black", "Avenir Next", system-ui, sans-serif`; }
-      c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.save(); c.translate(w / 2, h / 2); c.rotate(-0.06);
-      c.lineJoin = 'round'; c.lineWidth = 22; c.strokeStyle = '#1a0b2e'; c.strokeText(text, 0, 0);
-      c.lineWidth = 10; c.strokeStyle = '#ffffff'; c.strokeText(text, 0, 0);
-      c.fillStyle = col; c.fillText(text, 0, 0);
-      for (let i = 0; i < 6; i++) { const x = -200 + rnd() * 400; c.fillRect(x, 26, 6, 18 + rnd() * 30); } // paint drips
-      c.restore();
-    }, 1, 1);
   }
   function tower(c) {
     // a square watchtower beside the walkway, a flag that lights up when reached
     const [dx, dz] = c.dir, px = -dz, pz = dx; // (to the right of the way on)
     const g = new THREE.Group();
     const t = outlined(boxGeo(3.6, 12, 3.6, 2), STONE); t.position.y = 6 - 5; g.add(t);
-    const roof = outlined(new THREE.ConeGeometry(3.2, 2, 4), toon({ color: 0x3a2a6a })); roof.rotation.y = Math.PI / 4; roof.position.y = 6.9 + 1; g.add(roof);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5), toon({ color: 0x2b2b3a })); pole.position.set(0, 9.6, 0); g.add(pole);
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1, 6, 1), new THREE.MeshBasicMaterial({ color: 0x8a8296, side: THREE.DoubleSide, toneMapped: false }));
+    const roof = outlined(new THREE.ConeGeometry(3.2, 2, 4), toon({ color: 0xe0563f })); roof.rotation.y = Math.PI / 4; roof.position.y = 6.9 + 1; g.add(roof);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 2.6, 5), toon({ color: 0x8a5a36 })); pole.position.set(0, 9.6, 0); g.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1, 6, 1), new THREE.MeshBasicMaterial({ color: 0xf4efe4, side: THREE.DoubleSide, toneMapped: false }));
     flag.position.set(0.82, 10.4, 0); g.add(flag);
     g.position.set(c.tower ? c.tower.x : c.x - px * 6.6, c.y - 6, c.tower ? c.tower.z : c.z - pz * 6.6); // beside the way, on the side that's clear (levels.js)
     levelGroup.add(g);
@@ -423,14 +462,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       hubs.add(k);
       const p = m.path;
       // (to the boxes in levels.js: the drum high, out of the riders' way, on a slim pole)
-      const pole = outlined(new THREE.CylinderGeometry(0.4, 0.4, 21.6, 10), toon({ color: 0x5a2a44 })); pole.position.set(p.cx, p.cy - 8.2, p.cz); levelGroup.add(pole);
+      const pole = outlined(new THREE.CylinderGeometry(0.4, 0.4, 21.6, 10), WOOD); pole.position.set(p.cx, p.cy - 8.2, p.cz); levelGroup.add(pole);
       const drum = outlined(new THREE.CylinderGeometry(0.8, 0.8, 1.2, 14), GOLD); drum.position.set(p.cx, p.cy + 3.2, p.cz); levelGroup.add(drum);
       const band = outlined(new THREE.CylinderGeometry(0.8, 0.8, 0.36, 14), RED); band.position.set(p.cx, p.cy + 3.2, p.cz); band.scale.set(1.03, 1, 1.03); levelGroup.add(band);
       levelGroup.userData.drum = drum;
     });
     L.bouncers.forEach((b) => {
       const g = new THREE.Group(), w = b.x1 - b.x0, d = b.z1 - b.z0;
-      const base = outlined(boxGeo(w, 0.5, d, 1), toon({ color: 0x2b1a4a })); base.position.y = -0.25; g.add(base);
+      const base = outlined(boxGeo(w, 0.5, d, 1), WOOD); base.position.y = -0.25; g.add(base);
       const top = outlined(boxGeo(w - 0.2, 0.12, d - 0.2, 1), NEONM[0]); top.position.y = 0.04; g.add(top);
       g.position.set((b.x0 + b.x1) / 2, b.y1, (b.z0 + b.z1) / 2);
       levelGroup.add(g); bouncers.push({ b, g, kick: 0 });
@@ -439,10 +478,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       const a = new THREE.Vector3(...z.a), b = new THREE.Vector3(...z.b);
       const dir = new THREE.Vector3().subVectors(b, a).normalize(), hz = Math.hypot(dir.x, dir.z);
       const ox = (dir.z / hz) * 1.9, oz = (-dir.x / hz) * 1.9; // (beside the line: the same boxes as levels.js)
-      levelGroup.add(rod(a.clone().addScaledVector(dir, -1.2), b.clone().addScaledVector(dir, 1.2), 0.05, toon({ color: 0x2b2b3a })));
+      levelGroup.add(rod(a.clone().addScaledVector(dir, -1.2), b.clone().addScaledVector(dir, 1.2), 0.05, toon({ color: 0x5a6470 })));
       [a.clone().addScaledVector(dir, -1.2), b.clone().addScaledVector(dir, 1.2)].forEach((p) => {
         const post = outlined(boxGeo(0.35, 6, 0.35, 1), WOOD); post.position.set(p.x + ox, p.y - 3 + 0.3, p.z + oz); levelGroup.add(post);
-        levelGroup.add(rod(new THREE.Vector3(p.x + ox, p.y + 0.3, p.z + oz), p, 0.04, toon({ color: 0x2b2b3a })));
+        levelGroup.add(rod(new THREE.Vector3(p.x + ox, p.y + 0.3, p.z + oz), p, 0.04, toon({ color: 0x5a6470 })));
       });
     });
     // watchtowers by the checkpoints, a gate or gong at the end
@@ -450,7 +489,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     {
       const f = L.finish, [dx, dz] = f.dir, g = new THREE.Group();
       [-1.9, 1.9].forEach((x) => { const p = outlined(boxGeo(0.45, 4.8, 0.45, 1), RED); p.position.set(x, 2.4, 0); g.add(p); });
-      const beam = outlined(boxGeo(4.9, 0.45, 0.6, 1), toon({ color: 0x2b1a4a })); beam.position.y = 4.9; g.add(beam);
+      const beam = outlined(boxGeo(4.9, 0.45, 0.6, 1), WOOD); beam.position.y = 4.9; g.add(beam);
       const beam2 = outlined(boxGeo(4.2, 0.3, 0.5, 1), GOLD); beam2.position.y = 4.25; g.add(beam2);
       if (lv === LEVELS.length - 1) {
         const gong = outlined(new THREE.CylinderGeometry(1.35, 1.35, 0.18, 24), GOLD); gong.rotation.x = Math.PI / 2; gong.position.y = 2.5; g.add(gong);
@@ -461,22 +500,14 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
       g.rotation.y = Math.atan2(dx, dz);
       levelGroup.add(g); towers.push({ end: true, g });
     }
-    L.decor.forEach((d) => {
-      if (d.type === 'tag') {
-        const col = ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'][Math.floor(rnd() * 4)];
-        const m = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.3), new THREE.MeshBasicMaterial({ map: tagTexture(d.text, col), transparent: true, toneMapped: false })); m.userData.ownMaterial = true;
-        m.position.set(d.x + d.nx * 0.02, d.y, d.z + d.nz * 0.02);
-        m.rotation.y = Math.atan2(d.nx, d.nz);
-        levelGroup.add(m);
-      }
-    });
+    // (L.decor's graffiti tags belonged to the old neon look: the bright one draws none)
   }
   const barrelGeo = new THREE.CylinderGeometry(0.45, 0.45, 0.95, 12);
   const bandGeo = new THREE.CylinderGeometry(0.47, 0.47, 0.12, 12);
   function barrelModel() {
     const g = outlined(barrelGeo, RED);
     [-0.3, 0.3].forEach((y) => { const b = new THREE.Mesh(bandGeo, GOLD); b.position.y = y; g.add(b); });
-    const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.35, 4), toon({ color: 0x2b2b3a })); fuse.position.y = 0.62; g.add(fuse);
+    const fuse = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.35, 4), toon({ color: 0x5a4a3a })); fuse.position.y = 0.62; g.add(fuse);
     return g;
   }
   const barrelPool = [];
@@ -497,7 +528,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
     if (have) scene.remove(have);
     const h = makeHero(keyName);
     h.scale.setScalar(HERO_SCALE);
-    h.traverse((o) => { if (o.isMesh && o.material === MAT) { o.castShadow = true; o.add(new THREE.Mesh(o.geometry, heroOutline)); } }); // an ink outline round every part
+    h.traverse((o) => { if (o.isMesh && o.material === MAT) { o.castShadow = true; o.receiveShadow = true; } });
     h.userData.key = keyName;
     h.userData.pose = {};
     beltFor(h);
@@ -551,9 +582,10 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   // outline round the whole, tied to a braided belt round each traveller's waist (heroFor) on
   // the side facing the one it goes to, with a knot there.
   const BRAID_R = ROPE_R * 0.5, BRAID_OFF = ROPE_R * 0.48, TWIST = (Math.PI * 2) / 0.2, SIDES = 6, STRANDS = 3;
-  const STRAND_COLS = [new THREE.Color(0xe8cf9a), new THREE.Color(0xc99a5c), new THREE.Color(0xd9b47a)];
+  // red and white, like a climbing rope (user's reference, Nov 14 2026)
+  const STRAND_COLS = [new THREE.Color(0xf0453a), new THREE.Color(0xfff8f0), new THREE.Color(0xe03a30)];
   const braidMat = toon({ vertexColors: true });
-  const braidInk = new THREE.MeshBasicMaterial({ color: INK, side: THREE.BackSide });
+  const braidInk = new THREE.MeshBasicMaterial({ visible: false }); // (no outline in this look)
   /** A braid that can be redrawn along any line of up to maxPts samples. `scale` divides every size
    *  (a belt is built inside a hero model, which is scaled down). */
   function makeBraid(maxPts, scale = 1, mat = braidMat) {
@@ -646,7 +678,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   const ropes = [], braids = [];
   // each rope has its own material, so it can glow warm when it's pulled tight (review, Oct 17 2026)
   for (let i = 0; i < 3; i++) { const br = makeBraid(260, 1, toon({ vertexColors: true })); br.tension = 0; scene.add(br.mesh, br.ink); braids.push(br); }
-  const KNOTS = 6, knots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(ROPE_R * 1.25, 1), toon({ color: 0xc99a5c }), KNOTS);
+  const KNOTS = 6, knots = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(ROPE_R * 1.25, 1), toon({ color: 0xe03a30 }), KNOTS);
   knots.frustumCulled = false; scene.add(knots);
   const M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), P = new THREE.Vector3(), C = new THREE.Color(), SC = new THREE.Vector3(1, 1, 1);
   const A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3();
@@ -733,28 +765,40 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   window.addEventListener('resize', layout);
   layout();
   const cam = { pos: new THREE.Vector3(), look: new THREE.Vector3(), ready: false };
+  let seaClock = 0;
   const TMP = new THREE.Vector3(), LOOK = new THREE.Vector3();
   function updateCamera(V, dt) {
     const me = V.players[S.me] || V.players[0];
     if (!me) return;
     // further back when the gang is spread out
     const spread = Math.max(...V.players.map((p) => Math.hypot(p.x - me.x, p.z - me.z)));
-    const dist = 6.8 + Math.min(4, spread * 0.25), pitch = S.cam.pitch;
+    const dist = 7.4 + Math.min(3, spread * 0.22), pitch = S.cam.pitch;
     const fx = Math.sin(S.cam.yaw), fz = Math.cos(S.cam.yaw);
     const lift = S.cam.lift * S.cam.hang; // (hanging off a ledge: look up toward it)
-    LOOK.set(me.x + fx * 1.5, me.y + 1.5 + lift, me.z + fz * 1.5);
-    TMP.set(me.x - fx * dist * Math.cos(pitch), me.y + 1.5 + dist * Math.sin(pitch) + lift * 0.4, me.z - fz * dist * Math.cos(pitch));
+    LOOK.set(me.x + fx * 1.5, me.y + 1.2 + lift, me.z + fz * 1.5);
+    TMP.set(me.x - fx * dist * Math.cos(pitch), me.y + 1.2 + dist * Math.sin(pitch) + lift * 0.4, me.z - fz * dist * Math.cos(pitch));
+    // never inside the stone: from where it looks, pull the camera in before the first piece in the way
+    const L = LEVELS[V.lv];
+    if (L) {
+      const ok = (x, y, z) => !L.solids.some((q) => x > q.x0 - 0.25 && x < q.x1 + 0.25 && y > q.y0 - 0.25 && y < q.y1 + 0.25 && z > q.z0 - 0.25 && z < q.z1 + 0.25);
+      for (let k = 1; k <= 12; k++) {
+        const u = k / 12, x = LOOK.x + (TMP.x - LOOK.x) * u, y = LOOK.y + (TMP.y - LOOK.y) * u, z = LOOK.z + (TMP.z - LOOK.z) * u;
+        if (!ok(x, y, z)) { const b = Math.max(0.25, (k - 1) / 12); TMP.set(LOOK.x + (TMP.x - LOOK.x) * b, LOOK.y + (TMP.y - LOOK.y) * b, LOOK.z + (TMP.z - LOOK.z) * b); break; }
+      }
+    }
     const k = cam.ready ? 1 - Math.exp(-dt * 8) : 1;
     cam.pos.lerp(TMP, k); cam.look.lerp(LOOK, k);
     cam.ready = true;
     camera.position.copy(cam.pos);
     camera.lookAt(cam.look);
-    // the sky, sun, ridges and cloud sea stay "at infinity" round the camera
+    // the sky, sun and clouds stay "at infinity" round the camera; the sea stays put under it (its ripples drift)
     dome.position.copy(camera.position); stars.position.copy(camera.position);
-    ridges.forEach((r) => { r.position.set(camera.position.x, LEVELS[V.lv].fallY + 30, camera.position.z); });
+    const base = LEVELS[V.lv].fallY;
+    clouds.forEach((c) => { const u = c.userData; u.a += u.drift * dt; c.position.set(camera.position.x + Math.cos(u.a) * u.r, base + u.y, camera.position.z + Math.sin(u.a) * u.r); });
     sun.position.copy(camera.position).addScaledVector(SUN_DIR, 500); sun.lookAt(camera.position);
     cloudSea.position.x = camera.position.x; cloudSea.position.z = camera.position.z;
-    cloudTex.offset.set(camera.position.x / 120, -camera.position.z / 120);
+    seaClock += dt;
+    cloudTex.offset.set(camera.position.x / 100 + seaClock * 0.006, -camera.position.z / 100 + seaClock * 0.004);
     key.position.set(me.x - SUN_DIR.x * 40 + 10, me.y + 30, me.z - SUN_DIR.z * 40); key.target.position.set(me.x, me.y, me.z);
     rim.position.set(me.x + SUN_DIR.x * 40, me.y + 10, me.z + SUN_DIR.z * 40); rim.target.position.set(me.x, me.y, me.z);
   }
@@ -767,7 +811,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
 
   // ---- fireworks: rockets that rise with a spark trail and burst (watchtowers, the finish) ---------
   const rockets = [];
-  const FW = [['#ff2d95', '#ffd7f0'], ['#18e0ff', '#ffffff'], ['#ffe11a', '#fff7b0'], ['#b57bff', '#ffd7ff'], ['#3dff8a', '#ffffff']];
+  const FW = [['#ff6b5a', '#ffe0d8'], ['#3fb3ff', '#ffffff'], ['#ffd23f', '#fff7c8'], ['#b48cff', '#efe4ff'], ['#4fd68a', '#ffffff']];
   function fireworks(x, y, z, n) {
     for (let k = 0; k < n; k++) rockets.push({ x: x + (rnd() - 0.5) * 3, y, z: z + (rnd() - 0.5) * 3, vx: (rnd() - 0.5) * 3, vz: (rnd() - 0.5) * 3, vy: 13 + rnd() * 5, wait: k * 0.22 + rnd() * 0.1, cols: FW[k % FW.length], trail: 0 });
   }
@@ -785,17 +829,17 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
   function event(ev) {
     const V = S.view, p = V && ev.i >= 0 ? V.players[ev.i] : null;
     const L = V ? LEVELS[V.lv] : null;
-    if (ev.e === 'boing' && p) { burst(p.x, p.y + 0.2, p.z, 44, ['#ff2d95', '#ffe11a', '#18e0ff', '#ffffff'], 9, 0.16, 1.2); bouncers.forEach((b) => { if (Math.hypot(p.x - (b.b.x0 + b.b.x1) / 2, p.z - (b.b.z0 + b.b.z1) / 2) < 3) b.kick = 1; }); }
-    else if (ev.e === 'knock' && p) burst(p.x, p.y + 0.8, p.z, 26, ['#ffe11a', '#ff8a3d', '#ffffff'], 7, 0.1, 0.6);
-    else if (ev.e === 'crumble' && L) { const c = L.crumbles[ev.k]; if (c) burst((c.x0 + c.x1) / 2, c.y1, (c.z0 + c.z1) / 2, 30, ['#c9a08a', '#8a5a5a', '#5b3b4a'], 4, 0.22, 1.2, 14); }
+    if (ev.e === 'boing' && p) { burst(p.x, p.y + 0.2, p.z, 44, ['#ff6b5a', '#ffd23f', '#3fb3ff', '#ffffff'], 9, 0.16, 1.2); bouncers.forEach((b) => { if (Math.hypot(p.x - (b.b.x0 + b.b.x1) / 2, p.z - (b.b.z0 + b.b.z1) / 2) < 3) b.kick = 1; }); }
+    else if (ev.e === 'knock' && p) burst(p.x, p.y + 0.8, p.z, 26, ['#ffd23f', '#ff9a4a', '#ffffff'], 7, 0.1, 0.6);
+    else if (ev.e === 'crumble' && L) { const c = L.crumbles[ev.k]; if (c) burst((c.x0 + c.x1) / 2, c.y1, (c.z0 + c.z1) / 2, 30, ['#e8d2ad', '#c9a878', '#a8845a'], 4, 0.22, 1.2, 14); }
     else if (ev.e === 'checkpoint' && L) {
       const c = L.checks[ev.k - 1], tw = towers[ev.k - 1];
-      if (c && tw) { burst(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 60, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff'], 7, 0.16, 1.6); tw.pop = 1; fireworks(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 5); }
+      if (c && tw) { burst(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 60, ['#ff6b5a', '#3fb3ff', '#ffd23f', '#4fd68a'], 7, 0.16, 1.6); tw.pop = 1; fireworks(tw.g.position.x, tw.g.position.y + 11, tw.g.position.z, 5); }
     }
-    else if (ev.e === 'jump' && p && ev.i === S.me) burst(p.x, p.y, p.z, 6, ['#ffffff', '#ffd7f0'], 2, 0.08, 0.35, 4);
-    else if (ev.e === 'land' && p) burst(p.x, p.y, p.z, 5, ['#e8c8b8'], 1.5, 0.09, 0.3, 4);
-    else if (ev.e === 'done' && L) { const end = towers.find((q) => q.end); if (end) { burst(end.g.position.x, end.g.position.y + 3, end.g.position.z, 110, ['#ff2d95', '#18e0ff', '#ffe11a', '#b57bff', '#ffffff'], 11, 0.16, 2); end.ring = 1; fireworks(end.g.position.x, end.g.position.y + 3, end.g.position.z, 9); } }
-    else if (ev.e === 'zip' && p) burst(p.x, p.y + 1.9, p.z, 14, ['#ffe11a', '#ffffff'], 4, 0.07, 0.4, 2);
+    else if (ev.e === 'jump' && p && ev.i === S.me) burst(p.x, p.y, p.z, 6, ['#ffffff', '#e8f6ff'], 2, 0.08, 0.35, 4);
+    else if (ev.e === 'land' && p) burst(p.x, p.y, p.z, 5, ['#f4ead8'], 1.5, 0.09, 0.3, 4);
+    else if (ev.e === 'done' && L) { const end = towers.find((q) => q.end); if (end) { burst(end.g.position.x, end.g.position.y + 3, end.g.position.z, 110, ['#ff6b5a', '#3fb3ff', '#ffd23f', '#4fd68a', '#ffffff'], 11, 0.16, 2); end.ring = 1; fireworks(end.g.position.x, end.g.position.y + 3, end.g.position.z, 9); } }
+    else if (ev.e === 'zip' && p) burst(p.x, p.y + 1.9, p.z, 14, ['#ffd23f', '#ffffff'], 4, 0.07, 0.4, 2);
   }
 
   // ---- draw ----------------------------------------------------------------------------------------
@@ -823,7 +867,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
         c.g.position.set(c.home.x + wob * 0.06 * w, c.home.y - c.fall * c.fall * 9 - w * 0.06, c.home.z + Math.cos(t * 27 + k) * 0.04 * w);
         c.g.rotation.set(wob * 0.05 * w, 0, c.fall * 0.8 + Math.cos(t * 19 + k) * 0.04 * w);
         c.dust = (c.dust || 0) - dt;
-        if (w > 0.25 && c.dust <= 0 && parts.length < PN - 2) { c.dust = 0.32 - w * 0.2; parts.push({ x: c.home.x + (rnd() - 0.5) * 1.2, y: c.home.y - 0.3, z: c.home.z + (rnd() - 0.5) * 1.2, vx: 0, vy: -0.5, vz: 0, t: 0, life: 0.8, size: 0.1, col: '#c9a08a', grav: 6, spin: 4 }); }
+        if (w > 0.25 && c.dust <= 0 && parts.length < PN - 2) { c.dust = 0.32 - w * 0.2; parts.push({ x: c.home.x + (rnd() - 0.5) * 1.2, y: c.home.y - 0.3, z: c.home.z + (rnd() - 0.5) * 1.2, vx: 0, vy: -0.5, vz: 0, t: 0, life: 0.8, size: 0.1, col: '#d9bf94', grav: 6, spin: 4 }); }
       });
       bouncers.forEach((b) => { b.kick = Math.max(0, b.kick - dt * 3); b.g.scale.y = 1 - b.kick * 0.35 + Math.sin(b.kick * 10) * b.kick * 0.15; });
       towers.forEach((tw, k) => {
@@ -831,7 +875,7 @@ export function createRenderer({ glCanvas, hudCanvas, stage, game }) {
           if (tw.ring && tw.g.userData.gong) { tw.ring = Math.max(0, tw.ring - dt * 0.4); tw.g.userData.gong.rotation.z = Math.sin(t * 30) * 0.08 * tw.ring; }
           return;
         }
-        tw.flag.material.color.set(k < V.cp ? NEON[k % 4] : 0x8a8296);
+        tw.flag.material.color.set(k < V.cp ? BRIGHT[k % 4] : 0xf4efe4);
         tw.pop = Math.max(0, (tw.pop || 0) - dt * 1.6); // reached: the flag springs up big
         tw.flag.scale.setScalar(1 + Math.sin(tw.pop * Math.PI) * 0.7);
         const pos = tw.flag.geometry.attributes.position; // a flapping flag

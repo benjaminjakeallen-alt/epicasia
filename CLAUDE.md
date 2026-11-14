@@ -1324,16 +1324,26 @@ chain-gang.png`, prompts in `tools/menu-icons/README.md`).
   (par 110/126/172/168 s), summed; each phone saves its own row in
   `game_scores` (`chain_gang`, `level` = stretches cleared, `round` 1,
   its own hero) at the finish, or on leaving with something cleared.
-- **Look** (`render3d.js`): Sunset Overdrive — a neon sunset dome per
-  stretch, a striped retro sun low over the far end, rings of mountain
-  ridges with the Wall on their crests, a sea of sunset cloud far below,
-  jagged rock under every floating piece, grassy islands with little pines,
-  drifting rocks, watchtowers floating on their own rocks beside the
-  landings, toon-shaded (`MeshToonMaterial`, 3-step ramp) sandstone with
-  ink outlines (back faces pushed out) and battlements along both edges,
-  graffiti tags with drips, watchtowers whose flags light up, the braided
-  rope (above), confetti/sparks/debris, gust streaks. Travellers are Rampage's `makeHero` models with an
-  ink outline. HUD (`hud.js`): stretch, clock, falls, score, a progress
+- **Look** (`render3d.js`) — **bright cartoon since Nov 14 2026** (user, with a reel of a casual co-op rope
+  game: "I want tug of wall graphics to look more like this"; the neon Sunset Overdrive look is in git history):
+  - a clear blue sky dome with a soft sun (a moon with craters at night) and puffy cartoon cloud sprites all round
+    (`SKIES[lv]`: sky, sun, cloud tint, sea, haze, lights); Storm Peak is greyer and blustery, Lantern Night a
+    deep-blue night with stars and sky lanterns;
+  - a turquoise sea with foam ripples far below (the old cloud sea; its texture drifts, `paintSea`);
+  - soft Lambert shading, `NeutralToneMapping` (ACES greyed the colours), soft shadows, a pale fill light, and
+    **no ink outlines** anywhere (stone, props, travellers or rope);
+  - light sandstone walls and slabs, rock islands with bright grass on top and a scalloped grass lip over layered
+    cliff rock down their sides (`islandGeo` maps the sides from the top down), round three-ball trees in the old
+    pines' boxes, wooden posts and beams, red-roofed watchtowers with cream flags that take a bright colour when
+    reached, small grassy islets drifting well clear of the way;
+  - a **red-and-white** braided rope (`STRAND_COLS`), red knots;
+  - confetti and fireworks in coral, sky blue, sunshine, mint and lilac (`BRIGHT`); no graffiti (the `tag`
+    decor is still in levels.js but isn't drawn);
+  - the camera looks down a little more (`PITCH` 0.55, was 0.42) and is pulled in toward you before it would
+    go inside any stone;
+  - HUD and pad: navy instead of purple ink, coral / sky / sunshine accents, a white joystick knob, a green GRAB
+    and a yellow JUMP, sky-blue menu cards.
+  Travellers are Rampage's `makeHero` models. HUD (`hud.js`): stretch, clock, falls, score, a progress
   strip along the route with the watchtowers and everyone's dot, name tags
   (🤖 for bots), title/clear/finish cards ("PUSH UP TO WALK ON · THE CAMERA
   FOLLOWS YOU" on the first). Pad: joystick (all four ways) + GRAB + JUMP; keys

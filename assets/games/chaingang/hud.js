@@ -3,8 +3,8 @@
 // neon fill, like a Sunset Overdrive title.
 
 const FONT = '"Arial Black", "Avenir Next", "Arial Rounded MT Bold", system-ui, sans-serif';
-const INK = '#1a0b2e';
-const PINK = '#ff2d95', CYAN = '#18e0ff', YELLOW = '#ffe11a';
+const INK = '#1d2b4a'; // (navy: the bright look, Nov 14 2026)
+const PINK = '#ff5a5f', CYAN = '#2fa8ff', YELLOW = '#ffd23f';
 
 /** How far along a stretch a point is, 0…1, by the nearest stretch of its route. */
 function progress(L, q) {
@@ -43,16 +43,16 @@ export function createHud(canvas, game, view, toScreen) {
   function topBar(V) {
     const W = view.cw, top = 8 * u, right = W - 62 * u; // leaves the pause button its corner
     const L = LEVELS[V.lv];
-    round(8 * u, top, right - 8 * u, 46 * u, 14 * u, 'rgba(26,11,46,0.62)');
+    round(8 * u, top, right - 8 * u, 46 * u, 14 * u, 'rgba(29,43,74,0.62)');
     text((V.lv + 1) + ' · ' + L.name.toUpperCase(), 18 * u, top + 14 * u, 10, CYAN, { align: 'left', stroke: false });
     text(clock(V.t), 18 * u, top + 32 * u, 17, '#ffffff', { align: 'left', lw: 3 });
     text('FALLS ' + V.falls, 92 * u, top + 32 * u, 11, V.falls ? PINK : '#ffffff', { align: 'left', lw: 2.4 });
     text(String(S.total).padStart(5, '0'), right - 12 * u, top + 32 * u, 15, YELLOW, { align: 'right', lw: 3 });
-    text('SCORE', right - 12 * u, top + 14 * u, 9, '#ffd7f0', { align: 'right', stroke: false });
+    text('SCORE', right - 12 * u, top + 14 * u, 9, '#d8ecff', { align: 'right', stroke: false });
     // progress along this stretch (along its route): the watchtowers and where everyone is
     const y = top + 58 * u, x0 = 20 * u, x1 = W - 20 * u;
     const X = (q) => x0 + progress(L, q) * (x1 - x0);
-    round(x0, y - 3 * u, x1 - x0, 6 * u, 3 * u, 'rgba(26,11,46,0.55)');
+    round(x0, y - 3 * u, x1 - x0, 6 * u, 3 * u, 'rgba(29,43,74,0.55)');
     L.checks.forEach((c, k) => {
       ctx.fillStyle = k < V.cp ? YELLOW : 'rgba(255,255,255,0.55)';
       ctx.fillRect(X(c) - 3 * u, y - 8 * u, 6 * u, 10 * u);
@@ -71,7 +71,7 @@ export function createHud(canvas, game, view, toScreen) {
       const label = p.bot ? '🤖 ' + p.name : p.name;
       ctx.font = `900 ${9 * u}px ${FONT}`;
       const w = ctx.measureText(label).width + 12 * u;
-      round(s.x - w / 2, s.y - 9 * u, w, 16 * u, 8 * u, 'rgba(26,11,46,0.72)', p.color, 1.6);
+      round(s.x - w / 2, s.y - 9 * u, w, 16 * u, 8 * u, 'rgba(29,43,74,0.72)', p.color, 1.6);
       text(label, s.x, s.y - 0.5 * u, 9, p.color, { stroke: false });
       if (p.me) { ctx.beginPath(); ctx.moveTo(s.x - 5 * u, s.y + 8 * u); ctx.lineTo(s.x + 5 * u, s.y + 8 * u); ctx.lineTo(s.x, s.y + 13 * u); ctx.closePath(); ctx.fillStyle = p.color; ctx.fill(); }
       if (p.grab) text('HOLDING!', s.x, s.y - 17 * u, 9, YELLOW, { lw: 2.4 });
@@ -99,15 +99,15 @@ export function createHud(canvas, game, view, toScreen) {
   }
   function card(lines, sub) {
     const W = view.cw, H = view.ch;
-    ctx.fillStyle = 'rgba(26,11,46,0.35)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(29,43,74,0.35)'; ctx.fillRect(0, 0, W, H);
     lines.forEach(([s, size, col], k) => text(s, W / 2, H * 0.36 + k * size * 1.25 * u, size, col, { depth: 4, lw: size * 0.3 }));
     if (sub) text(sub, W / 2, H * 0.36 + lines.reduce((a, l) => a + l[1] * 1.25, 0) * u + 6 * u, 12, '#ffffff', { lw: 3 });
   }
   /** A medal: a round coin with a ribbon notch, gold, silver or bronze. */
   function medal(kind, x, y, r) {
     const [face, edge] = MEDAL[kind] || MEDAL.bronze;
-    ctx.fillStyle = '#ff2d95'; ctx.beginPath(); ctx.moveTo(x - r * 0.7, y - r * 2); ctx.lineTo(x - r * 0.15, y - r * 0.6); ctx.lineTo(x - r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#18e0ff'; ctx.beginPath(); ctx.moveTo(x + r * 0.7, y - r * 2); ctx.lineTo(x + r * 0.15, y - r * 0.6); ctx.lineTo(x + r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff5a5f'; ctx.beginPath(); ctx.moveTo(x - r * 0.7, y - r * 2); ctx.lineTo(x - r * 0.15, y - r * 0.6); ctx.lineTo(x - r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#2fa8ff'; ctx.beginPath(); ctx.moveTo(x + r * 0.7, y - r * 2); ctx.lineTo(x + r * 0.15, y - r * 0.6); ctx.lineTo(x + r * 0.95, y - r * 0.6); ctx.closePath(); ctx.fill();
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fillStyle = face; ctx.fill(); ctx.lineWidth = 2.2 * u; ctx.strokeStyle = INK; ctx.stroke();
     ctx.beginPath(); ctx.arc(x, y, r * 0.68, 0, Math.PI * 2); ctx.lineWidth = 1.6 * u; ctx.strokeStyle = edge; ctx.stroke();
     text('★', x, y + r * 0.05, r * 0.9 / u, edge, { stroke: false });
@@ -125,7 +125,7 @@ export function createHud(canvas, game, view, toScreen) {
       ['JOYSTICK', 'WALK · THE CAMERA FOLLOWS'], ['JUMP', 'JUMP · HANGING? TAP TO CLIMB THE ROPE'],
       ['GRAB', 'DIG IN · REEL IN A TEAMMATE BELOW'], ['💬', 'SAY SOMETHING TO THE GANG'],
     ];
-    round(16 * u, y0, W - 32 * u, (lines.length * 24 + 34) * u, 16 * u, 'rgba(26,11,46,0.78)', CYAN, 2);
+    round(16 * u, y0, W - 32 * u, (lines.length * 24 + 34) * u, 16 * u, 'rgba(29,43,74,0.78)', CYAN, 2);
     lines.forEach(([k, v], i) => {
       const y = y0 + (18 + i * 24) * u;
       text(k, 30 * u, y, 11, YELLOW, { align: 'left', lw: 2.6 });
@@ -140,7 +140,7 @@ export function createHud(canvas, game, view, toScreen) {
     ctx.clearRect(0, 0, W, H);
     const V = S.view;
     if (S.mode === 'wait' || S.mode === 'lobby') {
-      ctx.fillStyle = 'rgba(26,11,46,0.55)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(29,43,74,0.55)'; ctx.fillRect(0, 0, W, H);
       text('TUG OF', W / 2, H * 0.36, 30, PINK, { depth: 4, lw: 9 });
       text('WALL', W / 2, H * 0.36 + 36 * u, 30, YELLOW, { depth: 4, lw: 9 });
       const dots = '.'.repeat(1 + (Math.floor(t * 2) % 3));
@@ -148,7 +148,7 @@ export function createHud(canvas, game, view, toScreen) {
       return;
     }
     if (S.mode === 'gone') {
-      ctx.fillStyle = 'rgba(26,11,46,0.6)'; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(29,43,74,0.6)'; ctx.fillRect(0, 0, W, H);
       text('THE HOST LEFT', W / 2, H * 0.36, 26, PINK, { depth: 4, lw: 8 });
       text('THE GANG IS BROKEN UP', W / 2, H * 0.36 + 34 * u, 13, '#ffffff', { lw: 3 });
       return;
@@ -188,8 +188,8 @@ export function createHud(canvas, game, view, toScreen) {
       const most = Math.max(0, ...S.fallsBy.map((f) => f || 0));
       if (most > 0) {
         const who = S.fallsBy.map((f, i) => (f === most ? (i === S.me ? 'YOU' : S.roster[i] && S.roster[i].name) : null)).filter(Boolean);
-        text('BUTTERFINGERS: ' + who.join(' & ') + ' · ' + most + (most === 1 ? ' FALL' : ' FALLS'), W / 2, my + 38 * u, 10.5, '#ffd7f0', { lw: 2.6 });
-      } else text('NOBODY FELL! 🎉', W / 2, my + 38 * u, 11, '#3dff8a', { lw: 2.8 });
+        text('BUTTERFINGERS: ' + who.join(' & ') + ' · ' + most + (most === 1 ? ' FALL' : ' FALLS'), W / 2, my + 38 * u, 10.5, '#d8ecff', { lw: 2.6 });
+      } else text('NOBODY FELL! 🎉', W / 2, my + 38 * u, 11, '#5fe08f', { lw: 2.8 });
     }
   }
   return { draw };
